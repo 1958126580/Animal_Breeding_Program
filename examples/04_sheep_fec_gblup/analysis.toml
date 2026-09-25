@@ -1,0 +1,52 @@
+# Example 04: GBLUP for log faecal egg count (health trait) using genotyped
+# animals only. Allele frequencies come from all QC-passed genotyped animals,
+# including unphenotyped selection candidates (declared as transductive use
+# of candidate genotypes; candidate phenotypes are never used).
+# G is singular-safe here only because of the explicit, recorded blending with A22.
+schema_version = "1"
+
+[project]
+name = "sheep_fec_gblup"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "genotyped animals of the synthetic sheep population"
+information_cutoff = "2025-12-31"
+genetic_base = "genomic base defined by the allele frequencies of all genotyped animals"
+applicability = "demonstration only"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"      # used for A22 blending and Mendelian QC
+phenotypes = "../sheep_data/data/lambs.csv"
+genotypes = "../sheep_data/data/genotypes.csv"
+marker_map = "../sheep_data/data/markers.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[[traits]]
+name = "fec"
+unit = "ln(epg+1)"
+min = 0.0
+max = 12.0
+
+[model]
+traits = ["fec"]
+fixed = [{ column = "cg", type = "factor" }]
+random = [{ name = "animal", kind = "additive", relationship = "genomic" }]
+
+[variances]
+mode = "reml"
+
+[genomic]
+frequency_source = "genotyped_all"
+singular_policy = "blend"
+blend_alpha = 0.05
+min_call_rate_marker = 0.90
+min_call_rate_animal = 0.90
+
+[qc]
+ungenotyped_records = "exclude"   # GBLUP uses records of genotyped animals only (listed)

@@ -173,6 +173,8 @@ SCHEMA = Section({
         "missing_fixed": Field("str", default="error", choices=("error", "exclude")),
         "outlier_sd": Field("float", default=4.0, check=_positive,
                             doc="Review signal only; values are never removed by this rule."),
+        "ungenotyped_records": Field("str", default="error", choices=("error", "exclude"),
+                                     doc="GBLUP only: records of animals without genotypes."),
     }),
     "genomic": Section({
         "ploidy": Field("int", default=2, choices=(2,)),

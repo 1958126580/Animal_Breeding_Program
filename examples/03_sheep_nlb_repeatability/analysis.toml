@@ -1,0 +1,52 @@
+# Example 03: repeatability animal model for number of lambs born (NLB).
+# Each ewe has one record per lambing season, so the model includes a
+# permanent-environment (pe) term on the ewe; without it ABP refuses to run
+# (repeated records must not be treated as independent).
+# NOTE: NLB counts (1/2/3) are analysed with a linear Gaussian model, which is
+# an approximation (threshold models are on the roadmap, module M10).
+schema_version = "1"
+
+[project]
+name = "sheep_nlb_repeatability"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, ewes lambing 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "founders born 2018-2019 (unknown parents): unrelated, non-inbred, mean 0"
+applicability = "demonstration only; linear model on a count trait"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "../sheep_data/data/lambing.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[data.phenotype_columns]
+record_id = "record_id"
+
+[[traits]]
+name = "nlb"
+unit = "lambs"
+min = 0.0
+max = 6.0
+description = "number of lambs born per lambing"
+
+[model]
+traits = ["nlb"]
+fixed = [
+  { column = "flock", type = "factor" },
+  { column = "year", type = "factor" },
+  { column = "parity", type = "factor" },
+]
+random = [
+  { name = "animal", kind = "additive", relationship = "pedigree" },
+  { name = "pe", kind = "iid" },          # permanent environment of the ewe (column: id)
+]
+
+[variances]
+mode = "reml"

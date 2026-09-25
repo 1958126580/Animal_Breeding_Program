@@ -236,6 +236,16 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
     manifest["relationship"] = {"kind": structure.kind, "n": len(structure.labels),
                                 **{k: v for k, v in structure.meta.items() if _is_small(v)}}
 
+    if structure.kind == "genomic":
+        _handle_ungenotyped(records, structure, phe_qc, d)
+        atomic_write_json(stage.path("qc_phenotypes.json"), phe_qc.to_dict())
+        write_csv(stage.path("qc_excluded_records.csv"),
+                  ["reason", "line", "record_id", "animal", "trait", "value", "column"],
+                  [[e.get("reason"), e.get("line"), e.get("record_id"), e.get("animal"),
+                    e.get("trait"), e.get("value"), e.get("column")] for e in phe_qc.excluded])
+    geno_qc = manifest.pop("_qc_sections", {}).get("genotypes")
+    if geno_qc is not None:
+        atomic_write_json(stage.path("qc_genotypes.json"), geno_qc)
     results: dict[str, Any] = {
         "abp_version": manifest["code"]["abp_version"],
         "run_id": manifest["run_id"],
@@ -243,7 +253,8 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
         "analysis": d["analysis"],
         "relationship": manifest["relationship"],
         "qc": {"phenotypes": phe_qc.to_dict(),
-               "pedigree": ped_data.qc.to_dict() if ped_data else None},
+               "pedigree": ped_data.qc.to_dict() if ped_data else None,
+               "genotypes": geno_qc},
         "traits": {},
         "limitations": _limitations(d, structure),
     }
@@ -260,6 +271,35 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
         results["index"] = write_index(spec, results, structure, stage, manifest)
     manifest["limitations"] = results["limitations"]
     return results
+
+
+def _handle_ungenotyped(records: RecordSet, structure: GeneticStructure, phe_qc, d: dict) -> None:
+    """GBLUP: records of animals absent from G are an error unless explicitly excluded."""
+    items = []
+    for t in d["model"]["traits"]:
+        vals = records.traits[t]
+        for k in np.flatnonzero(~np.isnan(vals)):
+            if records.animal[k] not in structure.index:
+                items.append({"line": records.line[k], "record_id": records.record_id[k],
+                              "animal": records.animal[k], "trait": t, "value": float(vals[k])})
+    if not items:
+        return
+    if d["qc"]["ungenotyped_records"] == "exclude":
+        phe_qc.add("PHE-UNGENOTYPED", "quarantine",
+                   "records of animals without (QC-passed) genotypes were excluded from GBLUP",
+                   items)
+        for it in items:
+            records.traits[it["trait"]][records.record_id.index(it["record_id"])] = np.nan
+        phe_qc.excluded.extend({**it, "reason": "PHE-UNGENOTYPED"} for it in items)
+        phe_qc.stats["n_excluded"] = len(phe_qc.excluded)
+        phe_qc.stats["n_records_used"] = int(records.used_mask(d["model"]["traits"]).sum())
+        log.info("GBLUP: %d records of non-genotyped animals excluded (listed)", len(items))
+    else:
+        raise ABPError("PHENOTYPE_UNKNOWN_ANIMAL",
+                       f"{len(items)} record(s) belong to animals without QC-passed genotypes; "
+                       "use relationship = 'single_step' to include them, or set "
+                       "qc.ungenotyped_records = 'exclude' to analyse genotyped animals only",
+                       n=len(items), examples=items[:10])
 
 
 def _is_small(v: Any) -> bool:
@@ -311,8 +351,17 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
                  fit.status, fit.iterations, fit.loglik, {k: round(v, 6) for k, v in vc.items()})
         if checkpoint.exists():
             checkpoint.unlink()
+        if model.genetic_term in fit.boundary:
+            raise ABPError("MODEL_NOT_IDENTIFIABLE",
+                           f"{trait}: the additive genetic variance is estimated at zero "
+                           "(boundary); no genetic ranking can be issued from these data",
+                           trait=trait, reml=reml_info)
     sol = d["solver"]
-    res = blup(model.y, model.fixed.X, model.terms, vc, method=sol["method"],
+    # Terms whose variance is exactly zero (REML boundary) are removed from the MME.
+    active_terms = [t for t in model.terms if vc.get(t.name, 0.0) > 0.0]
+    vc_active = {k: v for k, v in vc.items() if v > 0.0}
+    model.terms = active_terms
+    res = blup(model.y, model.fixed.X, active_terms, vc_active, method=sol["method"],
                compute_pev=(sol["pev"] == "exact"), tol=sol["tol"], max_iter=sol["max_iter"],
                memory_budget_bytes=budget)
     s = res.solve

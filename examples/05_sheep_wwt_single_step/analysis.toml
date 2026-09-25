@@ -1,0 +1,54 @@
+# Example 05: single-step GBLUP (ssGBLUP) for weaning weight: all animals in
+# the pedigree, genomic information from genotyped rams and recent lambs.
+# H^-1 = A^-1 + [0 0; 0 G*^-1 - A22^-1], with G* tuned to the A22 base and
+# blended with 5% A22 (both recorded in the manifest).
+schema_version = "1"
+
+[project]
+name = "sheep_wwt_single_step"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, lamb crops 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "pedigree founders; G tuned to the mean A22 base (match_a22)"
+applicability = "demonstration only"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "../sheep_data/data/lambs.csv"
+genotypes = "../sheep_data/data/genotypes.csv"
+marker_map = "../sheep_data/data/markers.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[[traits]]
+name = "wwt"
+unit = "kg"
+min = 5.0
+max = 80.0
+
+[model]
+traits = ["wwt"]
+fixed = [
+  { column = "cg", type = "factor" },
+  { column = "birth_type", type = "factor" },
+  { column = "dam_age", type = "factor" },
+]
+random = [{ name = "animal", kind = "additive", relationship = "single_step" }]
+
+[variances]
+mode = "reml"
+
+[genomic]
+frequency_source = "genotyped_all"
+tuning = "match_a22"
+singular_policy = "blend"
+blend_alpha = 0.05
+
+[qc]
+out_of_range = "quarantine"

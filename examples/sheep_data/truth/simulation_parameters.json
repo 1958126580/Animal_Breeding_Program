@@ -1,0 +1,136 @@
+{
+  "seed": 20260925,
+  "n_chrom": 10,
+  "chrom_len_morgan": 1.0,
+  "snp_per_chrom": 200,
+  "qtl_per_chrom": 50,
+  "n_founder_rams": 12,
+  "n_founder_ewes": 200,
+  "years": [
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "rams_per_year": 12,
+  "ewe_replacement_rate": 0.35,
+  "ewe_max_age": 6,
+  "ewe_survival": 0.85,
+  "genetic_sd": [
+    2.0,
+    0.5,
+    0.55,
+    0.3
+  ],
+  "genetic_corr": [
+    [
+      1.0,
+      0.3,
+      0.0,
+      0.1
+    ],
+    [
+      0.3,
+      1.0,
+      0.0,
+      0.1
+    ],
+    [
+      0.0,
+      0.0,
+      1.0,
+      -0.1
+    ],
+    [
+      0.1,
+      0.1,
+      -0.1,
+      1.0
+    ]
+  ],
+  "residual_sd": [
+    3.5,
+    0.7,
+    0.95
+  ],
+  "residual_corr": [
+    [
+      1.0,
+      0.3,
+      0.1
+    ],
+    [
+      0.3,
+      1.0,
+      0.1
+    ],
+    [
+      0.1,
+      0.1,
+      1.0
+    ]
+  ],
+  "nlb_pe_sd": 0.3,
+  "nlb_residual_sd": 0.9,
+  "nlb_thresholds": [
+    -0.1,
+    1.45
+  ],
+  "p_fat_recorded": 0.6,
+  "p_fec_recorded": 0.5,
+  "p_genotyped_recent_lamb": 0.5,
+  "genotype_missing_rate": 0.005,
+  "n_wwt_typos": 3,
+  "assembly": "SYNTHETIC-OVINE-ASSEMBLY-0",
+  "extra": {},
+  "founder_genetic_covariance": [
+    [
+      4.0,
+      0.3,
+      0.0,
+      0.06
+    ],
+    [
+      0.3,
+      0.25,
+      0.0,
+      0.015
+    ],
+    [
+      0.0,
+      0.0,
+      0.30250000000000005,
+      -0.0165
+    ],
+    [
+      0.06,
+      0.015,
+      -0.0165,
+      0.09
+    ]
+  ],
+  "residual_covariance_lamb_traits": [
+    [
+      12.25,
+      0.7349999999999999,
+      0.3325
+    ],
+    [
+      0.7349999999999999,
+      0.48999999999999994,
+      0.06649999999999999
+    ],
+    [
+      0.3325,
+      0.06649999999999999,
+      0.9025
+    ]
+  ],
+  "wwt_typo_animals": [
+    "W2200461",
+    "W2401178",
+    "W2200636"
+  ],
+  "note": "SYNTHETIC parameters for software demonstration only. nlb genetic parameters are on the liability scale; recorded nlb counts are thresholded and therefore not Gaussian."
+}
