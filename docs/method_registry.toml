@@ -27,7 +27,7 @@ tests = ["tests/test_pedigree.py::test_t03_hand_derived_gold_standard",
          "tests/test_pedigree.py::test_input_order_invariance",
          "tests/test_pedigree.py::test_cycle_is_rejected",
          "tests/test_pedigree.py::test_native_kernel_matches_python_reference"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["no unknown-parent groups or metafounders", "inbreeding cost grows with pedigree depth (8.7 s for 100k animals x 20 generations)"]
@@ -46,7 +46,7 @@ complexity = "dense X'X rank scan O(p^3); refused above 20000 columns"
 code = ["src/abp/core/design.py"]
 tests = ["tests/test_blup.py::test_repeatability_model_matches_v_form",
          "tests/test_blup.py::test_invariance_to_constraint_choice_and_record_order"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["no nested covariates or covariate-by-factor interactions", "dense rank scan limits fixed-effect columns to 20000"]
@@ -66,7 +66,7 @@ code = ["src/abp/solvers/mme.py"]
 tests = ["tests/test_blup.py::test_solvers_agree_on_larger_problem",
          "tests/test_blup.py::test_pcg_non_convergence_is_an_error",
          "tests/test_blup.py::test_auto_selection_and_pcg_fallback"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["exact PEV limited to 30000 equations on the sparse path", "no approximate reliabilities yet", "no matrix-free iteration on data"]
@@ -88,7 +88,7 @@ tests = ["tests/test_blup.py::test_t04_hand_derived",
          "tests/test_blup.py::test_repeatability_model_matches_v_form",
          "tests/test_blup.py::test_unit_change_kg_to_g",
          "tests/test_workflow.py::test_example01_end_to_end_matches_independent_reference"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["homogeneous residual variance", "no maternal, social or random-regression terms"]
@@ -112,7 +112,7 @@ tests = ["tests/test_reml.py::test_t05_score_matches_v_form_and_detects_wrong_de
          "tests/test_reml.py::test_non_convergence_is_an_error_and_checkpoint_resume",
          "tests/test_reml.py::test_reml_calibration_by_simulation",
          "tests/test_reml.py::test_reml_with_dense_genomic_structure_matches_v_form"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_40_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_40_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["dense only (memory N^2)", "no multi-trait REML", "SE invalid at the boundary"]
@@ -136,7 +136,7 @@ tests = ["tests/test_genomic.py::test_t01_maf_is_minimum",
          "tests/test_genomic.py::test_singular_g_requires_explicit_policy",
          "tests/test_genomic_workflow.py::test_gblup_workflow_matches_independent_reference",
          "tests/test_genomic_workflow.py::test_excluded_records_cannot_influence_results"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["only ABP dosage-matrix text format (no PLINK/VCF/BGEN readers)", "dense G (memory n^2)", "no APY"]
@@ -156,7 +156,7 @@ code = ["src/abp/core/genomic.py"]
 tests = ["tests/test_genomic.py::test_t06_single_step_identities",
          "tests/test_genomic.py::test_tuning_matches_a22_means",
          "tests/test_genomic_workflow.py::test_single_step_workflow_matches_explicit_h"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["no APY or ssSNPBLUP", "no metafounders / unknown-parent groups", "genomic and pedigree base alignment limited to match_a22 tuning"]
@@ -177,7 +177,7 @@ tests = ["tests/test_multitrait.py::test_two_animals_two_traits_kronecker_order"
          "tests/test_multitrait.py::test_missing_patterns_fixed_per_trait_against_reference",
          "tests/test_multitrait.py::test_single_trait_degeneration_and_independent_traits",
          "tests/test_multitrait.py::test_unit_change_of_one_trait"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["no multi-trait REML", "no repeated records or extra random terms in multi-trait models"]
@@ -198,7 +198,7 @@ tests = ["tests/test_selection_index.py::test_t02_gold_standard",
          "tests/test_selection_index.py::test_unit_change_of_information_source",
          "tests/test_selection_index.py::test_restricted_index_satisfies_kkt",
          "tests/test_selection_index.py::test_collinear_information_is_reported"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["P and C must be derived by the user", "no desired-gains index", "response formula assumes one round of truncation selection"]
@@ -217,7 +217,7 @@ complexity = "O(q t^2)"
 code = ["src/abp/decision/selection_index.py", "src/abp/workflows/index_outputs.py"]
 tests = ["tests/test_selection_index.py::test_ebv_index_reliability",
          "tests/test_examples.py::test_example06_multitrait_index"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["economic weights must be supplied and are not validated by ABP"]
@@ -239,7 +239,7 @@ tests = ["tests/test_qc.py::test_seeded_pedigree_errors",
          "tests/test_qc.py::test_genotype_contract_errors",
          "tests/test_qc.py::test_mendelian_conflict_detects_sample_swap",
          "tests/test_workflow.py::test_out_of_range_error_then_quarantine"]
-gates = { G0 = "passed", G1 = "not_applicable", G2 = "not_applicable", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "not_applicable", G2 = "not_applicable", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["no batch-effect or sex-chromosome checks", "Mendelian thresholds fixed at 1% / 5%"]
@@ -257,7 +257,7 @@ exact_or_approximate = "stochastic, seeded"
 complexity = "O(animals x loci)"
 code = ["src/abp/examples/sheep.py"]
 tests = ["tests/test_genomic_workflow.py::test_sheep_generator_is_deterministic"]
-gates = { G0 = "passed", G1 = "not_applicable", G2 = "not_applicable", G3 = "passed", G4 = "not_applicable", G5 = "not_applicable", G6 = "linux_measured_windows_ci_pending", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "not_applicable", G2 = "not_applicable", G3 = "passed", G4 = "not_applicable", G5 = "not_applicable", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["not an independent mature simulator (AlphaSimR etc. comparison not run)"]

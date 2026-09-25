@@ -1,6 +1,6 @@
 # Validation report: ABP 0.1.0
 
-Date: 2026-09-25 · Platform actually executed: **Linux x86_64 only**.
+Date: 2026-09-25 · Platforms executed: **Linux x86_64** (build machine, full evidence below) and **Windows Server 2025 + Ubuntu** via GitHub Actions run [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504).
 Raw logs: `docs/validation/`. Status vocabulary: passed, failed, blocked,
 not_run.
 
@@ -11,10 +11,10 @@ not_run.
 | G0 source and target | versions, licenses, estimands, contracts, base | passed | `docs/method_registry.toml`, `contracts/`, `docs/license_inventory.md` (project license: open owner decision) |
 | G1 mathematics | independent derivations, analytical cases, dimension, limit and equivalence tests | passed | §3, §4 |
 | G2 numerics | residuals, convergence, boundaries, exact references | passed | §4, §5 |
-| G3 software | ID mapping, bad inputs, recovery, interface consistency | passed on Linux | §5, §6 |
+| G3 software | ID mapping, bad inputs, recovery, interface consistency | passed (Linux; Windows CI) | §5, §6, §3a |
 | G4 statistical calibration | simulation bias and coverage | **partial** | REML: 40-replicate calibration passed. EBVs: one replicate of one scenario (§7). |
 | G5 external validity | real data, time or population hold-out | **not_run** | no real data were available or authorized |
-| G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`). Windows: CI job defined, result on GitHub. GPU: no CUDA path exists. |
+| G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`). Windows: test suite, self-test and launcher passed in CI (§3a); no Windows performance measurements. GPU: no CUDA path exists. |
 | G7 decision and release | feasible plans, installation reproduction, evidence package | **not_run** | OCS and mating not implemented; no binary release; project license not chosen |
 
 **No claim of leadership or superiority over any software is made.** No
@@ -43,6 +43,14 @@ AlphaMate has been run.
 | `python benchmarks/simulation_check.py` | completed | `docs/validation/simulation_check.json`, `.log` |
 | `python benchmarks/run_benchmarks.py --full` | completed | `benchmarks/results/2026-09-25-linux-x86_64.json` |
 | `bash packaging/linux/abp.sh run …` (Chinese + space output path, then a repeat without `--force`) | exit 0, then exit 2 (`OUTPUT_EXISTS`) with launcher log | manual run, recorded here |
+
+### 3a. Continuous integration (GitHub Actions run 36130441504, commit 2cd2922)
+
+| Job | Result | Notes from the job log |
+|---|---|---|
+| windows-latest / Python 3.11, 3.12, 3.13 | success | Windows Server 2025 (10.0.26100); C++20 kernel built with MSVC (`native kernel: True`); `abp selftest` PASS; 96 passed; `abp.ps1` run into `%RUNNER_TEMP%\结果 输出` passed, and the repeat without `--force` returned exit status 2 with a launcher log |
+| ubuntu-latest / Python 3.11, 3.12, 3.13 | success | 96 passed; `abp.sh` launcher run with a Chinese/space path |
+| ubuntu / pure-Python kernels (`ABP_DISABLE_NATIVE=1`) | success | self-test and 96 tests with the reference kernels |
 
 ## 4. Analytical gold standards (spec §8.2)
 
@@ -140,7 +148,7 @@ a monkeypatch. Each fix kept the original acceptance threshold.
 
 | Item | Reason |
 |---|---|
-| Windows execution | no Windows machine in this session. The CI workflow runs the suite, self-test and launcher on `windows-latest`; see the Actions tab for the actual result. |
+| Windows performance measurements and interactive use | only CI execution (§3a); no timings or desktop testing on Windows |
 | CUDA / GPU | no CUDA implementation exists (requests are refused or fall back explicitly) |
 | Real-data validation (G5), forward-in-time validation, LR statistics | no authorized real data; LR not implemented |
 | Comparison with BLUPF90, MiXBLUP, ASReml, DMU, JWAS, BGLR | not installed or licensed in this environment; must be run under a pre-registered protocol |

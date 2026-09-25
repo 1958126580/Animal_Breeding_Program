@@ -26,11 +26,11 @@ build machine recorded in `docs/validation_report.md`.
 |---|---|---|---|---|
 | ENG-1 | Modular monolith: core, numerics, workflows, CLI/API layers | `src/abp/{core,io,qc,solvers,decision,workflows}`, `cli.py` | `docs/adr/0001-primary-language.md` | passed |
 | ENG-2 | One scientific core; a single primary language, with an ADR if not Julia | Python + optional C++20 kernel | ADR 0001, ADR 0002 | passed |
-| ENG-3 | Native Windows and Linux; launcher keeps logs and exit codes; Chinese/space paths; explicit GPU fallback | `packaging/windows/abp.ps1`, `abp.cmd`, `packaging/linux/abp.sh`; `backend.on_unavailable` | Linux: `tests/test_workflow.py::test_unicode_and_space_paths`, `::test_cuda_request_is_never_faked`, manual launcher run; Windows: CI job | partial: Windows depends on the CI result; CUDA not implemented |
+| ENG-3 | Native Windows and Linux; launcher keeps logs and exit codes; Chinese/space paths; explicit GPU fallback | `packaging/windows/abp.ps1`, `abp.cmd`, `packaging/linux/abp.sh`; `backend.on_unavailable` | Linux: `tests/test_workflow.py::test_unicode_and_space_paths`, `::test_cuda_request_is_never_faked`, manual launcher run; Windows: CI run 36130441504 (tests, self-test, launcher with Chinese/space path) | partial: CUDA not implemented; no Windows performance data |
 | ENG-4 | Explicit schemas for all inputs | `contracts/`, `abp.core.spec`, `abp.io.tables`, `abp.qc.*` | `tests/test_qc.py`, `tests/test_workflow.py` | passed |
 | ENG-5 | Provenance: hashes, model spec, dependency lock, environment, logs, output checks | `manifest.json`, `requirements-lock.txt`, `run.log` | `tests/test_manifest_contract.py`, `tests/test_workflow.py::test_example01_end_to_end_matches_independent_reference` | passed |
 | ENG-6 | Resume, cancel, atomic writes, disk check, resource budget, error codes | ADR 0003; REML checkpoints; SIGINT/SIGTERM → status 130; `resources.*`; `abp.errors` | `tests/test_reml.py::test_non_convergence_is_an_error_and_checkpoint_resume`, `tests/test_workflow.py::test_output_exists_requires_force` | partial: thread-count budget not exposed (BLAS threads follow `OMP_NUM_THREADS`/`OPENBLAS_NUM_THREADS`) |
-| ENG-7 | CI records compile, unit tests, platform runs and GPU runs separately | `.github/workflows/ci.yml` (Linux and Windows × Python 3.11–3.13, pure-Python-kernel job) | CI results on GitHub | partial: GPU not applicable |
+| ENG-7 | CI records compile, unit tests, platform runs and GPU runs separately | `.github/workflows/ci.yml` (Linux and Windows × Python 3.11–3.13, pure-Python-kernel job) | run 36130441504: all 7 jobs success | partial: no GPU job (no CUDA code) |
 | ENG-8 | Licenses checked; no unauthorized data transfer | `docs/license_inventory.md`; ABP makes no network calls | code review | passed |
 
 ## Work method
@@ -59,7 +59,7 @@ build machine recorded in `docs/validation_report.md`.
 | M11 selection index | passed | Smith-Hazel, restricted, EBV index |
 | M12 OCS and mating | not_run | |
 | M13 validation, simulation, benchmarking | partial | single-replicate simulation check; no LR, no comparison software |
-| M14 Windows/Linux/CUDA delivery | partial | Linux verified; Windows via CI; no CUDA |
+| M14 Windows/Linux/CUDA delivery | partial | Linux and Windows functional tests passed (CI); no CUDA; no installers |
 | M15–M23 | not_run | research and extension modules |
 | M24 usability | partial | CLI, reports, bilingual paths; no GUI; English reports only |
 | M25 evidence management | passed | manifests, registry, handoff |

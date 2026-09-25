@@ -32,7 +32,7 @@ parts of S2 and S3. Every item passed its tests on Linux (details in
 
 ## 3. Not run, and why
 
-Windows (CI defined; check the GitHub Actions result for this branch), CUDA
+Windows performance measurements (functional tests passed in CI run 36130441504 on Windows Server 2025, Python 3.11–3.13), CUDA
 (no implementation), real-data validation and comparison software (no data or
 licenses), multi-replicate EBV calibration (planned).
 
@@ -50,29 +50,28 @@ about calibration.
    the local machine (currently never). This is needed for gate G5.
 2. **Breeding objectives and economic weights** per species, with units and
    sources. The examples use synthetic placeholders only.
-3. **Deployment targets.** Windows versions, typical data sizes (animals,
+2. **Deployment targets.** Windows versions, typical data sizes (animals,
    genotyped animals, markers), and whether GPUs exist. This decides which
    scale work (APY, sparse selected inversion, CUDA) comes first.
-4. **Access to comparison software** (BLUPF90, MiXBLUP, ASReml, DMU, JWAS,
+3. **Access to comparison software** (BLUPF90, MiXBLUP, ASReml, DMU, JWAS,
    BGLR), with license terms for benchmarking.
-5. **Project license and distribution model.** This is the owner's decision;
+4. **Project license and distribution model.** This is the owner's decision;
    no license file has been added.
 
 ## 6. Next concrete tasks (in order)
 
-1. Read the CI result for Windows and Linux; fix any platform issue (M14).
-2. M13: forward-in-time validation workflow with LR statistics (bias,
+1. M13: forward-in-time validation workflow with LR statistics (bias,
    dispersion, ρ_wp, using the corrected SD-product denominator), plus a
    ≥ 50-replicate calibration study with the sheep generator (resolves F1/F4).
-3. Sparse selected inversion (Takahashi) for exact PEV and REML traces
+2. Sparse selected inversion (Takahashi) for exact PEV and REML traces
    beyond the dense limit. Consider a C++ kernel only after profiling.
-4. M03 extension: unknown-parent groups and metafounders, with their own
+3. M03 extension: unknown-parent groups and metafounders, with their own
    contracts and tests.
-5. M08/M20: BayesC/BayesR with multi-chain diagnostics (R-hat, ESS, MCSE)
+4. M08/M20: BayesC/BayesR with multi-chain diagnostics (R-hat, ESS, MCSE)
    and conjugate reference tests.
-6. M12: OCS (quadratic cone program with KKT certificate) and integer mating
+5. M12: OCS (quadratic cone program with KKT certificate) and integer mating
    allocation with enumeration tests on small cases.
-7. PLINK `.bed/.bim/.fam` reader (M01), tested against a byte-level
+6. PLINK `.bed/.bim/.fam` reader (M01), tested against a byte-level
    hand-constructed file.
 
 ## 7. Where things are

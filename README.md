@@ -9,7 +9,8 @@ development specification (`docs/` and the uploaded instruction set).
 > **Status: 0.1.0, research-grade.** Every method listed below has passed
 > analytical and independent-reference tests on Linux. It has **not** been
 > validated on real breeding data, compared with BLUPF90/MiXBLUP/ASReml/JWAS,
-> or run on CUDA. The Windows build runs in CI (`.github/workflows/ci.yml`).
+> or run on CUDA. The test suite passes on Linux and on Windows Server 2025
+> (GitHub Actions, Python 3.11–3.13).
 > ABP makes no claim of superiority over any other software. See
 > [`docs/validation_report.md`](docs/validation_report.md) for exactly what has
 > and has not been verified.
