@@ -120,6 +120,31 @@ def render_report(results: dict, manifest: dict) -> str:
                      f"{_f(r['reliability'])} |")
         L.append("")
 
+    if results.get("validation"):
+        v = results["validation"]
+        st, bt = v["statistics"], v.get("bootstrap") or {}
+
+        def ci(k):
+            c = (bt.get(k) or {}).get("ci95")
+            return f"[{c[0]:.3f}, {c[1]:.3f}]" if c else "n/a"
+        L.append(f"## {next(num)}. Forward-in-time validation (LR method)")
+        L.append("")
+        L.append(f"Records of `{v['trait']}` dated after {v['cutoff']} were hidden in a partial "
+                 f"evaluation ({v['n_records_hidden']} hidden, {v['n_records_partial']} kept). "
+                 f"Focal animals: {v['n_focal']} ({v['focal_rule']}). Both evaluations used "
+                 f"the same variances ({v['variance_source']}).")
+        L.append("")
+        L.append("| Statistic | Estimate | 95% bootstrap interval | Expected if unbiased |")
+        L.append("|---|---:|---|---|")
+        L.append(f"| Bias Delta_p = mean(EBV_partial) - mean(EBV_whole) | "
+                 f"{st['bias_delta_p']:.4f} | {ci('bias_delta_p')} | 0 |")
+        L.append(f"| Dispersion b_w\\|p | {st['dispersion_b_w_p']:.4f} | "
+                 f"{ci('dispersion_b_w_p')} | 1 |")
+        L.append(f"| Correlation rho_wp | {st['rho_wp']:.4f} | {ci('rho_wp')} | acc_p/acc_w |")
+        L.append("")
+        L.append(f"Bootstrap: {bt.get('replicates', 0)} replicates over {v['bootstrap_cluster']} "
+                 f"clusters (seed {bt.get('seed')}). {v['interpretation'].capitalize()}.")
+        L.append("")
     L.append(f"## {next(num)}. Data and quality control")
     L.append("")
     qp = results["qc"]["phenotypes"]

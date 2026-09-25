@@ -124,6 +124,8 @@ SCHEMA = Section({
         "phenotype_columns": Section({
             "id": Field("str", default="id"),
             "record_id": Field("str"),
+            "date": Field("str", doc="Record date column (YYYY, YYYY-MM or YYYY-MM-DD); "
+                                     "required by [validation]."),
         }),
     }, required=True),
     "traits": TableArray(Section({
@@ -194,6 +196,18 @@ SCHEMA = Section({
         "weight_units": Field("str", required=True, doc="e.g. 'EUR per kg'."),
         "synthetic_weights": Field("bool", required=True,
                                    doc="True if the weights are placeholders, not industry values."),
+    }),
+    "validation": Section({
+        "method": Field("str", required=True, choices=("lr",),
+                        doc="Linear-regression (LR) comparison of partial and whole evaluations."),
+        "cutoff": Field("str", required=True, check=_date,
+                        doc="Records dated after this day are hidden in the partial evaluation."),
+        "focal": Field("str", default="new_records_only",
+                       choices=("new_records_only", "born_after_cutoff"),
+                       doc="Animals on which the LR statistics are computed."),
+        "bootstrap_replicates": Field("int", default=1000, check=_nonneg),
+        "bootstrap_cluster": Field("str", default="sire", choices=("sire", "none")),
+        "seed": Field("int", default=20260925),
     }),
     "output": Section({
         "top_n": Field("int", default=20, check=_positive),
@@ -415,6 +429,19 @@ def validate_spec_dict(raw: dict) -> dict:
         raise ABPError("UNSUPPORTED_COMBINATION",
                        f"analysis.task = {d['analysis']['task']!r} is not implemented in 0.1 "
                        f"(implemented: {list(IMPLEMENTED_TASKS)})")
+    if raw.get("validation") is None:
+        d["validation"] = None
+    else:
+        v = d["validation"]
+        if d["data"]["phenotype_columns"]["date"] is None:
+            raise _err("data.phenotype_columns.date", "required when [validation] is present")
+        if not v["cutoff"] < d["analysis"]["information_cutoff"]:
+            raise _err("validation.cutoff", "must be earlier than analysis.information_cutoff")
+        if len(m["traits"]) > 1:
+            raise ABPError("UNSUPPORTED_COMBINATION",
+                           "LR validation is implemented for single-trait models only")
+        if v["focal"] == "born_after_cutoff" and d["data"]["pedigree_columns"]["birth_date"] is None:
+            raise _err("validation.focal", "'born_after_cutoff' needs data.pedigree_columns.birth_date")
     idx = raw.get("index")
     if idx is None:
         d["index"] = None

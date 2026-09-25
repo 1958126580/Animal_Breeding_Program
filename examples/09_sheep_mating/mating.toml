@@ -1,0 +1,20 @@
+# Example 09: optimal contribution selection and a mating plan for next season.
+# Candidates and merit come from example 06 (economic index on four-trait EBVs);
+# see make_candidates.py. Everything is SYNTHETIC. The result is a proposal
+# for the breeder; ABP never executes matings.
+schema_version = "1"
+
+[project]
+name = "sheep_mating_2026"
+species = "sheep"
+synthetic_data = true
+
+[mating]
+candidates = "candidates.csv"
+pedigree = "../sheep_data/data/pedigree.csv"
+merit_units = "SCU (synthetic index units)"
+n_matings = 150                 # ewes to be mated
+delta_f = 0.01                  # at most 1% rise in group coancestry per generation
+max_pair_relationship = 0.25    # no half-sib or closer matings
+carrier_column = "carrier"
+max_affected_risk = 0.01        # at most 1% risk of an affected lamb per mating

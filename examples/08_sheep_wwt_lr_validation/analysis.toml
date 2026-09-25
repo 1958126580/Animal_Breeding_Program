@@ -1,0 +1,58 @@
+# Example 08: forward-in-time validation of weaning-weight EBVs (LR method).
+# The 2025 lamb crop's weights are hidden in a "partial" evaluation (as if the
+# evaluation had been run at the end of 2024) and compared with the "whole"
+# evaluation that includes them. Variances are estimated by REML on the
+# partial data only, so no hidden phenotype enters the partial evaluation.
+schema_version = "1"
+
+[project]
+name = "sheep_wwt_lr_validation"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, lamb crops 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "founders born 2018-2019 (unknown parents): unrelated, non-inbred, mean 0"
+applicability = "demonstration only"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "../sheep_data/data/lambs.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[data.phenotype_columns]
+date = "year"                  # weaning weights are dated by their year
+
+[[traits]]
+name = "wwt"
+unit = "kg"
+min = 5.0
+max = 80.0
+
+[model]
+traits = ["wwt"]
+fixed = [
+  { column = "cg", type = "factor" },
+  { column = "birth_type", type = "factor" },
+  { column = "dam_age", type = "factor" },
+]
+random = [{ name = "animal", kind = "additive", relationship = "pedigree" }]
+
+[variances]
+mode = "reml"
+
+[qc]
+out_of_range = "quarantine"
+
+[validation]
+method = "lr"
+cutoff = "2024-12-31"
+focal = "new_records_only"
+bootstrap_replicates = 1000
+bootstrap_cluster = "sire"
+seed = 20260925

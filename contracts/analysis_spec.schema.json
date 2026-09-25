@@ -160,6 +160,10 @@
             },
             "record_id": {
               "type": "string"
+            },
+            "date": {
+              "type": "string",
+              "description": "Record date column (YYYY, YYYY-MM or YYYY-MM-DD); required by [validation]."
             }
           }
         }
@@ -517,6 +521,52 @@
         "weights",
         "weight_units",
         "synthetic_weights"
+      ]
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "lr"
+          ],
+          "description": "Linear-regression (LR) comparison of partial and whole evaluations."
+        },
+        "cutoff": {
+          "type": "string",
+          "description": "Records dated after this day are hidden in the partial evaluation."
+        },
+        "focal": {
+          "type": "string",
+          "enum": [
+            "new_records_only",
+            "born_after_cutoff"
+          ],
+          "default": "new_records_only",
+          "description": "Animals on which the LR statistics are computed."
+        },
+        "bootstrap_replicates": {
+          "type": "integer",
+          "default": 1000
+        },
+        "bootstrap_cluster": {
+          "type": "string",
+          "enum": [
+            "sire",
+            "none"
+          ],
+          "default": "sire"
+        },
+        "seed": {
+          "type": "integer",
+          "default": 20260925
+        }
+      },
+      "required": [
+        "method",
+        "cutoff"
       ]
     },
     "output": {

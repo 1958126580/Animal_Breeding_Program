@@ -64,6 +64,13 @@ def cmd_index(args) -> int:
     return EXIT_OK
 
 
+def cmd_mate(args) -> int:
+    from .workflows.mating_plan import plan_matings
+    out = plan_matings(args.spec, args.out, force=args.force)
+    print(f"mating plan proposal written to: {out}")
+    return EXIT_OK
+
+
 def cmd_simulate(args) -> int:
     from .examples.sheep import write_sheep_example
     out = write_sheep_example(Path(args.out), seed=args.seed, force=args.force)
@@ -118,6 +125,12 @@ def build_parser() -> argparse.ArgumentParser:
     ix = sub.add_parser("index", help="compute a Smith-Hazel selection index from a TOML spec")
     ix.add_argument("spec")
     ix.set_defaults(func=cmd_index)
+
+    mt = sub.add_parser("mate", help="optimal contributions and a mating plan (proposal)")
+    mt.add_argument("spec", help="mating spec (.toml)")
+    mt.add_argument("--out", required=True)
+    mt.add_argument("--force", action="store_true")
+    mt.set_defaults(func=cmd_mate)
 
     sm = sub.add_parser("simulate-sheep", help="write the synthetic sheep example data set")
     sm.add_argument("--out", required=True)

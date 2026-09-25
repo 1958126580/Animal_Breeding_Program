@@ -46,6 +46,7 @@ class RecordSet:
     factors: dict[str, list[str | None]]    # None = missing
     covariates: dict[str, np.ndarray]       # NaN = missing
     units: dict[str, str] = field(default_factory=dict)
+    dates: list[str] | None = None          # raw record dates (data.phenotype_columns.date)
 
     @property
     def n(self) -> int:
@@ -146,8 +147,10 @@ def load_phenotypes(table: Table, spec: dict, pedigree_ids: set[str] | None) -> 
             factors[r["column"]] = [None if (v in missing or v.strip() in missing) else v
                                     for v in table.column(r["column"])]
             class_cols.append(r["column"])
+    date_col = data["phenotype_columns"].get("date")
+    dates = [v.strip() for v in table.column(date_col)] if date_col else None
     rs = RecordSet(list(rids), list(animals), list(table.lines), traits, factors, covariates,
-                   units)
+                   units, dates)
 
     # a classification value is required only for records measured on a trait
     # the term applies to (fixed terms may be trait-specific in multi-trait models)

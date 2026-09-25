@@ -99,3 +99,23 @@ def test_api_example_script_runs():
                        text=True, timeout=600)
     assert r.returncode == 0, r.stderr
     assert "workflow: passed" in r.stdout
+
+
+def test_example08_lr_validation(tmp_path):
+    out = run_evaluation(EX / "08_sheep_wwt_lr_validation" / "analysis.toml", tmp_path / "o",
+                         console=False)
+    v = out.results["validation"]
+    assert v["n_focal"] == 403 and v["variance_source"].startswith("REML on the partial data")
+    lo, hi = v["bootstrap"]["dispersion_b_w_p"]["ci95"]
+    assert lo < v["statistics"]["dispersion_b_w_p"] < hi
+    assert (out.out_dir / "lr_focal_wwt.csv").exists()
+
+
+def test_example09_candidates_are_reproducible(tmp_path):
+    import subprocess
+    import sys
+    before = (EX / "09_sheep_mating" / "candidates.csv").read_bytes()
+    r = subprocess.run([sys.executable, str(EX / "09_sheep_mating" / "make_candidates.py")],
+                       capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stderr
+    assert (EX / "09_sheep_mating" / "candidates.csv").read_bytes() == before

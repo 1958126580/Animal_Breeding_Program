@@ -270,6 +270,17 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
         out, state = _run_single_trait(spec, records, traits[0], structure, ped_data, stage,
                                        manifest, budget, resume)
         results["traits"][traits[0]] = out
+        if d.get("validation"):
+            from .validation_lr import run_lr
+            lr = run_lr(spec, records, traits[0], structure, ped_data, stage, budget,
+                        structure_for=lambda recs: _structure(spec, ped_data, {"inputs": []},
+                                                              recs))
+            atomic_write_json(stage.path("lr_validation.json"), lr)
+            results["validation"] = lr
+            manifest["validation"] = {"design": "LR forward-in-time", "cutoff": lr["cutoff"],
+                                      "test_phenotypes_used": False,
+                                      "note": "hidden records are never read by the partial "
+                                              "evaluation; variances from spec or partial REML"}
     if d.get("index"):
         from .index_outputs import write_index
         results["index"] = write_index(spec, state, stage)
