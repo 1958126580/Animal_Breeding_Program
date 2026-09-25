@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*.so
+*.pyd
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/
+*.partial-*/
+*.failed-*/
+*.cancelled-*/
+/out/
+/runs/

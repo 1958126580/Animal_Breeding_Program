@@ -1,0 +1,46 @@
+# Example 01: the textbook animal model of Mrode (2005, "Linear Models for the
+# Prediction of Animal Breeding Values", 2nd ed., Example 3.1).
+# Five beef calves with pre-weaning gain records; sex is a fixed effect;
+# variances are known (sigma_a^2 = 20, sigma_e^2 = 40).
+# The printed solutions are reproduced by tests/test_examples.py.
+schema_version = "1"
+
+[project]
+name = "textbook_mrode_3_1"
+species = "cattle"
+synthetic_data = true        # a tiny teaching data set, not a real herd
+description = "Single-trait animal model with known variances (Mrode Example 3.1)."
+
+[analysis]
+task = "additive_ebv"
+target_population = "the eight animals of the teaching example"
+information_cutoff = "2005-01-01"
+genetic_base = "animals 1, 2 and 3 (unknown parents): unrelated, non-inbred base with mean 0"
+applicability = "teaching example only"
+
+[data]
+pedigree = "pedigree.csv"
+phenotypes = "phenotypes.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+
+[[traits]]
+name = "wwg"
+unit = "kg"
+min = 0.0
+max = 20.0
+description = "pre-weaning gain"
+
+[model]
+traits = ["wwg"]
+intercept = false            # sex has one column per level, no intercept needed
+fixed = [{ column = "sex", type = "factor" }]
+random = [{ name = "animal", kind = "additive", relationship = "pedigree" }]
+
+[variances]
+mode = "known"
+values = { animal = 20.0, residual = 40.0 }
+
+[solver]
+method = "dense"
