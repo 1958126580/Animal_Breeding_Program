@@ -1,0 +1,73 @@
+{
+  "schema_version": "1",
+  "document_type": "abp_data_dictionary",
+  "general_rules": {
+    "encoding": "UTF-8 (a UTF-8 byte-order mark is accepted); other encodings are rejected",
+    "format": "delimited text, first line = header, delimiter from data.delimiter (default ',')",
+    "identifiers": "exact strings; empty values and leading/trailing spaces are errors (ABP-E105)",
+    "missing_values": "tokens listed in data.missing_values (default '', 'NA', '.') mean 'not measured'; ABP never imputes phenotypes",
+    "numbers": "decimal point '.', finite values only; 'inf'/'nan' written in a file are rejected",
+    "row_shape": "every data row has exactly as many fields as the header (ABP-E103 otherwise)"
+  },
+  "tables": {
+    "pedigree": {
+      "primary_key": "id",
+      "columns": {
+        "id": {"type": "string", "required": true, "description": "animal identifier"},
+        "sire": {"type": "string", "required": true, "description": "sire id or an unknown-parent token (data.unknown_parent_values, default '0', '', 'NA', '.')"},
+        "dam": {"type": "string", "required": true, "description": "dam id or an unknown-parent token"},
+        "sex": {"type": "enum", "values": ["M", "F", "U"], "required": false, "description": "lower case accepted; missing -> U"},
+        "birth_date": {"type": "date", "formats": ["YYYY", "YYYY-MM", "YYYY-MM-DD"], "required": false}
+      },
+      "rules": ["parents not listed as animals are added as founders (reported)", "no cycles, no self-parenthood, no animal as both sire and dam", "parents must be born before offspring when both dates are known"]
+    },
+    "phenotypes": {
+      "grain": "one row = one record (animal x measurement occasion)",
+      "primary_key": "record_id if declared in data.phenotype_columns.record_id, otherwise the file line",
+      "columns": {
+        "id": {"type": "string", "required": true, "foreign_key": "pedigree.id (or genotypes.id for GBLUP)"},
+        "<trait column>": {"type": "number", "required": "for each trait in model.traits", "unit": "declared in [[traits]].unit", "valid_range": "[[traits]].min/max"},
+        "<fixed factor>": {"type": "string", "required": "for records measured on a trait the term applies to"},
+        "<covariate>": {"type": "number", "required": "for records measured on a trait the term applies to"},
+        "<iid random-effect column>": {"type": "string", "required": "for records used in the analysis"}
+      },
+      "rules": ["repeated records of an animal require an iid term on the animal id column", "values outside the declared range: error or quarantine (qc.out_of_range)"]
+    },
+    "marker_map": {
+      "primary_key": "marker_id",
+      "columns": {
+        "marker_id": {"type": "string", "required": true},
+        "chrom": {"type": "string", "required": true},
+        "pos": {"type": "integer", "required": true, "description": "position on the declared assembly"},
+        "ref": {"type": "string", "required": true},
+        "alt": {"type": "string", "required": true},
+        "counted_allele": {"type": "string", "required": true, "description": "must equal ref or alt; dosages count copies of this allele"},
+        "assembly": {"type": "string", "required": true, "description": "exactly one assembly per file"}
+      }
+    },
+    "genotypes": {
+      "grain": "one row = one animal; one column per marker of the map (any order)",
+      "columns": {
+        "id": {"type": "string", "required": true, "position": "first column"},
+        "<marker_id>": {"type": "number", "range": [0, 2], "description": "copies of the counted allele; decimals allowed (imputed dosages); missing tokens allowed"}
+      }
+    },
+    "allele_frequencies": {
+      "used_when": "genomic.frequency_source = 'file'",
+      "columns": {"marker_id": {"type": "string"}, "frequency": {"type": "number", "range": [0, 1], "description": "frequency of the counted allele"}}
+    }
+  },
+  "outputs": {
+    "ebv_<trait>.csv": "animal, sire, dam, sex, generation, inbreeding, n_records, ebv, pev, sep, reliability, accuracy (empty = not computed)",
+    "ebv_multitrait.csv": "animal, pedigree columns, then ebv_/reliability_/sep_/n_records_ per trait",
+    "fixed_effects_<trait>.csv": "term, level, solution, status (estimated_under_constraints | constrained_to_zero)",
+    "random_<term>_<trait>.csv": "level, solution, pev (iid terms)",
+    "index.csv": "rank, animal, sex, index, reliability",
+    "qc_pedigree.json / qc_phenotypes.json / qc_genotypes.json": "QC findings (check, severity, count, examples) and statistics",
+    "qc_excluded_records.csv": "reversible list of every record excluded by an approved QC rule",
+    "results.json": "all numbers shown in the report",
+    "report.md": "breeder-facing report rendered from results.json and manifest.json",
+    "manifest.json": "run record, see run_manifest.schema.json",
+    "run.log": "time-stamped UTF-8 log"
+  }
+}

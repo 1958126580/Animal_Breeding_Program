@@ -189,3 +189,34 @@ def test_sheep_generator_is_deterministic(tmp_path):
     b = write_sheep_example(tmp_path / "b", seed=11, cfg=SheepSimConfig(**SMALL))
     for f in ("data/pedigree.csv", "data/lambs.csv", "data/genotypes.csv", "truth/tbv.csv"):
         assert (a / f).read_bytes() == (b / f).read_bytes()
+
+
+def test_training_frequency_sample_uses_qc_passed_records(flock, tmp_path):
+    """frequency_source = training_genotyped: animals whose only record was
+    quarantined by QC are not part of the frequency sample."""
+    import shutil
+    work = tmp_path / "w"
+    shutil.copytree(flock, work / "sheep")
+    extra = ('[qc]\nungenotyped_records = "exclude"\nout_of_range = "quarantine"\n'
+             '[genomic]\nfrequency_source = "training_genotyped"\n'
+             'singular_policy = "blend"\nblend_alpha = 0.1\n')
+    spec = _spec(work, "genomic", "")
+    text = spec.read_text(encoding="utf-8").replace(
+        '[genomic]\nsingular_policy = "blend"\nblend_alpha = 0.1\n', "") + extra
+    spec.write_text(text.replace('unit = "kg"', 'unit = "kg"\nmin = 5.0\nmax = 80.0'),
+                    encoding="utf-8")
+    base = run_evaluation(spec, work / "a", console=False)
+    geno = [r["id"] for r in _read(work / "sheep" / "data" / "genotypes.csv")]
+    rows = _read(work / "sheep" / "data" / "lambs.csv")
+    target = next(r for r in rows if r["id"] in set(geno) and r["wwt"] != "NA")
+    target["wwt"] = "999"            # out of range -> quarantined
+    with open(work / "sheep" / "data" / "lambs.csv", "w", encoding="utf-8", newline="") as fh:
+        w = csv.DictWriter(fh, fieldnames=list(rows[0]), lineterminator="\n")
+        w.writeheader()
+        w.writerows(rows)
+    after = run_evaluation(spec, work / "b", console=False)
+    n_base = base.manifest["relationship"]["n_genotyped"]
+    assert after.manifest["relationship"]["frequency_source"] == "training_genotyped"
+    d0 = base.manifest["relationship"]["scaling_d"]
+    d1 = after.manifest["relationship"]["scaling_d"]
+    assert d0 != d1 and n_base == after.manifest["relationship"]["n_genotyped"]

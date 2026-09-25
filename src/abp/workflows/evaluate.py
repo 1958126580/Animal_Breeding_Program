@@ -85,12 +85,15 @@ def _heritability(vc: dict[str, float], genetic: str) -> float:
     return vc[genetic] / total
 
 
-def _structure(spec: AnalysisSpec, ped: PedigreeData | None, manifest: dict) -> GeneticStructure:
+def _structure(spec: AnalysisSpec, ped: PedigreeData | None, manifest: dict,
+               records: RecordSet) -> GeneticStructure:
     rel = next(r for r in spec["model"]["random"] if r["kind"] == "additive")["relationship"]
     if rel == "pedigree":
         return pedigree_structure(ped.pedigree)
     from .genomic_inputs import genomic_structure  # genomic / single-step
-    return genomic_structure(spec, ped, rel, manifest)
+    used = records.used_mask(list(spec["model"]["traits"]))
+    with_records = {a for a, u in zip(records.animal, used) if u}
+    return genomic_structure(spec, ped, rel, manifest, with_records)
 
 
 # ------------------------------------------------------------ main pipeline
@@ -232,7 +235,7 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
              phe_qc.stats["n_records_used"], len(excluded))
 
     # -- relationship structure --------------------------------------------
-    structure = _structure(spec, ped_data, manifest)
+    structure = _structure(spec, ped_data, manifest, records)
     manifest["relationship"] = {"kind": structure.kind, "n": len(structure.labels),
                                 **{k: v for k, v in structure.meta.items() if _is_small(v)}}
 

@@ -1,0 +1,116 @@
+{
+  "created_at": "2026-09-25T11:14:19+00:00",
+  "environment": {
+    "os": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "blas": {
+      "name": "scipy-openblas",
+      "version": "0.3.31.188.0"
+    },
+    "cpu_count": 4,
+    "gpu": null,
+    "native_kernel": true,
+    "dtype": "float64"
+  },
+  "cases": [
+    {
+      "case": "pedigree_10000x10gen",
+      "n_animals": 10000,
+      "generations": 10,
+      "build_order_s": 0.06303656699992644,
+      "inbreeding_s": 0.06395637500008888,
+      "inbreeding_kernel": "native_cpp_meuwissen_luo",
+      "ainv_s": 0.005990162000216515,
+      "ainv_nnz": 63708,
+      "mean_F": 0.009942261505126953,
+      "inbreeding_python_reference_s": 0.7354713390000143,
+      "max_abs_diff_native_vs_python": 0.0
+    },
+    {
+      "case": "pedigree_100000x10gen",
+      "n_animals": 100000,
+      "generations": 10,
+      "build_order_s": 0.41793225599985817,
+      "inbreeding_s": 0.7672665049999523,
+      "inbreeding_kernel": "native_cpp_meuwissen_luo",
+      "ainv_s": 0.11107357599985335,
+      "ainv_nnz": 636518,
+      "mean_F": 0.008658421325683594,
+      "inbreeding_python_reference_s": 8.325180322000051,
+      "max_abs_diff_native_vs_python": 0.0
+    },
+    {
+      "case": "pedigree_100000x20gen",
+      "n_animals": 100000,
+      "generations": 20,
+      "build_order_s": 0.3813751359998605,
+      "inbreeding_s": 8.693502558000091,
+      "inbreeding_kernel": "native_cpp_meuwissen_luo",
+      "ainv_s": 0.1311013230001663,
+      "ainv_nnz": 666156,
+      "mean_F": 0.020481671186908787,
+      "inbreeding_python_reference_s": 89.61673020399985,
+      "max_abs_diff_native_vs_python": 0.0
+    },
+    {
+      "case": "blup_dense_pev_5000animals",
+      "n_animals": 5000,
+      "n_records": 4000,
+      "n_equations": 5500,
+      "method": "dense",
+      "pev": true,
+      "wall_s": 4.776531772999988,
+      "relative_residual": 7.020962335822756e-15,
+      "iterations": null
+    },
+    {
+      "case": "blup_sparse_direct_100000animals",
+      "n_animals": 100000,
+      "n_records": 80000,
+      "n_equations": 100500,
+      "method": "sparse_direct",
+      "pev": false,
+      "wall_s": 15.078059983000003,
+      "relative_residual": 1.1246532672636818e-12,
+      "iterations": null
+    },
+    {
+      "case": "blup_pcg_100000animals",
+      "n_animals": 100000,
+      "n_records": 80000,
+      "n_equations": 100500,
+      "method": "pcg",
+      "pev": false,
+      "wall_s": 0.26393878999988374,
+      "relative_residual": 9.194277738483867e-11,
+      "iterations": 111
+    },
+    {
+      "case": "reml_ai_3000animals",
+      "n_animals": 3000,
+      "n_records": 2500,
+      "wall_s": 3.1854585329997462,
+      "iterations": 6,
+      "status": "converged",
+      "estimates": {
+        "animal": 1.783777179845043,
+        "residual": 4.35612376942585
+      },
+      "simulated": {
+        "animal": 2.0,
+        "residual": 4.0
+      }
+    },
+    {
+      "case": "g_matrix_2000x50000",
+      "n_animals": 2000,
+      "n_markers": 50000,
+      "wall_s": 1.2501050149999173,
+      "mean_diag": 0.9996627179237231
+    }
+  ],
+  "peak_rss_bytes": 1823432704
+}

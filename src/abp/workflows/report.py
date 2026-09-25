@@ -59,7 +59,10 @@ def render_report(results: dict, manifest: dict) -> str:
         vc = t["variance_components"]
         L.append(f"Variance components ({t['variance_source']}): "
                  + ", ".join(f"{k} = {_f(v, 4)}" for k, v in vc.items())
-                 + f"; heritability h2 = {_f(t['heritability'])}.")
+                 + f"; heritability h2 = {_f(t['heritability'])}"
+                 + (f" (approx. SE {_f(t['reml']['heritability_se'])})"
+                    if t.get("reml") and t["reml"].get("heritability_se") is not None else "")
+                 + ".")
         if t.get("reml"):
             r = t["reml"]
             L.append("")

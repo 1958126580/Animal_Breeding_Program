@@ -1,0 +1,24 @@
+# command: abp selftest
+# date: 2026-09-25T11:32:10+00:00
+ABP 0.1.0 self-test (native kernel: True)
+  [PASS] T01 MAF
+  [PASS] T02 index b = [3/7, 2/7], reliability 12/35
+  [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
+  [PASS] T04 intercept 3, EBV -/+0.5, PEV 0.75, reliability 0.25
+  [PASS] T05 REML genetic score = -0.01463020355
+  [PASS] T06 H-inverse = A-inverse when G* = A22
+  [PASS] Mrode Ex. 3.1 sex and animal solutions (+-6e-4)
+RESULT: PASS
+# exit_code: 0
+
+# command: ABP_DISABLE_NATIVE=1 abp selftest
+ABP 0.1.0 self-test (native kernel: False)
+  [PASS] T01 MAF
+  [PASS] T02 index b = [3/7, 2/7], reliability 12/35
+  [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel python_meuwissen_luo
+  [PASS] T04 intercept 3, EBV -/+0.5, PEV 0.75, reliability 0.25
+  [PASS] T05 REML genetic score = -0.01463020355
+  [PASS] T06 H-inverse = A-inverse when G* = A22
+  [PASS] Mrode Ex. 3.1 sex and animal solutions (+-6e-4)
+RESULT: PASS
+# exit_code: 0

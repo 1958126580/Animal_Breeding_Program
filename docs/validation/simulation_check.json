@@ -1,0 +1,249 @@
+{
+  "scope": "single replicate of one synthetic scenario (seed 20260925); indicative only",
+  "results": [
+    {
+      "example": "02_sheep_wwt_reml",
+      "trait": "wwt",
+      "group": "all animals",
+      "n": 2108,
+      "realized_accuracy": 0.6031805616385585,
+      "model_accuracy_sqrt_mean_rel": 0.591535286173091,
+      "dispersion_slope_tbv_on_ebv": 1.0155348641048876,
+      "bias_mean_tbv_minus_ebv": 0.061891612613444384
+    },
+    {
+      "example": "02_sheep_wwt_reml",
+      "trait": "wwt",
+      "group": "lambs born 2025 (candidates)",
+      "n": 403,
+      "realized_accuracy": 0.5633309800621321,
+      "model_accuracy_sqrt_mean_rel": 0.5570989317341597,
+      "dispersion_slope_tbv_on_ebv": 1.1599458464236674,
+      "bias_mean_tbv_minus_ebv": -0.3584487978114179
+    },
+    {
+      "example": "02_sheep_wwt_reml",
+      "trait": "wwt",
+      "group": "2025 lambs, genotyped",
+      "n": 183,
+      "realized_accuracy": 0.5851288138433316,
+      "model_accuracy_sqrt_mean_rel": 0.5608357101686674,
+      "dispersion_slope_tbv_on_ebv": 1.2374129276286736,
+      "bias_mean_tbv_minus_ebv": -0.3719709350954052
+    },
+    {
+      "example": "02_sheep_wwt_reml",
+      "trait": "wwt",
+      "group": "2025 lambs, not genotyped",
+      "n": 220,
+      "realized_accuracy": 0.5427924173364806,
+      "model_accuracy_sqrt_mean_rel": 0.5539714079817527,
+      "dispersion_slope_tbv_on_ebv": 1.0912325198830752,
+      "bias_mean_tbv_minus_ebv": -0.3472008381615557
+    },
+    {
+      "example": "05_sheep_wwt_single_step",
+      "trait": "wwt",
+      "group": "all animals",
+      "n": 2108,
+      "realized_accuracy": 0.5918745721532124,
+      "model_accuracy_sqrt_mean_rel": 0.5884976205617708,
+      "dispersion_slope_tbv_on_ebv": 1.1383696859658934,
+      "bias_mean_tbv_minus_ebv": 0.2112795291385452
+    },
+    {
+      "example": "05_sheep_wwt_single_step",
+      "trait": "wwt",
+      "group": "lambs born 2025 (candidates)",
+      "n": 403,
+      "realized_accuracy": 0.5980178574471203,
+      "model_accuracy_sqrt_mean_rel": 0.5619216278938721,
+      "dispersion_slope_tbv_on_ebv": 1.3063652370264356,
+      "bias_mean_tbv_minus_ebv": 0.2253609853717873
+    },
+    {
+      "example": "05_sheep_wwt_single_step",
+      "trait": "wwt",
+      "group": "2025 lambs, genotyped",
+      "n": 183,
+      "realized_accuracy": 0.6235043239571013,
+      "model_accuracy_sqrt_mean_rel": 0.5876206844220985,
+      "dispersion_slope_tbv_on_ebv": 1.365879946498827,
+      "bias_mean_tbv_minus_ebv": 0.2005551555872561
+    },
+    {
+      "example": "05_sheep_wwt_single_step",
+      "trait": "wwt",
+      "group": "2025 lambs, not genotyped",
+      "n": 220,
+      "realized_accuracy": 0.5729246158546558,
+      "model_accuracy_sqrt_mean_rel": 0.539613024315646,
+      "dispersion_slope_tbv_on_ebv": 1.2518156427012797,
+      "bias_mean_tbv_minus_ebv": 0.2459949256016475
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "wwt",
+      "group": "all animals",
+      "n": 2108,
+      "realized_accuracy": 0.6016281193751644,
+      "model_accuracy_sqrt_mean_rel": 0.6098074213778034,
+      "dispersion_slope_tbv_on_ebv": 0.9338930534416401,
+      "bias_mean_tbv_minus_ebv": -0.05635946422931234
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "wwt",
+      "group": "lambs born 2025 (candidates)",
+      "n": 403,
+      "realized_accuracy": 0.5621503606981575,
+      "model_accuracy_sqrt_mean_rel": 0.5767757682861006,
+      "dispersion_slope_tbv_on_ebv": 1.0727845314912632,
+      "bias_mean_tbv_minus_ebv": -0.5789066501264442
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "wwt",
+      "group": "2025 lambs, genotyped",
+      "n": 183,
+      "realized_accuracy": 0.582843543820879,
+      "model_accuracy_sqrt_mean_rel": 0.5804748721620595,
+      "dispersion_slope_tbv_on_ebv": 1.1477952131511677,
+      "bias_mean_tbv_minus_ebv": -0.5936501814191681
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "wwt",
+      "group": "2025 lambs, not genotyped",
+      "n": 220,
+      "realized_accuracy": 0.5429462448667836,
+      "model_accuracy_sqrt_mean_rel": 0.5736806146745422,
+      "dispersion_slope_tbv_on_ebv": 1.0071677837867254,
+      "bias_mean_tbv_minus_ebv": -0.5666427127329513
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "fat",
+      "group": "all animals",
+      "n": 2108,
+      "realized_accuracy": 0.6054885442286224,
+      "model_accuracy_sqrt_mean_rel": 0.5925977646843107,
+      "dispersion_slope_tbv_on_ebv": 0.9621958863941971,
+      "bias_mean_tbv_minus_ebv": 0.03438677961440995
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "fat",
+      "group": "lambs born 2025 (candidates)",
+      "n": 403,
+      "realized_accuracy": 0.5461338510878715,
+      "model_accuracy_sqrt_mean_rel": 0.56901931692689,
+      "dispersion_slope_tbv_on_ebv": 1.0553182045054474,
+      "bias_mean_tbv_minus_ebv": -0.03829580714842118
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "fat",
+      "group": "2025 lambs, genotyped",
+      "n": 183,
+      "realized_accuracy": 0.5367955730617292,
+      "model_accuracy_sqrt_mean_rel": 0.5718076436670155,
+      "dispersion_slope_tbv_on_ebv": 1.072112753839224,
+      "bias_mean_tbv_minus_ebv": -0.03410182207723474
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "fat",
+      "group": "2025 lambs, not genotyped",
+      "n": 220,
+      "realized_accuracy": 0.5530590907057048,
+      "model_accuracy_sqrt_mean_rel": 0.566689483577178,
+      "dispersion_slope_tbv_on_ebv": 1.0444498231645984,
+      "bias_mean_tbv_minus_ebv": -0.04178444018490809
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "fec",
+      "group": "all animals",
+      "n": 2108,
+      "realized_accuracy": 0.596533771400141,
+      "model_accuracy_sqrt_mean_rel": 0.5100940513066662,
+      "dispersion_slope_tbv_on_ebv": 1.0886126922647446,
+      "bias_mean_tbv_minus_ebv": 0.04857134788242867
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "fec",
+      "group": "lambs born 2025 (candidates)",
+      "n": 403,
+      "realized_accuracy": 0.5831479869841929,
+      "model_accuracy_sqrt_mean_rel": 0.4842158215404747,
+      "dispersion_slope_tbv_on_ebv": 1.305533403102409,
+      "bias_mean_tbv_minus_ebv": 0.1985042587479305
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "fec",
+      "group": "2025 lambs, genotyped",
+      "n": 183,
+      "realized_accuracy": 0.643207700930511,
+      "model_accuracy_sqrt_mean_rel": 0.4906153308879291,
+      "dispersion_slope_tbv_on_ebv": 1.4074647734148755,
+      "bias_mean_tbv_minus_ebv": 0.15200056183773367
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "fec",
+      "group": "2025 lambs, not genotyped",
+      "n": 220,
+      "realized_accuracy": 0.5084439851653092,
+      "model_accuracy_sqrt_mean_rel": 0.4788274356384528,
+      "dispersion_slope_tbv_on_ebv": 1.1627664513134155,
+      "bias_mean_tbv_minus_ebv": 0.2371868793595942
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "nlb1",
+      "group": "all animals",
+      "n": 2108,
+      "realized_accuracy": 0.27502447439747457,
+      "model_accuracy_sqrt_mean_rel": 0.2450586040617055,
+      "dispersion_slope_tbv_on_ebv": 1.9034169767830533,
+      "bias_mean_tbv_minus_ebv": 0.012595379588869015,
+      "note": "TBV on the liability scale, EBV from a linear model on observed counts: accuracy comparable, scale/slope/bias not"
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "nlb1",
+      "group": "lambs born 2025 (candidates)",
+      "n": 403,
+      "realized_accuracy": 0.3827446046066123,
+      "model_accuracy_sqrt_mean_rel": 0.2136048380968378,
+      "dispersion_slope_tbv_on_ebv": 3.409803174160453,
+      "bias_mean_tbv_minus_ebv": 0.003361785205368278,
+      "note": "TBV on the liability scale, EBV from a linear model on observed counts: accuracy comparable, scale/slope/bias not"
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "nlb1",
+      "group": "2025 lambs, genotyped",
+      "n": 183,
+      "realized_accuracy": 0.3963626440923172,
+      "model_accuracy_sqrt_mean_rel": 0.21416279048336004,
+      "dispersion_slope_tbv_on_ebv": 3.497838703297978,
+      "bias_mean_tbv_minus_ebv": 0.006353453104600994,
+      "note": "TBV on the liability scale, EBV from a linear model on observed counts: accuracy comparable, scale/slope/bias not"
+    },
+    {
+      "example": "06_sheep_multitrait_index",
+      "trait": "nlb1",
+      "group": "2025 lambs, not genotyped",
+      "n": 220,
+      "realized_accuracy": 0.3689962648764386,
+      "model_accuracy_sqrt_mean_rel": 0.21313961037599985,
+      "dispersion_slope_tbv_on_ebv": 3.320271677025102,
+      "bias_mean_tbv_minus_ebv": 0.0008732614528247039,
+      "note": "TBV on the liability scale, EBV from a linear model on observed counts: accuracy comparable, scale/slope/bias not"
+    }
+  ]
+}

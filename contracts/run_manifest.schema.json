@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ABP run manifest (schema_version 1.0)",
+  "description": "Written to manifest.json by every `abp run`, for passed, failed and cancelled runs alike. Values that could not be determined are null.",
+  "type": "object",
+  "required": ["schema_version", "document_type", "run_id", "status", "started_at", "finished_at", "code", "environment", "spec", "inputs", "estimand", "genetic_base", "information_cutoff", "synthetic_data", "randomness", "validation", "diagnostics", "outputs", "limitations", "error", "backend", "execution"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "document_type": {"const": "run_manifest"},
+    "run_id": {"type": "string", "description": "UTC timestamp + random suffix"},
+    "status": {"enum": ["passed", "failed", "cancelled"]},
+    "started_at": {"type": "string", "format": "date-time"},
+    "finished_at": {"type": ["string", "null"], "format": "date-time"},
+    "code": {"type": "object", "properties": {"abp_version": {"type": "string"}, "commit": {"type": ["string", "null"]}, "working_tree_patch_sha256": {"type": ["string", "null"]}, "working_tree_clean": {"type": "boolean"}, "reason": {"type": ["string", "null"]}}},
+    "environment": {"type": "object", "properties": {"os": {"type": "string"}, "machine": {"type": "string"}, "python": {"type": "string"}, "numpy": {"type": "string"}, "scipy": {"type": "string"}, "blas": {"type": ["object", "null"]}, "cpu_count": {"type": ["integer", "null"]}, "gpu": {"type": "null"}, "native_kernel": {"type": "boolean"}, "dtype": {"const": "float64"}}},
+    "spec": {"type": "object", "required": ["path", "sha256", "effective"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string"}, "effective": {"type": "object", "description": "validated spec with all defaults filled in"}}},
+    "inputs": {"type": "array", "items": {"type": "object", "required": ["role", "path", "sha256", "rows"], "properties": {"role": {"enum": ["pedigree", "phenotypes", "genotypes", "marker_map"]}, "path": {"type": "string"}, "sha256": {"type": "string"}, "rows": {"type": "integer"}}}},
+    "sample_mapping_sha256": {"type": "string", "description": "hash of the ordered pedigree IDs used for all matrices"},
+    "relationship": {"type": "object", "description": "kind (pedigree | genomic | single_step), size and, for genomic structures, frequency source, candidate-genotype use, G policy and compatibility statistics"},
+    "estimand": {"type": "string"},
+    "genetic_base": {"type": "string"},
+    "information_cutoff": {"type": "string"},
+    "synthetic_data": {"type": "boolean"},
+    "randomness": {"type": "object"},
+    "validation": {"type": "object"},
+    "backend": {"type": "object", "properties": {"requested": {"enum": ["cpu", "cuda"]}, "used": {"const": "cpu"}, "fallback": {"type": "boolean"}}},
+    "diagnostics": {"type": "object", "description": "per trait: solver method, selection reason, relative residual, iterations, time; REML history; constrained fixed-effect levels"},
+    "outputs": {"type": "array", "items": {"type": "object", "required": ["file", "bytes", "sha256"]}},
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "error": {"type": ["object", "null"], "properties": {"code": {"type": "string"}, "name": {"type": "string"}, "message": {"type": "string"}, "remedy": {"type": "string"}, "details": {"type": "object"}}},
+    "execution": {"type": "object", "properties": {"wall_seconds": {"type": "number"}, "peak_rss_bytes": {"type": ["integer", "null"]}, "exit_code": {"type": "integer"}}}
+  }
+}

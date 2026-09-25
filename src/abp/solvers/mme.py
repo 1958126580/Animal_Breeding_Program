@@ -315,9 +315,19 @@ def dense_bytes(n_eq: int, with_inverse: bool) -> int:
     return 8 * n_eq * n_eq * (3 if with_inverse else 2)
 
 
+EXACT_PEV_LIMIT = 30000  #: max equations for exact PEV by selected solves (sparse path)
+
+
 def choose_method(n_eq: int, need_inverse: bool, memory_budget_bytes: int,
                   requested: str = "auto") -> tuple[str, str]:
-    """Pick a solver and explain why (the reason is written to the manifest)."""
+    """Pick a solver and explain why (the reason is written to the manifest).
+
+    Rules (measured in docs/benchmarks.md): small systems -> dense LAPACK
+    (exact PEV, fastest below ~12k equations); large systems without PEV ->
+    Jacobi-PCG (with automatic fallback to sparse direct if it does not
+    converge); large systems with exact PEV -> sparse direct, refused above
+    ``EXACT_PEV_LIMIT`` equations.
+    """
     if requested not in SOLVER_METHODS:
         raise ABPError("SPEC_INVALID", f"solver.method must be one of {SOLVER_METHODS}",
                        value=requested)
@@ -327,16 +337,26 @@ def choose_method(n_eq: int, need_inverse: bool, memory_budget_bytes: int,
             raise ABPError("RESOURCE_MEMORY",
                            f"dense solver needs ~{need / 2**30:.2f} GiB, budget is "
                            f"{memory_budget_bytes / 2**30:.2f} GiB", n_equations=n_eq)
+        if requested == "sparse_direct" and need_inverse and n_eq > EXACT_PEV_LIMIT:
+            raise _pev_too_large(n_eq)
         return requested, "requested explicitly in spec"
     if n_eq <= 12000 and need <= memory_budget_bytes:
         return "dense", (f"auto: {n_eq} equations <= 12000 and dense memory "
                          f"{need / 2**30:.2f} GiB within budget")
     if need_inverse:
+        if n_eq > EXACT_PEV_LIMIT:
+            raise _pev_too_large(n_eq)
         return "sparse_direct", (f"auto: {n_eq} equations too large for dense path; "
                                  "PEV requested -> sparse direct with selected solves")
-    if n_eq <= 300000:
-        return "sparse_direct", f"auto: {n_eq} equations, no PEV -> sparse direct"
-    return "pcg", f"auto: {n_eq} equations > 300000 -> PCG"
+    return "pcg", (f"auto: {n_eq} equations, no PEV -> Jacobi-PCG "
+                   "(fallback: sparse direct if not converged)")
+
+
+def _pev_too_large(n_eq: int) -> ABPError:
+    return ABPError("UNSUPPORTED_COMBINATION",
+                    f"exact PEV for {n_eq} equations exceeds the 0.1 limit of {EXACT_PEV_LIMIT}; "
+                    "set solver.pev = \"none\" (EBVs without reliabilities) - approximate "
+                    "reliabilities are on the roadmap", n_equations=n_eq, limit=EXACT_PEV_LIMIT)
 
 
 def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: bool = False,
@@ -364,10 +384,17 @@ def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: b
         s, info = pcg(lambda v: C @ v, system.rhs, C.diagonal(), tol=tol, max_iter=max_iter)
         iterations, history = info.iterations, info.history
         if not info.converged:
-            raise ABPError("SOLVER_NOT_CONVERGED",
-                           f"PCG stopped after {info.iterations} iterations with relative "
-                           f"residual {info.rel_residual:.3e} > tol {tol:.1e}",
-                           iterations=info.iterations, rel_residual=info.rel_residual, tol=tol)
+            if method == "auto":  # documented fallback to the verified direct solver
+                reason += (f"; PCG did not converge in {info.iterations} iterations "
+                           f"(rel. residual {info.rel_residual:.2e}) -> fell back to sparse direct")
+                chosen = "sparse_direct"
+                factor = SparseLU(system.C)
+                s = factor.solve(system.rhs)
+            else:
+                raise ABPError("SOLVER_NOT_CONVERGED",
+                               f"PCG stopped after {info.iterations} iterations with relative "
+                               f"residual {info.rel_residual:.3e} > tol {tol:.1e}",
+                               iterations=info.iterations, rel_residual=info.rel_residual, tol=tol)
     rnorm = float(np.linalg.norm(system.C @ s - system.rhs))
     bnorm = float(np.linalg.norm(system.rhs))
     rel = rnorm / bnorm if bnorm > 0 else rnorm

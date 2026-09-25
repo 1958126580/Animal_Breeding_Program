@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "ABP: auditable genetic evaluation (pedigree/genomic BLUP, REML, selection index) for animal breeding"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
 authors = [{ name = "Animal_Breeding_Program contributors" }]
 dependencies = [
     "numpy>=1.26",
@@ -31,7 +30,7 @@ abp = "abp.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-abp = ["py.typed", "data/*.json"]
+abp = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

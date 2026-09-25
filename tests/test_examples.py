@@ -90,3 +90,12 @@ def test_errors_command_lists_all_codes(capsys):
     assert main(["errors"]) == 0
     text = capsys.readouterr().out
     assert "ABP-E200" in text and "ABP-E600" in text
+
+
+def test_api_example_script_runs():
+    import subprocess
+    import sys
+    r = subprocess.run([sys.executable, str(EX / "api_example.py")], capture_output=True,
+                       text=True, timeout=600)
+    assert r.returncode == 0, r.stderr
+    assert "workflow: passed" in r.stdout

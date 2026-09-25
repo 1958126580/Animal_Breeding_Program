@@ -22,19 +22,9 @@ def load_genotype_inputs(spec: AnalysisSpec) -> GenotypeData:
     return load_genotypes(geno, mapt, set(data["missing_values"]))
 
 
-def _training_rows(spec: AnalysisSpec, ids: list[str]) -> np.ndarray:
-    """Genotyped animals with at least one record for the analysed traits."""
-    data = spec["data"]
-    phe = read_table(spec.resolve(data["phenotypes"]), data["delimiter"])
-    id_col = data["phenotype_columns"]["id"]
-    trait_cols = {t["name"]: t["column"] for t in spec["traits"]}
-    missing = set(data["missing_values"])
-    have = set()
-    cols = [phe.column(trait_cols[t]) for t in spec["model"]["traits"]]
-    for k, a in enumerate(phe.column(id_col)):
-        if any(c[k].strip() not in missing and c[k] not in missing for c in cols):
-            have.add(a)
-    return np.array([i for i, a in enumerate(ids) if a in have], dtype=np.int64)
+def _training_rows(ids: list[str], animals_with_records: set[str]) -> np.ndarray:
+    """Genotyped animals with at least one QC-passed record for the analysed traits."""
+    return np.array([i for i, a in enumerate(ids) if a in animals_with_records], dtype=np.int64)
 
 
 def _file_frequencies(spec: AnalysisSpec, markers: list[str]) -> np.ndarray:
@@ -49,7 +39,7 @@ def _file_frequencies(spec: AnalysisSpec, markers: list[str]) -> np.ndarray:
 
 
 def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship: str,
-                      manifest: dict) -> GeneticStructure:
+                      manifest: dict, animals_with_records: set[str]) -> GeneticStructure:
     """Build the G (GBLUP) or H (single-step) structure with full provenance."""
     cfg = spec["genomic"]
     raw = load_genotype_inputs(spec)
@@ -63,7 +53,7 @@ def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship
         parents = {a: (P.ids[P.sire[i]] if P.sire[i] >= 0 else None,
                        P.ids[P.dam[i]] if P.dam[i] >= 0 else None) for i, a in enumerate(P.ids)}
     src = cfg["frequency_source"]
-    sample = _training_rows(spec, raw.ids) if src == "training_genotyped" else None
+    sample = _training_rows(raw.ids, animals_with_records) if src == "training_genotyped" else None
     geno, p_sample = filter_genotypes(raw, cfg, sample, parents)
     if src == "genotyped_all":
         p = p_sample

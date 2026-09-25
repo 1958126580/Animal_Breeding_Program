@@ -200,3 +200,34 @@ def test_reml_calibration_by_simulation():
     mean, se = est.mean(0), est.std(0, ddof=1) / np.sqrt(len(est))
     assert abs(mean[0] - 2.0) < 3 * se[0], (mean, se)
     assert abs(mean[1] - 3.0) < 3 * se[1], (mean, se)
+
+
+def test_reml_with_dense_genomic_structure_matches_v_form():
+    """REML with a dense K^{-1} (GBLUP path) against the independent V-form optimum."""
+    from abp.core.genomic import allele_frequencies, apply_g_policy, vanraden_g
+    from abp.solvers.blup import RandomTerm
+    rng = np.random.default_rng(17)
+    n, m = 150, 600
+    p0 = rng.uniform(0.1, 0.9, m)
+    M = (rng.random((n, m)) < p0).astype(float) + (rng.random((n, m)) < p0)
+    G, _ = vanraden_g(M, allele_frequencies(M))
+    Gs, _ = apply_g_policy(G, "ridge", "none", None, 0.0, 0.01)
+    u = np.linalg.cholesky(Gs) @ rng.standard_normal(n) * np.sqrt(1.5)
+    grp = [f"g{k}" for k in rng.integers(0, 4, n)]
+    fd = build_fixed_design({"g": grp}, [FixedTerm("g", "factor")], True, n)
+    y = fd.X @ rng.normal(0, 2, fd.X.shape[1]) + u + rng.normal(0, 1.0, n)
+    Gi = np.linalg.inv(Gs)
+    term = RandomTerm("animal", sp.identity(n, format="csr"), Gi, list(range(n)), True,
+                      k_diag=np.diag(Gs), logdet_k=float(np.linalg.slogdet(Gs)[1]))
+    fit = reml_fit(y, fd.X, [term], CFG)
+    Xd = fd.X.toarray()
+    p = REMLEvaluator(y, fd.X, [term], 2**30).evaluate(np.array([1.2, 0.9]))
+    ll_ref, _ = reml_loglik_v_form(y, Xd, [Gs, np.eye(n)], [1.2, 0.9])
+    assert p.loglik == pytest.approx(ll_ref, abs=1e-9)
+    np.testing.assert_allclose(p.score, reml_score_v_form(y, Xd, [Gs, np.eye(n)], [1.2, 0.9]),
+                               atol=1e-9)
+    opt = so.minimize(lambda lt: -reml_loglik_v_form(y, Xd, [Gs, np.eye(n)], np.exp(lt))[0],
+                      np.log([1.0, 1.0]), method="Nelder-Mead",
+                      options={"xatol": 1e-10, "fatol": 1e-12, "maxiter": 5000})
+    np.testing.assert_allclose([fit.variances["animal"], fit.variances["residual"]],
+                               np.exp(opt.x), rtol=2e-5)

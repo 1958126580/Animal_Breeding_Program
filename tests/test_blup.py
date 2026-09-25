@@ -226,3 +226,25 @@ def test_pcg_non_convergence_is_an_error():
         blup(y, fd.X, [animal_term(ped, rec_animals)], {"animal": 2.0, "residual": 5.0},
              method="pcg", compute_pev=False, max_iter=3, tol=1e-12)
     assert exc.value.code == "ABP-E400"
+
+
+def test_auto_selection_and_pcg_fallback(monkeypatch):
+    """auto: dense when small; PCG for large systems without PEV, with a
+    recorded fallback to sparse direct when PCG fails to converge."""
+    from abp.solvers import mme
+    assert mme.choose_method(500, True, 2**30)[0] == "dense"
+    assert mme.choose_method(50000, False, 2**30)[0] == "pcg"
+    assert mme.choose_method(20000, True, 2**30)[0] == "sparse_direct"
+    with pytest.raises(ABPError) as exc:
+        mme.choose_method(50000, True, 2**30)
+    assert exc.value.code == "ABP-E303"
+    ids, sires, dams, rec_animals, herd, season, age, y = _random_problem(2)
+    ped = Pedigree.from_parent_ids(ids, sires, dams)
+    fd = build_fixed_design({"herd": herd}, [FixedTerm("herd", "factor")], True, 90)
+    ref = blup(y, fd.X, [animal_term(ped, rec_animals)], {"animal": 2.0, "residual": 5.0},
+               method="dense", compute_pev=False)
+    monkeypatch.setattr(mme, "choose_method", lambda *a, **k: ("pcg", "forced for test"))
+    res = blup(y, fd.X, [animal_term(ped, rec_animals)], {"animal": 2.0, "residual": 5.0},
+               method="auto", compute_pev=False, max_iter=2, tol=1e-12)
+    assert res.solve.method == "sparse_direct" and "fell back" in res.solve.selection_reason
+    np.testing.assert_allclose(res.terms["animal"].solution, ref.terms["animal"].solution, atol=1e-10)

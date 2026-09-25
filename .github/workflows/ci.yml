@@ -1,0 +1,66 @@
+# Continuous integration: every result is recorded per platform. A green Linux
+# job says nothing about Windows (and vice versa); CUDA is not tested because
+# ABP 0.1 has no CUDA code path.
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install (builds the optional C++20 kernel when a compiler is present)
+        run: python -m pip install -e ".[test]"
+      - name: Report build facts
+        run: python -c "import platform, numpy, scipy, abp.core.pedigree as p; print(platform.platform(), numpy.__version__, scipy.__version__, 'native kernel:', p.native_kernel_available())"
+      - name: Installation self-test
+        run: abp selftest
+      - name: Test suite
+        run: python -m pytest -q --junitxml=test-results-${{ matrix.os }}-${{ matrix.python }}.xml
+      - name: Windows launcher with Chinese characters and spaces in the output path
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          .\packaging\windows\abp.ps1 run examples\01_textbook_mrode_3_1\analysis.toml --out "$env:RUNNER_TEMP\结果 输出"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Content -Encoding utf8 "$env:RUNNER_TEMP\结果 输出\report.md" -TotalCount 5
+          .\packaging\windows\abp.ps1 run examples\01_textbook_mrode_3_1\analysis.toml --out "$env:RUNNER_TEMP\结果 输出"
+          if ($LASTEXITCODE -ne 2) { Write-Error "expected OUTPUT_EXISTS exit status 2, got $LASTEXITCODE"; exit 1 }
+          exit 0
+      - name: Linux launcher
+        if: runner.os == 'Linux'
+        run: |
+          bash packaging/linux/abp.sh run examples/01_textbook_mrode_3_1/analysis.toml --out "$RUNNER_TEMP/结果 输出"
+          head -5 "$RUNNER_TEMP/结果 输出/report.md"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.python }}
+          path: test-results-*.xml
+
+  python-reference-kernels:
+    name: ubuntu / pure-Python kernels (ABP_DISABLE_NATIVE=1)
+    runs-on: ubuntu-latest
+    env:
+      ABP_DISABLE_NATIVE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -e ".[test]"
+      - run: abp selftest
+      - run: python -m pytest -q

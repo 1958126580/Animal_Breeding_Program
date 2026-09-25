@@ -1,0 +1,25 @@
+02_sheep_wwt_reml            wwt   all animals                  n= 2108 r=0.603 model=0.592 slope=1.016 bias=+0.062
+02_sheep_wwt_reml            wwt   lambs born 2025 (candidates) n=  403 r=0.563 model=0.557 slope=1.160 bias=-0.358
+02_sheep_wwt_reml            wwt   2025 lambs, genotyped        n=  183 r=0.585 model=0.561 slope=1.237 bias=-0.372
+02_sheep_wwt_reml            wwt   2025 lambs, not genotyped    n=  220 r=0.543 model=0.554 slope=1.091 bias=-0.347
+05_sheep_wwt_single_step     wwt   all animals                  n= 2108 r=0.592 model=0.588 slope=1.138 bias=+0.211
+05_sheep_wwt_single_step     wwt   lambs born 2025 (candidates) n=  403 r=0.598 model=0.562 slope=1.306 bias=+0.225
+05_sheep_wwt_single_step     wwt   2025 lambs, genotyped        n=  183 r=0.624 model=0.588 slope=1.366 bias=+0.201
+05_sheep_wwt_single_step     wwt   2025 lambs, not genotyped    n=  220 r=0.573 model=0.540 slope=1.252 bias=+0.246
+06_sheep_multitrait_index    wwt   all animals                  n= 2108 r=0.602 model=0.610 slope=0.934 bias=-0.056
+06_sheep_multitrait_index    wwt   lambs born 2025 (candidates) n=  403 r=0.562 model=0.577 slope=1.073 bias=-0.579
+06_sheep_multitrait_index    wwt   2025 lambs, genotyped        n=  183 r=0.583 model=0.580 slope=1.148 bias=-0.594
+06_sheep_multitrait_index    wwt   2025 lambs, not genotyped    n=  220 r=0.543 model=0.574 slope=1.007 bias=-0.567
+06_sheep_multitrait_index    fat   all animals                  n= 2108 r=0.605 model=0.593 slope=0.962 bias=+0.034
+06_sheep_multitrait_index    fat   lambs born 2025 (candidates) n=  403 r=0.546 model=0.569 slope=1.055 bias=-0.038
+06_sheep_multitrait_index    fat   2025 lambs, genotyped        n=  183 r=0.537 model=0.572 slope=1.072 bias=-0.034
+06_sheep_multitrait_index    fat   2025 lambs, not genotyped    n=  220 r=0.553 model=0.567 slope=1.044 bias=-0.042
+06_sheep_multitrait_index    fec   all animals                  n= 2108 r=0.597 model=0.510 slope=1.089 bias=+0.049
+06_sheep_multitrait_index    fec   lambs born 2025 (candidates) n=  403 r=0.583 model=0.484 slope=1.306 bias=+0.199
+06_sheep_multitrait_index    fec   2025 lambs, genotyped        n=  183 r=0.643 model=0.491 slope=1.407 bias=+0.152
+06_sheep_multitrait_index    fec   2025 lambs, not genotyped    n=  220 r=0.508 model=0.479 slope=1.163 bias=+0.237
+06_sheep_multitrait_index    nlb1  all animals                  n= 2108 r=0.275 model=0.245 slope=1.903 bias=+0.013
+06_sheep_multitrait_index    nlb1  lambs born 2025 (candidates) n=  403 r=0.383 model=0.214 slope=3.410 bias=+0.003
+06_sheep_multitrait_index    nlb1  2025 lambs, genotyped        n=  183 r=0.396 model=0.214 slope=3.498 bias=+0.006
+06_sheep_multitrait_index    nlb1  2025 lambs, not genotyped    n=  220 r=0.369 model=0.213 slope=3.320 bias=+0.001
+wrote /home/user/Animal_Breeding_Program/docs/validation/simulation_check.json

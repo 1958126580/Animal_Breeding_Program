@@ -1,0 +1,45 @@
+# date: 2026-09-25T11:32:24+00:00
+## abp run examples/01_textbook_mrode_3_1/analysis.toml --out <tmp>/01_textbook_mrode_3_1
+status: passed
+outputs: <tmp>/01_textbook_mrode_3_1
+report: <tmp>/01_textbook_mrode_3_1/report.md
+# exit_code: 0  wall_s: .391396639
+## abp run examples/02_sheep_wwt_reml/analysis.toml --out <tmp>/02_sheep_wwt_reml
+status: passed
+outputs: <tmp>/02_sheep_wwt_reml
+report: <tmp>/02_sheep_wwt_reml/report.md
+# exit_code: 0  wall_s: 2.628673150
+## abp run examples/03_sheep_nlb_repeatability/analysis.toml --out <tmp>/03_sheep_nlb_repeatability
+status: passed
+outputs: <tmp>/03_sheep_nlb_repeatability
+report: <tmp>/03_sheep_nlb_repeatability/report.md
+# exit_code: 0  wall_s: 4.668539899
+## abp run examples/04_sheep_fec_gblup/analysis.toml --out <tmp>/04_sheep_fec_gblup
+status: passed
+outputs: <tmp>/04_sheep_fec_gblup
+report: <tmp>/04_sheep_fec_gblup/report.md
+# exit_code: 0  wall_s: 1.347067540
+## abp run examples/05_sheep_wwt_single_step/analysis.toml --out <tmp>/05_sheep_wwt_single_step
+status: passed
+outputs: <tmp>/05_sheep_wwt_single_step
+report: <tmp>/05_sheep_wwt_single_step/report.md
+# exit_code: 0  wall_s: 3.079049884
+## abp run examples/06_sheep_multitrait_index/analysis.toml --out <tmp>/06_sheep_multitrait_index
+status: passed
+outputs: <tmp>/06_sheep_multitrait_index
+report: <tmp>/06_sheep_multitrait_index/report.md
+# exit_code: 0  wall_s: 7.761321031
+## abp index examples/07_selection_index/index.toml
+{
+  "file": "examples/07_selection_index/index.toml",
+  "weight_units": "objective units",
+  "synthetic_parameters": true,
+  "objective": {
+    "H": 1.0
+  },
+  "coefficients": {
+    "own_phenotype": 0.4285714285714286,
+    "half_sib_mean": 0.2857142857142857
+  },
+  "var_index": 1.7142857142857144,
+# exit_code: 0
