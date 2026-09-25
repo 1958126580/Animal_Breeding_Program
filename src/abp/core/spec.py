@@ -140,6 +140,7 @@ SCHEMA = Section({
         "fixed": TableArray(Section({
             "column": Field("str", required=True),
             "type": Field("str", required=True, choices=("factor", "covariate")),
+            "traits": Field("str_list", doc="Traits this term applies to (default: all)."),
         })),
         "random": TableArray(Section({
             "name": Field("str", required=True, check=_name),
@@ -352,6 +353,12 @@ def validate_spec_dict(raw: dict) -> dict:
             raise _err("model.traits", f"trait {tr!r} is not declared in [[traits]]")
     if len(set(m["traits"])) != len(m["traits"]):
         raise _err("model.traits", "duplicate trait")
+    for f in m["fixed"]:
+        if f["traits"] is None:
+            f["traits"] = list(m["traits"])
+        bad = [x for x in f["traits"] if x not in m["traits"]]
+        if bad or not f["traits"]:
+            raise _err(f"model.fixed.{f['column']}", f"traits {bad or '[]'} are not model traits")
     names = [r["name"] for r in m["random"]]
     if len(set(names)) != len(names) or "residual" in names:
         raise _err("model.random", "random term names must be unique and not 'residual'")
@@ -370,6 +377,9 @@ def validate_spec_dict(raw: dict) -> dict:
                 raise _err(f"model.random.{r['name']}", "'relationship' applies to additive terms only")
             if r["column"] is None:
                 r["column"] = d["data"]["phenotype_columns"]["id"]
+    if len(m["traits"]) > 1 and len(m["random"]) > 1:
+        raise ABPError("UNSUPPORTED_COMBINATION",
+                       "multi-trait models support only the additive genetic term in 0.1")
     rel = additive[0]["relationship"]
     if rel in ("pedigree", "single_step") and d["data"]["pedigree"] is None:
         raise _err("data.pedigree", f"relationship {rel!r} needs a pedigree file")

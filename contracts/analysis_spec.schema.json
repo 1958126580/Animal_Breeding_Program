@@ -1,0 +1,581 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": [
+        "1"
+      ],
+      "description": "Version of this spec format."
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Short project name."
+        },
+        "species": {
+          "type": "string",
+          "description": "Species (e.g. sheep, cattle, pig, chicken)."
+        },
+        "synthetic_data": {
+          "type": "boolean",
+          "description": "True if the data are synthetic (must be declared)."
+        },
+        "description": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "required": [
+        "name",
+        "species",
+        "synthetic_data"
+      ]
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "task": {
+          "type": "string",
+          "enum": [
+            "phenotype_prediction",
+            "additive_ebv",
+            "total_genetic_value",
+            "mating_utility"
+          ],
+          "description": "Estimand class; only additive_ebv is implemented in 0.1."
+        },
+        "target_population": {
+          "type": "string",
+          "description": "Population to which results apply."
+        },
+        "information_cutoff": {
+          "type": "string",
+          "description": "Latest date of information used for training."
+        },
+        "genetic_base": {
+          "type": "string",
+          "description": "Declared genetic base (e.g. pedigree founders)."
+        },
+        "applicability": {
+          "type": "string",
+          "default": "",
+          "description": "Scope/limits of use of the results."
+        }
+      },
+      "required": [
+        "task",
+        "target_population",
+        "information_cutoff",
+        "genetic_base"
+      ]
+    },
+    "data": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pedigree": {
+          "type": "string",
+          "description": "Pedigree CSV (relative to the spec file)."
+        },
+        "phenotypes": {
+          "type": "string",
+          "description": "Phenotype CSV."
+        },
+        "genotypes": {
+          "type": "string",
+          "description": "Genotype dosage CSV (ABP dosage-matrix format)."
+        },
+        "marker_map": {
+          "type": "string",
+          "description": "Marker map CSV (required with genotypes)."
+        },
+        "allele_frequencies": {
+          "type": "string",
+          "description": "Frequency CSV for genomic.frequency_source='file'."
+        },
+        "delimiter": {
+          "type": "string",
+          "default": ","
+        },
+        "missing_values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "",
+            "NA",
+            "."
+          ]
+        },
+        "unknown_parent_values": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "0",
+            "",
+            "NA",
+            "."
+          ]
+        },
+        "pedigree_columns": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "default": "id"
+            },
+            "sire": {
+              "type": "string",
+              "default": "sire"
+            },
+            "dam": {
+              "type": "string",
+              "default": "dam"
+            },
+            "sex": {
+              "type": "string"
+            },
+            "birth_date": {
+              "type": "string"
+            }
+          }
+        },
+        "phenotype_columns": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "default": "id"
+            },
+            "record_id": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "required": [
+        "phenotypes"
+      ]
+    },
+    "traits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "column": {
+            "type": "string",
+            "description": "Column in the phenotype file (default: name)."
+          },
+          "unit": {
+            "type": "string",
+            "description": "Measurement unit, e.g. kg."
+          },
+          "min": {
+            "type": "number",
+            "description": "Smallest valid value (inclusive)."
+          },
+          "max": {
+            "type": "number",
+            "description": "Largest valid value (inclusive)."
+          },
+          "description": {
+            "type": "string",
+            "default": ""
+          }
+        },
+        "required": [
+          "name",
+          "unit"
+        ]
+      },
+      "minItems": 1
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "traits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Traits analysed jointly (1 = single-trait)."
+        },
+        "intercept": {
+          "type": "boolean",
+          "default": true
+        },
+        "fixed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "column": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "factor",
+                  "covariate"
+                ]
+              },
+              "traits": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Traits this term applies to (default: all)."
+              }
+            },
+            "required": [
+              "column",
+              "type"
+            ]
+          }
+        },
+        "random": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "additive",
+                  "iid"
+                ]
+              },
+              "relationship": {
+                "type": "string",
+                "enum": [
+                  "pedigree",
+                  "genomic",
+                  "single_step"
+                ],
+                "description": "Covariance structure of an additive term."
+              },
+              "column": {
+                "type": "string",
+                "description": "Grouping column of an iid term (default: animal id)."
+              }
+            },
+            "required": [
+              "name",
+              "kind"
+            ]
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "traits"
+      ]
+    },
+    "variances": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "known",
+            "reml"
+          ]
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            ]
+          },
+          "description": "Variance (single-trait) or covariance matrix (multi-trait) per random term and 'residual'. Required for mode='known'."
+        }
+      },
+      "required": [
+        "mode"
+      ]
+    },
+    "reml": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "type": "string",
+          "enum": [
+            "ai",
+            "em"
+          ],
+          "default": "ai"
+        },
+        "max_iter": {
+          "type": "integer",
+          "default": 200
+        },
+        "tol": {
+          "type": "number",
+          "default": 1e-08
+        },
+        "start": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Starting variances (default: data-based heuristic)."
+        }
+      }
+    },
+    "solver": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "dense",
+            "sparse_direct",
+            "pcg"
+          ],
+          "default": "auto"
+        },
+        "tol": {
+          "type": "number",
+          "default": 1e-10
+        },
+        "max_iter": {
+          "type": "integer",
+          "default": 10000
+        },
+        "pev": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "none"
+          ],
+          "default": "exact"
+        }
+      }
+    },
+    "qc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "unknown_animals": {
+          "type": "string",
+          "enum": [
+            "error",
+            "add_as_founder"
+          ],
+          "default": "error"
+        },
+        "out_of_range": {
+          "type": "string",
+          "enum": [
+            "error",
+            "quarantine"
+          ],
+          "default": "error"
+        },
+        "missing_fixed": {
+          "type": "string",
+          "enum": [
+            "error",
+            "exclude"
+          ],
+          "default": "error"
+        },
+        "outlier_sd": {
+          "type": "number",
+          "default": 4.0,
+          "description": "Review signal only; values are never removed by this rule."
+        },
+        "ungenotyped_records": {
+          "type": "string",
+          "enum": [
+            "error",
+            "exclude"
+          ],
+          "default": "error",
+          "description": "GBLUP only: records of animals without genotypes."
+        }
+      }
+    },
+    "genomic": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ploidy": {
+          "type": "integer",
+          "enum": [
+            2
+          ],
+          "default": 2
+        },
+        "frequency_source": {
+          "type": "string",
+          "enum": [
+            "genotyped_all",
+            "training_genotyped",
+            "file",
+            "fixed_0.5"
+          ],
+          "default": "genotyped_all"
+        },
+        "min_call_rate_marker": {
+          "type": "number",
+          "default": 0.9
+        },
+        "min_call_rate_animal": {
+          "type": "number",
+          "default": 0.9
+        },
+        "min_maf": {
+          "type": "number",
+          "default": 0.0
+        },
+        "singular_policy": {
+          "type": "string",
+          "enum": [
+            "error",
+            "blend",
+            "ridge"
+          ],
+          "default": "error"
+        },
+        "blend_alpha": {
+          "type": "number",
+          "default": 0.05
+        },
+        "ridge": {
+          "type": "number",
+          "default": 0.01
+        },
+        "tuning": {
+          "type": "string",
+          "enum": [
+            "none",
+            "match_a22"
+          ],
+          "default": "none"
+        }
+      }
+    },
+    "index": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "weights": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "Economic weight per unit of each trait."
+        },
+        "weight_units": {
+          "type": "string",
+          "description": "e.g. 'EUR per kg'."
+        },
+        "synthetic_weights": {
+          "type": "boolean",
+          "description": "True if the weights are placeholders, not industry values."
+        }
+      },
+      "required": [
+        "weights",
+        "weight_units",
+        "synthetic_weights"
+      ]
+    },
+    "output": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "top_n": {
+          "type": "integer",
+          "default": 20
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_memory_gb": {
+          "type": "number",
+          "default": 4.0
+        },
+        "min_free_disk_mb": {
+          "type": "number",
+          "default": 200.0
+        }
+      }
+    },
+    "backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "device": {
+          "type": "string",
+          "enum": [
+            "cpu",
+            "cuda"
+          ],
+          "default": "cpu"
+        },
+        "on_unavailable": {
+          "type": "string",
+          "enum": [
+            "error",
+            "fallback_cpu"
+          ],
+          "default": "error"
+        }
+      }
+    }
+  },
+  "required": [
+    "schema_version",
+    "project",
+    "analysis",
+    "data",
+    "traits",
+    "model",
+    "variances"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ABP analysis spec (schema_version 1)",
+  "description": "Generated from abp.core.spec.SCHEMA; cross-field rules are enforced by abp.core.spec.validate_spec_dict."
+}

@@ -144,15 +144,49 @@ class DenseCholesky:
         return float(2.0 * np.sum(np.log(np.diag(self.L))))
 
     def inverse(self) -> np.ndarray:
-        """Full ``C^{-1}`` via LAPACK ``potri`` (cached)."""
+        """Full ``C^{-1}`` via LAPACK ``potri`` (cached; needed for REML traces)."""
         if self._inv is None:
             inv, info = sla.lapack.dpotri(self.L, lower=1)
             if info != 0:
                 raise ABPError("FACTORIZATION_FAILED", f"dpotri failed (info={info})")
-            inv = np.tril(inv)
-            inv = inv + np.tril(inv, -1).T
+            n, bs = inv.shape[0], 1024
+            for j0 in range(0, n, bs):  # mirror the lower triangle in place, by blocks
+                j1 = min(n, j0 + bs)
+                blk = inv[j0:j1, j0:j1]
+                blk[np.triu_indices(j1 - j0, 1)] = blk.T[np.triu_indices(j1 - j0, 1)]
+                if j1 < n:
+                    inv[j0:j1, j1:] = inv[j1:, j0:j1].T
             self._inv = inv
         return self._inv
+
+    def _linv(self) -> np.ndarray:
+        """``L^{-1}`` (lower triangular) via LAPACK ``trtri``."""
+        linv, info = sla.lapack.dtrtri(self.L, lower=1)
+        if info != 0:
+            raise ABPError("FACTORIZATION_FAILED", f"dtrtri failed (info={info})")
+        return linv
+
+    def inverse_diagonal(self, idx: np.ndarray) -> np.ndarray:
+        """``diag(C^{-1})[idx]`` = column sums of squares of ``L^{-1}`` (no full inverse)."""
+        if self._inv is not None:
+            return np.diag(self._inv)[np.asarray(idx)].copy()
+        linv = self._linv()
+        return np.einsum("ij,ij->j", linv[:, idx], linv[:, idx])
+
+    def inverse_diagonal_blocks(self, start: int, q: int, t: int) -> np.ndarray:
+        """``t x t`` diagonal blocks of ``C^{-1}`` for equations ``start + i*t + (0..t-1)``."""
+        out = np.empty((q, t, t))
+        if self._inv is not None:
+            for i in range(q):
+                s = start + i * t
+                out[i] = self._inv[s:s + t, s:s + t]
+            return out
+        linv = self._linv()
+        for i in range(q):
+            s = start + i * t
+            B = linv[s:, s:s + t]       # L^{-1} is lower triangular: rows < s are zero
+            out[i] = B.T @ B
+        return out
 
     def inverse_block(self, idx: np.ndarray) -> np.ndarray:
         idx = np.asarray(idx)
@@ -355,7 +389,7 @@ def prediction_error_covariance(result: SolveResult, idx: np.ndarray) -> np.ndar
 def pev_diagonal(result: SolveResult, idx: np.ndarray) -> np.ndarray:
     """Diagonal PEV for equations ``idx`` (dense: from the cached inverse)."""
     if isinstance(result.factor, DenseCholesky):
-        return np.diag(result.factor.inverse())[np.asarray(idx)].copy()
+        return result.factor.inverse_diagonal(np.asarray(idx))
     if isinstance(result.factor, SparseLU):
         idx = np.asarray(idx, dtype=np.int64)
         out = np.empty(idx.size)

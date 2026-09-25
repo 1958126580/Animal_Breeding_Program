@@ -1,0 +1,17 @@
+# Example 07: Smith-Hazel selection index (stand-alone, no data files).
+# The numbers reproduce the specification's gold standard T02:
+#   P = [[4, 1], [1, 9]],  q = C a = [2, 3],  Var(H) = 5
+#   -> b = [3/7, 2/7], reliability 12/35, accuracy 0.585540...
+# Replace P, C and G by values derived from your own genetic parameters.
+schema_version = "1"
+
+[index]
+information = ["own_phenotype", "half_sib_mean"]
+objective_traits = ["H"]
+weights = [1.0]
+weight_units = "objective units"
+synthetic = true
+P = [[4.0, 1.0], [1.0, 9.0]]   # Var(x)
+C = [[2.0], [3.0]]             # Cov(x, g)
+G = [[5.0]]                    # Var(g)
+proportion_selected = 0.10

@@ -149,23 +149,28 @@ def load_phenotypes(table: Table, spec: dict, pedigree_ids: set[str] | None) -> 
     rs = RecordSet(list(rids), list(animals), list(table.lines), traits, factors, covariates,
                    units)
 
-    used = rs.used_mask(model["traits"])
+    # a classification value is required only for records measured on a trait
+    # the term applies to (fixed terms may be trait-specific in multi-trait models)
+    applies = {f["column"]: f.get("traits") or model["traits"] for f in model["fixed"]}
+    for r in model["random"]:
+        if r["kind"] == "iid":
+            applies.setdefault(r["column"], model["traits"])
     miss_items = []
     for col in class_cols:
+        used_c = rs.used_mask(list(applies[col]))
         col_missing = (np.isnan(covariates[col]) if col in covariates
                        else np.array([v is None for v in factors[col]]))
-        for k in np.flatnonzero(used & col_missing):
+        for k in np.flatnonzero(used_c & col_missing):
             miss_items.append({"line": rs.line[k], "record_id": rs.record_id[k], "column": col})
     if miss_items:
         if qcs["missing_fixed"] == "exclude":
             qc.add("PHE-MISSING-CLASS", "quarantine",
                    "records lacking a classification value were excluded", miss_items)
             qc.excluded.extend({**it, "reason": "PHE-MISSING-CLASS"} for it in miss_items)
-            drop = {it["record_id"] for it in miss_items}
-            for t in traits:
-                for k in range(rs.n):
-                    if rs.record_id[k] in drop:
-                        traits[t][k] = np.nan
+            pos = {r: k for k, r in enumerate(rs.record_id)}
+            for it in miss_items:
+                for t in applies[it["column"]]:
+                    traits[t][pos[it["record_id"]]] = np.nan
         else:
             qc.add("PHE-MISSING-CLASS", "error",
                    "records with a trait value lack a fixed/random classification value",

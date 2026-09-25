@@ -261,14 +261,15 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
     traits = d["model"]["traits"]
     if len(traits) > 1:
         from .multitrait import run_multitrait
-        results["traits"] = run_multitrait(spec, records, structure, ped_data, stage, manifest,
-                                           budget)
+        results["traits"], state = run_multitrait(spec, records, structure, ped_data, stage,
+                                                  manifest, budget)
     else:
-        results["traits"][traits[0]] = _run_single_trait(spec, records, traits[0], structure,
-                                                         ped_data, stage, manifest, budget, resume)
+        out, state = _run_single_trait(spec, records, traits[0], structure, ped_data, stage,
+                                       manifest, budget, resume)
+        results["traits"][traits[0]] = out
     if d.get("index"):
         from .index_outputs import write_index
-        results["index"] = write_index(spec, results, structure, stage, manifest)
+        results["index"] = write_index(spec, state, stage)
     manifest["limitations"] = results["limitations"]
     return results
 
@@ -405,7 +406,12 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
     manifest["diagnostics"][trait] = {"solver": out["solver"], "reml": reml_info,
                                       "fixed_constrained": [list(x) for x in
                                                             model.fixed.constrained_labels]}
-    return out
+    from .multitrait import EvalState
+    state = EvalState(tuple(gen.labels), [trait], gen.solution[:, None],
+                      None if gen.pev is None else gen.pev[:, None, None],
+                      np.array([[vc[model.genetic_term]]]), np.asarray(structure.k_diag),
+                      False, sex)
+    return out, state
 
 
 def _fingerprint(spec: AnalysisSpec, manifest: dict, trait: str) -> str:

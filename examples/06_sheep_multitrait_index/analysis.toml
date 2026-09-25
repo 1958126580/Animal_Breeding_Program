@@ -1,0 +1,102 @@
+# Example 06: multi-objective sheep evaluation - growth (wwt), carcass (fat),
+# health (fec) and reproduction (nlb1 = lambs born at first lambing) in one
+# multi-trait animal model, followed by an aggregate economic index.
+#
+# Where the (co)variances come from (all SYNTHETIC):
+#  * lamb traits: the generator's base-population parameters (known exactly
+#    only because the data are simulated);
+#  * nlb1: single-trait REML on this data set (observed scale:
+#    sigma_a^2 = 0.038, sigma_e^2 = 0.35), genetic correlations from the
+#    generator;
+#  * residual covariances between nlb1 (a ewe trait recorded later in life)
+#    and the lamb traits are structural zeros.
+# In real use estimate them with REML (multi-trait REML is not in ABP 0.1).
+#
+# The economic weights are SYNTHETIC placeholders, not industry values.
+schema_version = "1"
+
+[project]
+name = "sheep_multitrait_index"
+species = "sheep"
+synthetic_data = true
+description = "Four-trait BLUP (growth, carcass, health, reproduction) and economic index."
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, lamb crops 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "founders born 2018-2019 (unknown parents): unrelated, non-inbred, mean 0"
+applicability = "demonstration only; synthetic data and synthetic economic weights"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "../sheep_data/data/lambs.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[[traits]]
+name = "wwt"
+unit = "kg"
+min = 5.0
+max = 80.0
+description = "weaning weight (growth)"
+
+[[traits]]
+name = "fat"
+unit = "mm"
+min = 0.0
+max = 15.0
+description = "C-site fat depth (carcass)"
+
+[[traits]]
+name = "fec"
+unit = "ln(epg+1)"
+min = 0.0
+max = 12.0
+description = "log faecal egg count (health; lower is better)"
+
+[[traits]]
+name = "nlb1"
+unit = "lambs"
+min = 0.0
+max = 6.0
+description = "number of lambs born at first lambing (reproduction)"
+
+[model]
+traits = ["wwt", "fat", "fec", "nlb1"]
+fixed = [
+  { column = "cg", type = "factor", traits = ["wwt", "fat", "fec"] },
+  { column = "birth_type", type = "factor", traits = ["wwt", "fat"] },
+  { column = "dam_age", type = "factor", traits = ["wwt"] },
+  { column = "lambing1_year", type = "factor", traits = ["nlb1"] },
+]
+random = [{ name = "animal", kind = "additive", relationship = "pedigree" }]
+
+[variances]
+mode = "known"
+# order of rows/columns = model.traits
+values.animal = [
+  [4.0,   0.3,     0.0,      0.039],
+  [0.3,   0.25,    0.0,      0.00975],
+  [0.0,   0.0,     0.3025,  -0.010725],
+  [0.039, 0.00975, -0.010725, 0.038025],
+]
+values.residual = [
+  [12.25,  0.735,  0.3325, 0.0],
+  [0.735,  0.49,   0.0665, 0.0],
+  [0.3325, 0.0665, 0.9025, 0.0],
+  [0.0,    0.0,    0.0,    0.35],
+]
+
+[index]
+weights = { wwt = 2.0, fat = -3.0, fec = -4.0, nlb1 = 25.0 }
+weight_units = "synthetic currency units (SCU) per trait unit"
+synthetic_weights = true
+
+[qc]
+out_of_range = "quarantine"
+
+[output]
+top_n = 15
