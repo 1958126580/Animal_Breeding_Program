@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import time
 import traceback
+from types import SimpleNamespace
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -234,6 +235,9 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
     log.info("phenotype QC passed: %d records used, %d excluded (listed in qc_excluded_records.csv)",
              phe_qc.stats["n_records_used"], len(excluded))
 
+    if d["variances"]["mode"] == "bayes":
+        return _run_bayes(spec, records, phe_qc, ped_data, stage, manifest)
+
     # -- relationship structure --------------------------------------------
     structure = _structure(spec, ped_data, manifest, records)
     manifest["relationship"] = {"kind": structure.kind, "n": len(structure.labels),
@@ -315,6 +319,42 @@ def _handle_ungenotyped(records: RecordSet, structure: GeneticStructure, phe_qc,
                        "use relationship = 'single_step' to include them, or set "
                        "qc.ungenotyped_records = 'exclude' to analyse genotyped animals only",
                        n=len(items), examples=items[:10])
+
+
+def _run_bayes(spec: AnalysisSpec, records: RecordSet, phe_qc, ped_data: PedigreeData | None,
+               stage: OutputStage, manifest: dict) -> dict:
+    """Bayesian marker-regression path (no relationship matrix is built)."""
+    from .bayes_eval import run_bayes_trait
+    d = spec.data
+    trait = d["model"]["traits"][0]
+    out, state = run_bayes_trait(spec, records, trait, ped_data, stage, manifest, phe_qc)
+    atomic_write_json(stage.path("qc_phenotypes.json"), phe_qc.to_dict())
+    write_csv(stage.path("qc_excluded_records.csv"),
+              ["reason", "line", "record_id", "animal", "trait", "value", "column"],
+              [[e.get("reason"), e.get("line"), e.get("record_id"), e.get("animal"),
+                e.get("trait"), e.get("value"), e.get("column")] for e in phe_qc.excluded])
+    geno_qc = manifest.pop("_qc_sections", {}).get("genotypes")
+    if geno_qc is not None:
+        atomic_write_json(stage.path("qc_genotypes.json"), geno_qc)
+    manifest["relationship"] = {"kind": "marker_model", "n": out["n_animals_evaluated"],
+                                "method": d["bayes"]["method"],
+                                "frequency_source": d["genomic"]["frequency_source"]}
+    lim = _limitations(d, SimpleNamespace(kind="genomic"))
+    lim.append("Bayesian results: posterior means and SDs conditional on the stated priors; "
+               "posterior SDs are not PEV-based reliabilities.")
+    results: dict[str, Any] = {
+        "abp_version": manifest["code"]["abp_version"], "run_id": manifest["run_id"],
+        "project": d["project"], "analysis": d["analysis"],
+        "relationship": manifest["relationship"],
+        "qc": {"phenotypes": phe_qc.to_dict(),
+               "pedigree": ped_data.qc.to_dict() if ped_data else None, "genotypes": geno_qc},
+        "traits": {trait: out}, "limitations": lim,
+    }
+    if d.get("index"):
+        from .index_outputs import write_index
+        results["index"] = write_index(spec, state, stage)
+    manifest["limitations"] = lim
+    return results
 
 
 def _is_small(v: Any) -> bool:

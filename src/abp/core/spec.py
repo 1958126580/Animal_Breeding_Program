@@ -110,6 +110,10 @@ SCHEMA = Section({
         "phenotypes": Field("str", required=True, doc="Phenotype CSV."),
         "genotypes": Field("str", doc="Genotype dosage CSV (ABP dosage-matrix format)."),
         "marker_map": Field("str", doc="Marker map CSV (required with genotypes)."),
+        "plink": Field("str", doc="PLINK 1 binary fileset prefix (.bed/.bim/.fam); counted "
+                                  "allele = A1. Alternative to genotypes + marker_map."),
+        "genotype_assembly": Field("str", doc="Assembly of the PLINK positions (required with "
+                                              "plink)."),
         "allele_frequencies": Field("str", doc="Frequency CSV for genomic.frequency_source='file'."),
         "delimiter": Field("str", default=",", check=lambda x: None if len(x) == 1 else "one character"),
         "missing_values": Field("str_list", default=["", "NA", "."]),
@@ -153,7 +157,7 @@ SCHEMA = Section({
         }), min_items=1),
     }, required=True),
     "variances": Section({
-        "mode": Field("str", required=True, choices=("known", "reml")),
+        "mode": Field("str", required=True, choices=("known", "reml", "bayes")),
         "values": Field("number_or_matrix_map",
                         doc="Variance (single-trait) or covariance matrix (multi-trait) per "
                             "random term and 'residual'. Required for mode='known'."),
@@ -196,6 +200,23 @@ SCHEMA = Section({
         "weight_units": Field("str", required=True, doc="e.g. 'EUR per kg'."),
         "synthetic_weights": Field("bool", required=True,
                                    doc="True if the weights are placeholders, not industry values."),
+    }),
+    "bayes": Section({
+        "method": Field("str", required=True,
+                        choices=("BRR", "BayesA", "BayesB", "BayesC", "BayesCpi", "BayesR"),
+                        doc="Marker prior; pi0 = probability of a zero effect."),
+        "chains": Field("int", default=4, check=lambda x: None if x >= 2 else "must be >= 2"),
+        "iterations": Field("int", default=6000, check=_positive),
+        "burn_in": Field("int", default=1000, check=_nonneg),
+        "thin": Field("int", default=5, check=_positive),
+        "seed": Field("int", default=20260925),
+        "prior_r2": Field("float", default=0.5, check=lambda x: None if 0 < x < 1 else "in (0, 1)"),
+        "pi0": Field("float", default=0.95, check=lambda x: None if 0 <= x < 1 else "in [0, 1)"),
+        "nu": Field("float", default=5.0, check=lambda x: None if x > 2 else "must be > 2"),
+        "nu_e": Field("float", default=5.0, check=lambda x: None if x > 2 else "must be > 2"),
+        "rhat_max": Field("float", default=1.01, check=_positive),
+        "ess_min": Field("float", default=400.0, check=_positive),
+        "max_iterations": Field("int", default=30000, check=_positive),
     }),
     "validation": Section({
         "method": Field("str", required=True, choices=("lr",),
@@ -397,9 +418,19 @@ def validate_spec_dict(raw: dict) -> dict:
     rel = additive[0]["relationship"]
     if rel in ("pedigree", "single_step") and d["data"]["pedigree"] is None:
         raise _err("data.pedigree", f"relationship {rel!r} needs a pedigree file")
+    dd = d["data"]
+    if dd["plink"] is not None:
+        if dd["genotypes"] is not None or dd["marker_map"] is not None:
+            raise _err("data.plink", "use either plink or genotypes + marker_map, not both")
+        if not dd["genotype_assembly"]:
+            raise _err("data.genotype_assembly", "required with data.plink (.bim has no assembly)")
+    elif dd["genotype_assembly"] is not None:
+        raise _err("data.genotype_assembly", "only used with data.plink (the marker map "
+                                            "declares the assembly)")
     if rel in ("genomic", "single_step"):
-        if d["data"]["genotypes"] is None or d["data"]["marker_map"] is None:
-            raise _err("data.genotypes", f"relationship {rel!r} needs genotypes and marker_map")
+        if dd["plink"] is None and (dd["genotypes"] is None or dd["marker_map"] is None):
+            raise _err("data.genotypes", f"relationship {rel!r} needs genotypes and marker_map "
+                                         "(or data.plink)")
     if d["genomic"]["frequency_source"] == "file" and d["data"]["allele_frequencies"] is None:
         raise _err("data.allele_frequencies", "required when genomic.frequency_source = 'file'")
     v = d["variances"]
@@ -416,7 +447,7 @@ def validate_spec_dict(raw: dict) -> dict:
                 raise _err(f"variances.values.{k}", "single-trait models need a number")
             if t > 1 and not (isinstance(val, list) and len(val) == t):
                 raise _err(f"variances.values.{k}", f"multi-trait models need a {t}x{t} matrix")
-    else:
+    elif v["mode"] == "reml":
         if t > 1:
             raise _err("variances.mode", "multi-trait REML is not implemented in 0.1; "
                                          "use mode = 'known'")
@@ -425,10 +456,28 @@ def validate_spec_dict(raw: dict) -> dict:
         start = d["reml"]["start"]
         if start is not None and set(start) != expected:
             raise _err("reml.start", f"must give exactly {sorted(expected)}")
+    elif v["values"] is not None:
+        raise _err("variances.values", "not used with mode = 'bayes' (variances are sampled)")
     if d["analysis"]["task"] not in IMPLEMENTED_TASKS:
         raise ABPError("UNSUPPORTED_COMBINATION",
                        f"analysis.task = {d['analysis']['task']!r} is not implemented in 0.1 "
                        f"(implemented: {list(IMPLEMENTED_TASKS)})")
+    if (v["mode"] == "bayes") != (raw.get("bayes") is not None):
+        raise _err("bayes", "variances.mode = 'bayes' and a [bayes] section go together")
+    if raw.get("bayes") is None:
+        d["bayes"] = None
+    else:
+        if t > 1:
+            raise ABPError("UNSUPPORTED_COMBINATION", "Bayesian marker models are single-trait "
+                                                      "in this version")
+        if len(m["random"]) != 1 or m["random"][0]["relationship"] != "genomic":
+            raise _err("model.random", "Bayesian marker models need exactly one additive term "
+                                       "with relationship = 'genomic'")
+        if d["bayes"]["burn_in"] >= d["bayes"]["iterations"]:
+            raise _err("bayes.burn_in", "must be smaller than bayes.iterations")
+        if raw.get("validation") is not None:
+            raise ABPError("UNSUPPORTED_COMBINATION", "LR validation is not yet available for "
+                                                      "Bayesian marker models")
     if raw.get("validation") is None:
         d["validation"] = None
     else:

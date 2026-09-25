@@ -137,6 +137,10 @@ _SPECS: tuple[ErrorSpec, ...] = (
     ErrorSpec("ABP-E403", "REML_NOT_CONVERGED", EXIT_NUMERICAL,
               "REML did not converge within the iteration budget.",
               "Increase reml.max_iter, change start values, or simplify the model."),
+    ErrorSpec("ABP-E405", "MCMC_NOT_CONVERGED", EXIT_NUMERICAL,
+              "MCMC diagnostics (R-hat, bulk/tail ESS) did not pass within the iteration budget.",
+              "Increase bayes.max_iterations or thin, simplify the model, or review the "
+              "diagnostics in the failed run folder; results are withheld."),
     ErrorSpec("ABP-E404", "FACTORIZATION_FAILED", EXIT_NUMERICAL,
               "A matrix that should be positive definite could not be factorized.",
               "Check variance components (must be > 0) and fixed-effect dependencies."),

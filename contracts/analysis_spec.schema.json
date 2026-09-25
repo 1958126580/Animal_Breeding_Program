@@ -95,6 +95,14 @@
           "type": "string",
           "description": "Marker map CSV (required with genotypes)."
         },
+        "plink": {
+          "type": "string",
+          "description": "PLINK 1 binary fileset prefix (.bed/.bim/.fam); counted allele = A1. Alternative to genotypes + marker_map."
+        },
+        "genotype_assembly": {
+          "type": "string",
+          "description": "Assembly of the PLINK positions (required with plink)."
+        },
         "allele_frequencies": {
           "type": "string",
           "description": "Frequency CSV for genomic.frequency_source='file'."
@@ -304,7 +312,8 @@
           "type": "string",
           "enum": [
             "known",
-            "reml"
+            "reml",
+            "bayes"
           ]
         },
         "values": {
@@ -521,6 +530,75 @@
         "weights",
         "weight_units",
         "synthetic_weights"
+      ]
+    },
+    "bayes": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "BRR",
+            "BayesA",
+            "BayesB",
+            "BayesC",
+            "BayesCpi",
+            "BayesR"
+          ],
+          "description": "Marker prior; pi0 = probability of a zero effect."
+        },
+        "chains": {
+          "type": "integer",
+          "default": 4
+        },
+        "iterations": {
+          "type": "integer",
+          "default": 6000
+        },
+        "burn_in": {
+          "type": "integer",
+          "default": 1000
+        },
+        "thin": {
+          "type": "integer",
+          "default": 5
+        },
+        "seed": {
+          "type": "integer",
+          "default": 20260925
+        },
+        "prior_r2": {
+          "type": "number",
+          "default": 0.5
+        },
+        "pi0": {
+          "type": "number",
+          "default": 0.95
+        },
+        "nu": {
+          "type": "number",
+          "default": 5.0
+        },
+        "nu_e": {
+          "type": "number",
+          "default": 5.0
+        },
+        "rhat_max": {
+          "type": "number",
+          "default": 1.01
+        },
+        "ess_min": {
+          "type": "number",
+          "default": 400.0
+        },
+        "max_iterations": {
+          "type": "integer",
+          "default": 30000
+        }
+      },
+      "required": [
+        "method"
       ]
     },
     "validation": {

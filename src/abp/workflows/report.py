@@ -76,6 +76,24 @@ def render_report(results: dict, manifest: dict) -> str:
                 L.append("")
                 L.append(f"Boundary: {', '.join(r['boundary'])} estimated at zero (boundary "
                          "optimum; the term was removed from the model for BLUP).")
+        if t.get("bayes"):
+            bz = t["bayes"]
+            L.append("")
+            L.append(f"Bayesian marker regression ({bz['method']}, {bz['chains']} chains, "
+                     f"{bz['iterations']} iterations, kernel {bz['kernel']}); all monitored "
+                     f"quantities passed the convergence criteria: **{bz['converged']}**.")
+            L.append("")
+            L.append("| Quantity | Posterior mean | 90% interval | R-hat | Bulk ESS | Tail ESS |")
+            L.append("|---|---:|---|---:|---:|---:|")
+            for k, v in bz["summaries"].items():
+                L.append(f"| {k} | {v['mean']:.4g} | [{v['q05']:.4g}, {v['q95']:.4g}] | "
+                         f"{v['rhat']:.4f} | {v['ess_bulk']:.0f} | {v['ess_tail']:.0f} |")
+            g = bz.get("gebv_diagnostics") or {}
+            if g:
+                L.append("")
+                L.append(f"GEBVs of {g['n_animals']} animals: worst R-hat {g['max_rhat']:.4f}, "
+                         f"smallest bulk ESS {g['min_ess_bulk']:.0f}. The SEP column below is the "
+                         "posterior standard deviation.")
         L.append("")
         L.append(f"### Top {len(t['top'])} animals by EBV")
         L.append("")

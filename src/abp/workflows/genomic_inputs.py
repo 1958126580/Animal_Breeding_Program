@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -17,6 +18,9 @@ from ..qc.pedigree import PedigreeData
 
 def load_genotype_inputs(spec: AnalysisSpec) -> GenotypeData:
     data = spec["data"]
+    if data["plink"] is not None:
+        from ..io.plink import load_plink
+        return load_plink(spec.resolve(data["plink"]), data["genotype_assembly"])
     geno = read_table(spec.resolve(data["genotypes"]), data["delimiter"])
     mapt = read_table(spec.resolve(data["marker_map"]), data["delimiter"])
     return load_genotypes(geno, mapt, set(data["missing_values"]))
@@ -38,15 +42,37 @@ def _file_frequencies(spec: AnalysisSpec, markers: list[str]) -> np.ndarray:
     return np.array([rows[m] for m in markers])
 
 
-def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship: str,
-                      manifest: dict, animals_with_records: set[str]) -> GeneticStructure:
-    """Build the G (GBLUP) or H (single-step) structure with full provenance."""
+@dataclass
+class PreparedGenotypes:
+    """QC-passed genotypes with the reference allele frequencies and provenance."""
+
+    geno: GenotypeData
+    p: np.ndarray
+    freq_note: str
+    transductive: bool
+
+
+def prepare_genotypes(spec: AnalysisSpec, ped: PedigreeData | None, manifest: dict,
+                      animals_with_records: set[str]) -> PreparedGenotypes:
+    """Load, QC and choose frequencies (shared by GBLUP, single step and Bayes)."""
     cfg = spec["genomic"]
     raw = load_genotype_inputs(spec)
-    manifest["inputs"].append({"role": "genotypes", "path": str(spec.resolve(spec["data"]["genotypes"])),
-                               "sha256": raw.sha256["genotypes"], "rows": len(raw.ids)})
-    manifest["inputs"].append({"role": "marker_map", "path": str(spec.resolve(spec["data"]["marker_map"])),
-                               "sha256": raw.sha256["marker_map"], "rows": len(raw.markers)})
+    dat = spec["data"]
+    if dat["plink"] is not None:
+        prefix = spec.resolve(dat["plink"])
+        paths = {"genotypes": prefix.with_suffix(".bed"), "marker_map": prefix.with_suffix(".bim"),
+                 "sample_list": prefix.with_suffix(".fam")}
+        rows = {"genotypes": len(raw.ids), "marker_map": len(raw.markers),
+                "sample_list": len(raw.ids)}
+        for role, key in (("genotypes", "genotypes"), ("marker_map", "marker_map"),
+                          ("sample_list", "fam")):
+            manifest["inputs"].append({"role": role, "path": str(paths[role]),
+                                       "sha256": raw.sha256[key], "rows": rows[role]})
+    else:
+        manifest["inputs"].append({"role": "genotypes", "path": str(spec.resolve(dat["genotypes"])),
+                                   "sha256": raw.sha256["genotypes"], "rows": len(raw.ids)})
+        manifest["inputs"].append({"role": "marker_map", "path": str(spec.resolve(dat["marker_map"])),
+                                   "sha256": raw.sha256["marker_map"], "rows": len(raw.markers)})
     parents = None
     if ped is not None:
         P = ped.pedigree
@@ -73,6 +99,18 @@ def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship
         p = np.full(len(geno.markers), 0.5)
         freq_note = "fixed p = 0.5 for every marker"
         transductive = False
+    manifest.setdefault("_qc_sections", {})["genotypes"] = geno.qc.to_dict()
+    return PreparedGenotypes(geno, p, freq_note, transductive)
+
+
+def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship: str,
+                      manifest: dict, animals_with_records: set[str]) -> GeneticStructure:
+    """Build the G (GBLUP) or H (single-step) structure with full provenance."""
+    cfg = spec["genomic"]
+    dat = spec["data"]
+    prep = prepare_genotypes(spec, ped, manifest, animals_with_records)
+    geno, p, freq_note, transductive = prep.geno, prep.p, prep.freq_note, prep.transductive
+    src = cfg["frequency_source"]
     G, d = vanraden_g(geno.dosage, p, geno.missing)
     meta = {"method": "VanRaden (2008) method 1: G = WW'/(2 sum p(1-p))",
             "frequency_source": src, "frequency_note": freq_note,
@@ -80,9 +118,9 @@ def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship
             "missing_dosage_policy": "set to 2p (centred value 0) at the reference frequency",
             "n_genotyped": len(geno.ids), "n_markers": len(geno.markers), "scaling_d": d,
             "assembly": geno.assembly,
-            "counted_allele": "per-marker counted_allele column of the marker map",
+            "counted_allele": ("A1 of the PLINK .bim file" if dat["plink"] is not None
+                               else "per-marker counted_allele column of the marker map"),
             "mean_diag_G": float(np.mean(np.diag(G)))}
-    manifest.setdefault("_qc_sections", {})["genotypes"] = geno.qc.to_dict()
     A22 = None
     g_index = None
     if relationship == "single_step" or cfg["singular_policy"] == "blend" or cfg["tuning"] != "none":

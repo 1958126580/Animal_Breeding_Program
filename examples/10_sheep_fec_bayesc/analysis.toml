@@ -1,0 +1,58 @@
+# Example 10: Bayesian marker regression (BayesC) for log faecal egg count,
+# genotyped animals only. pi0 = probability that a marker effect is exactly 0,
+# fixed at 0.95. Four chains; results are published only if R-hat < 1.01 and
+# bulk/tail ESS >= 400 for every monitored quantity and every GEBV.
+# Note: with method = "BayesCpi" (pi0 learned) the same data did NOT pass the
+# diagnostics within 16,000 iterations - pi0 mixes slowly - and ABP withheld
+# the results (exit status 6); see docs/validation_report.md.
+schema_version = "1"
+
+[project]
+name = "sheep_fec_bayesc"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "genotyped animals of the synthetic sheep population"
+information_cutoff = "2025-12-31"
+genetic_base = "genomic base defined by the allele frequencies of all genotyped animals"
+applicability = "demonstration only"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "../sheep_data/data/lambs.csv"
+genotypes = "../sheep_data/data/genotypes.csv"
+marker_map = "../sheep_data/data/markers.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[[traits]]
+name = "fec"
+unit = "ln(epg+1)"
+min = 0.0
+max = 12.0
+
+[model]
+traits = ["fec"]
+fixed = [{ column = "cg", type = "factor" }]
+random = [{ name = "animal", kind = "additive", relationship = "genomic" }]
+
+[variances]
+mode = "bayes"
+
+[bayes]
+method = "BayesC"
+pi0 = 0.95
+chains = 4
+iterations = 4000
+burn_in = 1000
+thin = 3
+seed = 20260925
+prior_r2 = 0.3
+max_iterations = 16000
+
+[qc]
+ungenotyped_records = "exclude"

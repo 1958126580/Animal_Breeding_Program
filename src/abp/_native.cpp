@@ -24,6 +24,7 @@
 #include <Python.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <queue>
 #include <string>
@@ -121,10 +122,114 @@ PyObject* py_inbreeding_ml(PyObject*, PyObject* args) {
     return result;
 }
 
+
+// ---------------------------------------------------------------------------
+// Bayesian marker-regression sweep (see abp/solvers/bayes.py::sweep_python,
+// which is the reference; the algorithm below is line-for-line the same).
+// Wt is W transposed and C-contiguous: marker j occupies Wt[j*n .. j*n+n).
+// method: 0 = single normal (BRR/BayesA), 1 = zero + normal (BayesB/C/Cpi),
+//         2 = zero + K-1 normals (BayesR). Random numbers z (normal) and u
+// (uniform) are pre-drawn by the caller. e, beta, delta are updated in place.
+std::string bayes_kernel(const double* Wt, const double* wtw, double* e, double* beta,
+                         int64_t* delta, const double* var_j, const double* log_pi,
+                         const double* comp_var, int64_t K, double sigma_e2, int method,
+                         const double* z, const double* u, int64_t n, int64_t m) {
+    std::vector<double> logs(static_cast<size_t>(K > 0 ? K : 1)), lhs_k(logs.size());
+    for (int64_t j = 0; j < m; ++j) {
+        const double* w = Wt + j * n;
+        double dot = 0.0;
+        for (int64_t i = 0; i < n; ++i) dot += w[i] * e[i];
+        const double bj = beta[j];
+        const double rhs = (dot + wtw[j] * bj) / sigma_e2;
+        double nb = 0.0;
+        if (method == 0) {
+            const double lhs = wtw[j] / sigma_e2 + 1.0 / var_j[j];
+            nb = rhs / lhs + z[j] / std::sqrt(lhs);
+            delta[j] = 1;
+        } else if (method == 1) {
+            const double v = var_j[j];
+            const double lhs = wtw[j] / sigma_e2 + 1.0 / v;
+            const double logd1 = -0.5 * (std::log(lhs) + std::log(v)) + 0.5 * rhs * rhs / lhs + log_pi[1];
+            const double d = log_pi[0] - logd1;
+            const double p1 = d < 700.0 ? 1.0 / (1.0 + std::exp(d)) : 0.0;
+            if (u[j] < p1) {
+                delta[j] = 1;
+                nb = rhs / lhs + z[j] / std::sqrt(lhs);
+            } else {
+                delta[j] = 0;
+                nb = 0.0;
+            }
+        } else if (method == 2) {
+            logs[0] = log_pi[0];
+            double mx = logs[0];
+            for (int64_t k = 1; k < K; ++k) {
+                const double v = comp_var[k];
+                lhs_k[k] = wtw[j] / sigma_e2 + 1.0 / v;
+                logs[k] = -0.5 * (std::log(lhs_k[k]) + std::log(v)) + 0.5 * rhs * rhs / lhs_k[k] + log_pi[k];
+                if (logs[k] > mx) mx = logs[k];
+            }
+            double tot = 0.0;
+            for (int64_t k = 0; k < K; ++k) { logs[k] = std::exp(logs[k] - mx); tot += logs[k]; }
+            double cum = 0.0;
+            int64_t pick = K - 1;
+            for (int64_t k = 0; k < K; ++k) {
+                cum += logs[k] / tot;
+                if (cum > u[j]) { pick = k; break; }
+            }
+            delta[j] = pick;
+            nb = pick == 0 ? 0.0 : rhs / lhs_k[pick] + z[j] / std::sqrt(lhs_k[pick]);
+        } else {
+            return "unknown method code";
+        }
+        if (nb != bj) {
+            const double diff = nb - bj;
+            for (int64_t i = 0; i < n; ++i) e[i] -= w[i] * diff;
+            beta[j] = nb;
+        }
+    }
+    return std::string();
+}
+
+PyObject* py_bayes_sweep(PyObject*, PyObject* args) {
+    Py_buffer Wb, wtwb, eb, betab, deltab, varb, lpb, cvb, zb, ub;
+    double sigma_e2;
+    int method;
+    if (!PyArg_ParseTuple(args, "y*y*w*w*w*y*y*y*diy*y*", &Wb, &wtwb, &eb, &betab, &deltab, &varb,
+                          &lpb, &cvb, &sigma_e2, &method, &zb, &ub))
+        return nullptr;
+    const int64_t m = static_cast<int64_t>(betab.len / 8);
+    const int64_t n = static_cast<int64_t>(eb.len / 8);
+    std::string err;
+    if (Wb.len != n * m * 8 || wtwb.len != m * 8 || deltab.len != m * 8 || varb.len != m * 8 ||
+        zb.len != m * 8 || ub.len != m * 8 || lpb.len != cvb.len) {
+        err = "bayes_sweep: buffer sizes do not match (n, m)";
+    } else {
+        const int64_t K = static_cast<int64_t>(cvb.len / 8);
+        Py_BEGIN_ALLOW_THREADS
+        err = bayes_kernel(static_cast<const double*>(Wb.buf), static_cast<const double*>(wtwb.buf),
+                           static_cast<double*>(eb.buf), static_cast<double*>(betab.buf),
+                           static_cast<int64_t*>(deltab.buf), static_cast<const double*>(varb.buf),
+                           static_cast<const double*>(lpb.buf), static_cast<const double*>(cvb.buf),
+                           K, sigma_e2, method, static_cast<const double*>(zb.buf),
+                           static_cast<const double*>(ub.buf), n, m);
+        Py_END_ALLOW_THREADS
+    }
+    for (Py_buffer* b : {&Wb, &wtwb, &eb, &betab, &deltab, &varb, &lpb, &cvb, &zb, &ub})
+        PyBuffer_Release(b);
+    if (!err.empty()) {
+        PyErr_SetString(PyExc_ValueError, err.c_str());
+        return nullptr;
+    }
+    Py_RETURN_NONE;
+}
+
 PyMethodDef methods[] = {
     {"inbreeding_ml", py_inbreeding_ml, METH_VARARGS,
      "inbreeding_ml(sire, dam) -> bytes of float64 inbreeding coefficients "
      "(Meuwissen & Luo 1992). Parents must precede offspring; -1 = unknown."},
+    {"bayes_sweep", py_bayes_sweep, METH_VARARGS,
+     "bayes_sweep(Wt, wtw, e, beta, delta, var_j, log_pi, comp_var, sigma_e2, method, z, u): "
+     "one in-place Gibbs sweep over markers (see abp/solvers/bayes.py)."},
     {nullptr, nullptr, 0, nullptr}};
 
 PyModuleDef module = {PyModuleDef_HEAD_INIT, "_native",
