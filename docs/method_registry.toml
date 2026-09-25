@@ -1,20 +1,20 @@
 # ABP method registry (machine-readable; checked by tests/test_registry.py).
 #
 # implementation_status: passed | failed | blocked | not_run  (required checks of this round)
-# maturity: stable | validated | experimental.  No method is "validated" in 0.1: external
+# maturity: stable | validated | experimental.  No method is "validated": external
 # validation on real data (gate G5) has not been run for any method.
 # gates: G0 source/target, G1 mathematics, G2 numerics, G3 software, G4 statistical
 # calibration, G5 external validity, G6 scale/platform, G7 decision/release.
 
 schema_version = "1"
 registry_date = "2026-09-25"
-abp_version = "0.1.0"
+abp_version = "0.2.0"
 
 [[method]]
 method_id = "ped.a_matrix"
 name = "Numerator relationship matrix, inverse, inbreeding"
 estimand = "relationship structure (not an estimate)"
-scope = "diploid, autosomal; unknown parents = distinct unrelated non-inbred base animals; no UPG/metafounders"
+scope = "diploid, autosomal; unknown parents = distinct unrelated non-inbred base animals (genetic groups: see ped.upg; no metafounders)"
 math = "docs/methods.md#2-pedigree-relationships"
 sources = ["Henderson 1976 Biometrics 32:69", "Quaas 1976 Biometrics 32:949", "Meuwissen & Luo 1992 GSE 24:305", "Colleau 2002 GSE 34:409"]
 errata = []
@@ -30,7 +30,7 @@ tests = ["tests/test_pedigree.py::test_t03_hand_derived_gold_standard",
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["no unknown-parent groups or metafounders", "inbreeding cost grows with pedigree depth (8.7 s for 100k animals x 20 generations)"]
+known_limits = ["no metafounders", "inbreeding cost grows with pedigree depth (8.7 s for 100k animals x 20 generations)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -88,7 +88,9 @@ tests = ["tests/test_blup.py::test_t04_hand_derived",
          "tests/test_blup.py::test_repeatability_model_matches_v_form",
          "tests/test_blup.py::test_unit_change_kg_to_g",
          "tests/test_workflow.py::test_example01_end_to_end_matches_independent_reference"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
+# G4: benchmarks/calibration_study.py, 50 replicates, pedigree BLUP with true variances:
+# slope 0.978 +- 0.018, bias 0.016 +- 0.058 kg, PEV ratio 1.027 +- 0.023, coverage 0.948 +- 0.003.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_50_replicate_calibration_pedigree", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["homogeneous residual variance", "no maternal, social or random-regression terms"]
@@ -156,10 +158,13 @@ code = ["src/abp/core/genomic.py"]
 tests = ["tests/test_genomic.py::test_t06_single_step_identities",
          "tests/test_genomic.py::test_tuning_matches_a22_means",
          "tests/test_genomic_workflow.py::test_single_step_workflow_matches_explicit_h"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
+# G4: benchmarks/calibration_study.py, 50 replicates (match_a22 + 5% blend, 2000 SNPs):
+# slope 0.977 +- 0.019 but bias +0.660 +- 0.067 kg, PEV understated (ratio 1.283 +- 0.042),
+# coverage 0.917 - finding F6 (base incompatibility of G and A22; mathematics verified by G1-G3).
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "failed_50_replicate_calibration_F6", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["no APY or ssSNPBLUP", "no metafounders / unknown-parent groups", "genomic and pedigree base alignment limited to match_a22 tuning"]
+known_limits = ["no APY or ssSNPBLUP", "no metafounders / unknown-parent groups", "genomic and pedigree base alignment limited to match_a22 tuning", "biased and over-confident in the calibration scenario (F6); metafounders or other base alignment needed"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -263,15 +268,185 @@ maturity = "experimental"
 known_limits = ["not an independent mature simulator (AlphaSimR etc. comparison not run)"]
 dependencies = ["numpy"]
 
-# Methods of the specification that are NOT implemented in 0.1. They stay in the
-# registry so that they cannot silently disappear (spec: every method has a status).
+[[method]]
+method_id = "ped.upg"
+name = "Unknown-parent groups by the QP transformation (random or fixed groups)"
+estimand = "additive_ebv u* = u + Qg including group contributions; group effects g"
+scope = "pedigree relationship, single trait; groups declared by a parent-code prefix; random groups with a declared variance ratio or estimable fixed groups"
+math = "docs/methods.md#12-unknown-parent-groups"
+sources = ["Quaas 1988 J Dairy Sci 71:1338", "Westell, Quaas & Van Vleck 1988 J Dairy Sci 71:1310"]
+errata = []
+exact_or_approximate = "exact; fixed-group estimability by an SVD rank test (relative threshold 1e-9)"
+complexity = "A*^-1 O(n); Q O(n g) dense; rank test O(n (p+g)^2)"
+code = ["src/abp/core/upg.py", "src/abp/qc/pedigree.py", "src/abp/workflows/evaluate.py"]
+tests = ["tests/test_upg.py::test_qp_identity",
+         "tests/test_upg.py::test_random_groups_blup_equals_explicit_model",
+         "tests/test_upg.py::test_fixed_groups_blup_equals_explicit_model",
+         "tests/test_upg.py::test_fixed_groups_confounded_with_intercept_are_refused",
+         "tests/test_upg_workflow.py::test_fixed_groups_confounded_with_intercept_stop_the_run",
+         "tests/test_upg_workflow.py::test_group_codes_are_parsed_as_groups_not_animals",
+         "tests/test_upg_workflow.py::test_example11_groups_reduce_bias_of_purchased_rams"]
+# G4: benchmarks/upg_study.py, 20 replicates each: groups remove 0.74 +- 0.10 kg (random, ratio 1)
+# and 1.11 +- 0.14 kg (fixed) of the absolute bias of purchased rams vs no groups; residual bias
+# with a within-period trend; control scenario without it: fixed groups unbiased within MC error.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_20_replicate_simulation_with_documented_misspecification_bias", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["no metafounders (groups unrelated, non-inbred)", "variance ratio declared, not estimated", "pedigree relationship and single-trait models only", "fixed groups: no reliabilities, REML refused"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "val.lr"
+name = "Forward-in-time LR validation (partial vs whole evaluation)"
+estimand = "bias, dispersion and correlation of partial vs whole EBVs of focal animals"
+scope = "single-trait pedigree, genomic or single-step models; record dates required"
+math = "docs/methods.md#13-forward-in-time-validation-lr-method"
+sources = ["Legarra & Reverter 2018 Genet Sel Evol 50:53"]
+errata = ["correlation denominator uses both SDs (gsip.pdf p.125 erratum)", "population-accuracy estimator not computed: 2019 erratum not verifiable in this environment"]
+exact_or_approximate = "exact statistics; bootstrap intervals"
+complexity = "two extra evaluations plus B bootstrap resamples of the focal set"
+code = ["src/abp/workflows/validation_lr.py"]
+tests = ["tests/test_validation_lr.py::test_lr_statistics_definitions",
+         "tests/test_validation_lr.py::test_split_by_cutoff_rules",
+         "tests/test_validation_lr.py::test_cluster_bootstrap_is_seeded_and_counts_clusters",
+         "tests/test_validation_lr.py::test_hidden_phenotypes_cannot_leak_into_partial_evaluation",
+         "tests/test_validation_lr.py::test_partial_reml_ignores_hidden_records",
+         "tests/test_examples.py::test_example08_lr_validation"]
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["LR population accuracy not computed", "single-trait only", "not available for Bayesian marker models or fixed unknown-parent groups"]
+dependencies = ["numpy"]
+
+[[method]]
+method_id = "dec.ocs"
+name = "Optimal contribution selection with a group-coancestry ceiling"
+estimand = "genetic contributions maximising c'g subject to c'Ac/2 <= C_max"
+scope = "two sexes, capacity bounds, pedigree A of the candidates"
+math = "docs/methods.md#14-optimal-contributions-and-mating-allocation"
+sources = ["Meuwissen 1997 J Anim Sci 75:934"]
+errata = []
+exact_or_approximate = "exact QP optimum (active set + bisection on the penalty) with KKT certificate; integer plan by rounding and local search (feasible, not a proven integer optimum; gap reported)"
+complexity = "dense A of the candidates O(n^2) memory; active-set iterations O(n^3) each"
+code = ["src/abp/decision/ocs.py", "src/abp/workflows/mating_plan.py"]
+tests = ["tests/test_ocs_mating.py::test_ocs_matches_independent_optimizer_and_kkt",
+         "tests/test_ocs_mating.py::test_closed_form_for_unrelated_candidates",
+         "tests/test_ocs_mating.py::test_unconstrained_case_equals_linear_programme",
+         "tests/test_ocs_mating.py::test_infeasible_ceiling_reports_minimum",
+         "tests/test_ocs_mating.py::test_tighter_ceiling_never_increases_merit",
+         "tests/test_ocs_mating.py::test_integer_repair_meets_ceiling_and_is_bounded_by_continuous_optimum"]
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["merit taken as known (EBV errors not propagated)", "coancestry relative to the pedigree base (no genomic coancestry)", "dense candidate A limits the number of candidates to a few thousand"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "dec.mating"
+name = "Minimum-inbreeding mating allocation with hard constraints"
+estimand = "sire-dam pairs with given mating counts minimising total progeny inbreeding"
+scope = "pair limits on A_sd, recessive-risk limit p_s p_d / 4, explicit forbidden pairs"
+math = "docs/methods.md#14-optimal-contributions-and-mating-allocation"
+sources = ["transportation problem / total unimodularity (Schrijver 1986)"]
+errata = []
+exact_or_approximate = "exact (integral LP optimum, verified); elastic LP for infeasibility"
+complexity = "LP with sires x dams variables (HiGHS)"
+code = ["src/abp/decision/mating.py", "src/abp/workflows/mating_plan.py"]
+tests = ["tests/test_ocs_mating.py::test_mating_plan_is_optimal_by_enumeration",
+         "tests/test_ocs_mating.py::test_carrier_risk_forbids_only_risky_pairs",
+         "tests/test_ocs_mating.py::test_infeasible_plan_names_unmatchable_dam",
+         "tests/test_ocs_mating.py::test_example09_plan_satisfies_every_hard_constraint",
+         "tests/test_ocs_mating.py::test_mating_pedigree_with_group_codes"]
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["one mating per pair", "no genomic or haplotype-based mating objectives", "proposal only: never executes matings"]
+dependencies = ["scipy"]
+
+[[method]]
+method_id = "io.plink"
+name = "PLINK 1 binary genotype reader (.bed/.bim/.fam, SNP-major)"
+estimand = "not applicable (input)"
+scope = "biallelic variants; counted allele A1; assembly declared by the user"
+math = "docs/methods.md#15-plink-1-binary-input"
+sources = ["PLINK 1.9 file format documentation"]
+errata = []
+exact_or_approximate = "exact"
+complexity = "O(samples x variants) via a 256-entry lookup table"
+code = ["src/abp/io/plink.py"]
+tests = ["tests/test_plink.py::test_hand_derived_bytes",
+         "tests/test_plink.py::test_round_trip_and_loader",
+         "tests/test_plink.py::test_bad_files",
+         "tests/test_plink.py::test_plink_and_dosage_inputs_give_identical_gblup"]
+gates = { G0 = "passed", G1 = "not_applicable", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["no individual-major .bed, PLINK 2 (.pgen), VCF or BGEN", "ref/alt unknown from .bim"]
+dependencies = ["numpy"]
+
+[[method]]
+method_id = "bayes.markers"
+name = "Bayesian marker regression: BRR, BayesA, BayesB, BayesC, BayesCpi, BayesR (Gibbs)"
+estimand = "posterior mean and SD of genomic breeding values w'beta relative to the genomic base"
+scope = "single trait, one record per animal, genotyped animals; pi0 = probability of a zero effect"
+math = "docs/methods.md#16-bayesian-marker-models-and-mcmc-diagnostics"
+sources = ["Meuwissen, Hayes & Goddard 2001 Genetics 157:1819", "Habier et al. 2011 BMC Bioinformatics 12:186", "Erbe et al. 2012 J Dairy Sci 95:4114"]
+errata = ["BayesR variance ratios applied to centred (not standardised) genotypes - stated as ABP's parameterization"]
+exact_or_approximate = "MCMC (Monte-Carlo error reported); results withheld unless diagnostics pass"
+complexity = "O(records x markers) per iteration and chain; optional C++ sweep"
+code = ["src/abp/solvers/bayes.py", "src/abp/workflows/bayes_eval.py", "src/abp/_native.cpp"]
+tests = ["tests/test_bayes.py::test_inclusion_probability_matches_exact_marginal_likelihood",
+         "tests/test_bayes.py::test_explicit_priors_traces_and_draws",
+         "tests/test_bayes.py::test_brr_fixed_variances_matches_exact_gaussian_posterior",
+         "tests/test_bayes.py::test_bayescpi_recovers_sparse_architecture",
+         "tests/test_bayes.py::test_all_methods_run_and_report_diagnostics",
+         "tests/test_bayes.py::test_seed_determinism_and_chain_independence",
+         "tests/test_bayes.py::test_native_sweep_matches_python_reference",
+         "tests/test_bayes_workflow.py::test_example10_converges_and_writes_outputs",
+         "tests/test_bayes_workflow.py::test_nonconvergence_withholds_results"]
+# G4: prior simulation-based calibration, benchmarks/sbc_bayes.py, 300 replicates per method,
+# all 32 rank-uniformity tests passed (smallest p 0.029) -> docs/validation/sbc_bayes.json;
+# plus the exact Gaussian posterior check for BRR with fixed variances.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_prior_sbc_300_replicates_all_methods", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["single trait, no permanent-environment term", "no single-step Bayesian model", "BayesCpi pi0 may mix slowly (example data withheld at 16,000 iterations)", "prior SBC on a small design (150 records x 40 markers); no posterior SBC near real data"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "diag.mcmc"
+name = "MCMC diagnostics: rank-normalized split R-hat, bulk/tail ESS, MCSE"
+estimand = "convergence and Monte-Carlo precision of posterior summaries"
+scope = "Gibbs chains, arrays (chains, draws); applied to scalars and every GEBV"
+math = "docs/methods.md#16-bayesian-marker-models-and-mcmc-diagnostics"
+sources = ["Vehtari, Gelman, Simpson, Carpenter & Buerkner 2021 Bayesian Analysis 16:667"]
+errata = []
+exact_or_approximate = "estimators as published (Stan conventions)"
+complexity = "O(draws log draws) per quantity (FFT)"
+code = ["src/abp/solvers/mcmc_diagnostics.py"]
+tests = ["tests/test_mcmc_diagnostics.py::test_iid_draws",
+         "tests/test_mcmc_diagnostics.py::test_ar1_effective_sample_size",
+         "tests/test_mcmc_diagnostics.py::test_nonmixing_chains_are_flagged",
+         "tests/test_mcmc_diagnostics.py::test_summary_fields",
+         "tests/test_mcmc_diagnostics.py::test_agreement_with_arviz_reference_values",
+         "tests/test_bayes.py::test_skipped_gebv_diagnostics_are_reported_not_silent"]
+# G2: agreement with ArviZ 0.23.4 (independent implementation) <= 8e-16 relative on 11 chain
+# types: benchmarks/mcmc_diagnostics_crosscheck.py -> docs/validation/mcmc_diagnostics_crosscheck.json
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_applicable", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["HMC-specific diagnostics do not apply", "ESS of a constant quantity is reported as NaN (ArviZ reports the number of draws); constant quantities are not gated"]
+dependencies = ["numpy", "scipy"]
+
+# Methods of the specification that are NOT implemented in this version. They stay in
+# the registry so that they cannot silently disappear (spec: every method has a status).
 [[planned]]
-ids = ["upg.metafounders", "apy", "ss_snpblup", "bayes.brr", "bayes.bayesA", "bayes.bayesB",
-       "bayes.bayesC_pi", "bayes.bayesR", "bayes.lasso", "bayes.horseshoe",
-       "reml.multi_trait", "random_regression", "maternal_effects", "social_effects",
-       "threshold_models", "survival_models", "gxe_models", "dominance_epistasis",
-       "gwas", "ocs", "mating_allocation", "lr_validation", "breeding_program_simulation",
-       "plink_vcf_bgen_readers", "cuda_backend", "federated_privacy", "annotation_priors",
-       "foundation_model_annotation", "plant_polyploid_plugins"]
+ids = ["upg.metafounders", "apy", "ss_snpblup", "bayes.lasso", "bayes.horseshoe",
+       "bayes.single_step", "bayes.multi_trait", "reml.multi_trait", "random_regression",
+       "maternal_effects", "social_effects", "threshold_models", "survival_models",
+       "gxe_models", "dominance_epistasis", "gwas", "lr_population_accuracy",
+       "genomic_ocs", "breeding_program_simulation", "vcf_bgen_pgen_readers", "cuda_backend",
+       "federated_privacy", "annotation_priors", "foundation_model_annotation",
+       "plant_polyploid_plugins"]
 implementation_status = "not_run"
 note = "Planned per the phase plan (S2-S5); each needs its own mathematical contract and tests."

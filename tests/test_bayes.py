@@ -146,3 +146,40 @@ def test_native_sweep_matches_python_reference(code):
     np.testing.assert_allclose(outs[1][0], outs[0][0], atol=1e-12)
     np.testing.assert_allclose(outs[1][1], outs[0][1], atol=1e-12)
     np.testing.assert_array_equal(outs[1][2], outs[0][2])
+
+
+def test_skipped_gebv_diagnostics_are_reported_not_silent(monkeypatch):
+    import abp.solvers.bayes as bm
+    monkeypatch.setattr(bm, "GEBV_STORE_LIMIT", 10)
+    W, p, rng = _geno(60, 20, 2)
+    y = W @ rng.normal(0, 0.3, 20) + rng.normal(size=60)
+    cfg = BayesConfig(method="BRR", chains=2, iterations=200, burn_in=50, thin=1, seed=4,
+                      max_iterations=200)
+    res = run_bayes(y, np.ones((60, 1)), W, W, cfg, float(2 * np.sum(p * (1 - p))))
+    assert "not_computed" in res.gebv_diagnostics and res.gebv_diagnostics["n_animals"] == 60
+
+
+def test_explicit_priors_traces_and_draws():
+    """Explicit hyper-parameters are used as given (SBC needs this), traces and
+    draws have the documented shapes, and posterior means equal the mean of
+    the returned draws."""
+    from abp.solvers.bayes import BayesPriors
+    W, p, rng = _geno(50, 12, 6)
+    y = W @ rng.normal(0, 0.3, 12) + rng.normal(size=50)
+    pri = BayesPriors(nu=5.0, s2=0.02, nu_e=5.0, s2_e=0.6, pi0=0.8, gamma=(0.0, 1.0),
+                      dirichlet=(1.0, 1.0), derivation={"source": "test"})
+    cfg = BayesConfig(method="BayesC", chains=2, iterations=300, burn_in=100, thin=2, seed=9,
+                      max_iterations=300, priors=pri, return_draws=True)
+    res = run_bayes(y, np.ones((50, 1)), W, W[:7], cfg, 123.0)
+    assert res.priors is pri
+    assert res.traces["sigma_e2"].shape == (2, 100)
+    assert res.gebv_draws.shape == (2, 100, 7) and res.beta_draws.shape == (2, 100, 12)
+    np.testing.assert_allclose(res.gebv_mean, res.gebv_draws.reshape(200, 7).mean(0), rtol=1e-12)
+    np.testing.assert_allclose(res.beta_mean, res.beta_draws.reshape(200, 12).mean(0),
+                               rtol=1e-12, atol=1e-15)
+    assert set(res.ppc["statistics"]) == {"sd", "skewness", "min", "max"}
+    bad = BayesPriors(nu=2.0, s2=0.02, nu_e=5.0, s2_e=0.6, pi0=0.8, gamma=(0.0, 1.0),
+                      dirichlet=(1.0, 1.0))
+    with pytest.raises(ABPError):
+        run_bayes(y, np.ones((50, 1)), W, W, BayesConfig(method="BayesC", chains=2,
+                                                         priors=bad), 1.0)

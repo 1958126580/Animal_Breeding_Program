@@ -354,7 +354,7 @@ def choose_method(n_eq: int, need_inverse: bool, memory_budget_bytes: int,
 
 def _pev_too_large(n_eq: int) -> ABPError:
     return ABPError("UNSUPPORTED_COMBINATION",
-                    f"exact PEV for {n_eq} equations exceeds the 0.1 limit of {EXACT_PEV_LIMIT}; "
+                    f"exact PEV for {n_eq} equations exceeds this version's limit of {EXACT_PEV_LIMIT}; "
                     "set solver.pev = \"none\" (EBVs without reliabilities) - approximate "
                     "reliabilities are on the roadmap", n_equations=n_eq, limit=EXACT_PEV_LIMIT)
 

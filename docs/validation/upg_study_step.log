@@ -1,0 +1,29 @@
+seed   1: random: corr 0.812 bias_rams -0.307 bias_2024 -0.338  fixed: corr 0.799 bias_rams +0.915 bias_2024 +0.940  none: corr 0.761 bias_rams -1.854 bias_2024 -2.161
+seed   2: random: corr 0.746 bias_rams -0.682 bias_2024 -0.939  fixed: corr 0.760 bias_rams +0.651 bias_2024 +0.300  none: corr 0.692 bias_rams -1.984 bias_2024 -2.144
+seed   3: random: corr 0.768 bias_rams -1.458 bias_2024 -1.278  fixed: corr 0.782 bias_rams -0.819 bias_2024 -0.628  none: corr 0.730 bias_rams -2.213 bias_2024 -2.135
+seed   4: random: corr 0.772 bias_rams -1.081 bias_2024 -1.413  fixed: corr 0.788 bias_rams -0.709 bias_2024 -1.037  none: corr 0.724 bias_rams -1.700 bias_2024 -2.099
+seed   5: random: corr 0.745 bias_rams -0.343 bias_2024 -0.582  fixed: corr 0.752 bias_rams +0.263 bias_2024 +0.025  none: corr 0.708 bias_rams -1.138 bias_2024 -1.540
+seed   6: random: corr 0.751 bias_rams -0.871 bias_2024 -0.815  fixed: corr 0.754 bias_rams -0.044 bias_2024 +0.078  none: corr 0.724 bias_rams -1.610 bias_2024 -1.830
+seed   7: random: corr 0.729 bias_rams -0.924 bias_2024 -1.466  fixed: corr 0.741 bias_rams -0.167 bias_2024 -0.718  none: corr 0.692 bias_rams -1.676 bias_2024 -2.249
+seed   8: random: corr 0.760 bias_rams -0.908 bias_2024 -0.769  fixed: corr 0.763 bias_rams -0.496 bias_2024 -0.316  none: corr 0.724 bias_rams -1.376 bias_2024 -1.529
+seed   9: random: corr 0.722 bias_rams -0.482 bias_2024 -0.445  fixed: corr 0.724 bias_rams +0.624 bias_2024 +0.697  none: corr 0.665 bias_rams -1.813 bias_2024 -1.945
+seed  10: random: corr 0.807 bias_rams -0.846 bias_2024 -0.416  fixed: corr 0.809 bias_rams +0.289 bias_2024 +0.727  none: corr 0.764 bias_rams -2.172 bias_2024 -1.912
+seed  11: random: corr 0.759 bias_rams -1.383 bias_2024 -1.795  fixed: corr 0.766 bias_rams -1.110 bias_2024 -1.501  none: corr 0.717 bias_rams -1.749 bias_2024 -2.374
+seed  12: random: corr 0.720 bias_rams -1.933 bias_2024 -2.035  fixed: corr 0.724 bias_rams -2.067 bias_2024 -2.248  none: corr 0.694 bias_rams -1.791 bias_2024 -2.000
+seed  13: random: corr 0.770 bias_rams -0.361 bias_2024 -0.269  fixed: corr 0.761 bias_rams +0.883 bias_2024 +1.012  none: corr 0.741 bias_rams -1.616 bias_2024 -1.709
+seed  14: random: corr 0.737 bias_rams -0.671 bias_2024 -0.601  fixed: corr 0.729 bias_rams +0.309 bias_2024 +0.461  none: corr 0.706 bias_rams -1.574 bias_2024 -1.763
+seed  15: random: corr 0.811 bias_rams -0.750 bias_2024 -0.633  fixed: corr 0.810 bias_rams +0.491 bias_2024 +0.631  none: corr 0.775 bias_rams -1.991 bias_2024 -2.011
+seed  16: random: corr 0.790 bias_rams -0.069 bias_2024 +0.164  fixed: corr 0.783 bias_rams +1.004 bias_2024 +1.293  none: corr 0.757 bias_rams -1.229 bias_2024 -1.129
+seed  17: random: corr 0.779 bias_rams -1.634 bias_2024 -1.545  fixed: corr 0.791 bias_rams -1.275 bias_2024 -1.127  none: corr 0.738 bias_rams -2.130 bias_2024 -2.278
+seed  18: random: corr 0.710 bias_rams -1.339 bias_2024 -2.068  fixed: corr 0.723 bias_rams -0.939 bias_2024 -1.699  none: corr 0.681 bias_rams -1.676 bias_2024 -2.525
+seed  19: random: corr 0.734 bias_rams -1.569 bias_2024 -1.124  fixed: corr 0.732 bias_rams -0.230 bias_2024 +0.105  none: corr 0.681 bias_rams -2.476 bias_2024 -2.285
+seed  20: random: corr 0.713 bias_rams -1.345 bias_2024 -1.660  fixed: corr 0.737 bias_rams -0.596 bias_2024 -0.970  none: corr 0.674 bias_rams -2.170 bias_2024 -2.339
+random {'corr_lambs': '0.757 +- 0.007', 'slope_lambs': '1.014 +- 0.019', 'bias_rams': '-0.948 +- 0.114', 'bias_2024': '-1.001 +- 0.141'}
+fixed {'corr_lambs': '0.761 +- 0.006', 'slope_lambs': '0.981 +- 0.013', 'bias_rams': '-0.151 +- 0.187', 'bias_2024': '-0.199 +- 0.224'}
+none {'corr_lambs': '0.717 +- 0.007', 'slope_lambs': '0.940 +- 0.021', 'bias_rams': '-1.797 +- 0.076', 'bias_2024': '-1.998 +- 0.076'}
+random vs none {'abs_bias_rams_reduction': '0.849 +- 0.095', 'abs_bias_2024_reduction': '0.980 +- 0.097', 'corr_gain': '0.039 +- 0.002'}
+fixed vs none {'abs_bias_rams_reduction': '1.103 +- 0.128', 'abs_bias_2024_reduction': '1.172 +- 0.131', 'corr_gain': '0.044 +- 0.003'}
+UPG:A_16_19 {'realised_mean_tbv': '2.108 +- 0.141', 'random_minus_realised': '-0.812 +- 0.101', 'fixed_minus_realised': '-0.056 +- 0.152'}
+UPG:B {'realised_mean_tbv': '-1.044 +- 0.128', 'random_minus_realised': '-0.716 +- 0.131', 'fixed_minus_realised': '-0.206 +- 0.214'}
+UPG:A_20_24 {'realised_mean_tbv': '4.762 +- 0.114', 'random_minus_realised': '-1.540 +- 0.143', 'fixed_minus_realised': '-0.178 +- 0.250'}
+wrote /home/user/Animal_Breeding_Program/docs/validation/upg_study_step.json

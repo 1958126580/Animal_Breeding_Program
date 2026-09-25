@@ -3,7 +3,8 @@
 Implements the rank-normalized split-R-hat, bulk-ESS and tail-ESS of
 Vehtari, Gelman, Simpson, Carpenter & Buerkner (2021, Bayesian Analysis
 16:667-718), with the autocorrelation-based effective sample size and Geyer's
-initial monotone sequence estimator as used in Stan.  The same functions are
+initial positive and monotone sequence estimator as used in Stan.  ArviZ
+(Apache-2.0) serves only as an external test oracle and is not a dependency.  The same functions are
 applied to every monitored quantity (variance components, mixture weights,
 genetic variance and, where stored, individual GEBVs) - diagnosing only the
 variance components is not enough.
@@ -72,8 +73,20 @@ def _autocov(x: np.ndarray) -> np.ndarray:
 
 
 def ess(x: np.ndarray) -> float:
-    """Effective sample size of ``x`` (chains, draws) by Geyer's initial
-    monotone sequence on the multi-chain autocorrelation (Stan's estimator)."""
+    """Effective sample size of ``x`` (chains, draws), Stan's estimator.
+
+    Multi-chain autocorrelations ``rho_t = 1 - (W - mean_chains acov_t) / var+``
+    (``W`` the mean within-chain variance, ``var+`` the pooled variance
+    estimate) are truncated by Geyer's *initial positive sequence*: pairs
+    ``(rho_{2k}, rho_{2k+1})`` are kept while their sum is positive (the pair
+    at lags 0 and 1 always).  The last even autocorrelation is kept if it is
+    positive, the kept pairs are made monotonically non-increasing (*initial
+    monotone sequence*), and ``tau = -1 + 2 sum_{t <= T} rho_t + rho_{T+1}``,
+    ``ESS = m n / max(tau, 1/log10(m n))``.  This follows the reference
+    algorithm of Vehtari et al. (2021) as implemented in Stan; agreement
+    with the independent ArviZ implementation is recorded in
+    ``docs/validation/mcmc_diagnostics_crosscheck.json``.
+    """
     x = np.asarray(x, dtype=np.float64)
     m, n = x.shape
     if n < 4:
@@ -81,25 +94,38 @@ def ess(x: np.ndarray) -> float:
     if np.all(x == x.flat[0]):
         return float("nan")
     acov = _autocov(x)
-    chain_mean = x.mean(axis=1)
-    W = (acov[:, 0] * n / (n - 1)).mean()
-    var_plus = W * (n - 1) / n + (chain_mean.var(ddof=1) if m > 1 else 0.0)
+    W = float(np.mean(acov[:, 0])) * n / (n - 1.0)
+    var_plus = W * (n - 1.0) / n
+    if m > 1:
+        var_plus += float(np.var(x.mean(axis=1), ddof=1))
     if var_plus <= 0:
         return float("nan")
-    rho = 1.0 - (W - acov.mean(axis=0)) / var_plus
-    rho[0] = 1.0
-    # Geyer: sums of adjacent pairs while positive, made monotone
-    t = 0
-    pair_sums = []
-    while t + 1 < n:
-        p = rho[t] + rho[t + 1]
-        if p <= 0:
-            break
-        pair_sums.append(p)
+    mean_acov = acov.mean(axis=0)
+
+    def rho_at(t):
+        return 1.0 - (W - mean_acov[t]) / var_plus
+
+    rho = np.zeros(n)
+    rho[0], rho[1] = 1.0, rho_at(1)
+    even, odd = rho[0], rho[1]
+    t = 1
+    # initial positive sequence over the pairs (t+1, t+2) = (2, 3), (4, 5), ...
+    while t < n - 3 and even + odd > 0.0:
+        even, odd = rho_at(t + 1), rho_at(t + 2)
+        if even + odd >= 0.0:
+            rho[t + 1], rho[t + 2] = even, odd
         t += 2
-    pair_sums = np.minimum.accumulate(np.array(pair_sums)) if pair_sums else np.array([1.0])
-    tau = -1.0 + 2.0 * pair_sums.sum()
-    tau = max(tau, 1.0 / np.log10(m * n))  # Stan's safeguard against tau -> 0
+    last = t - 2                        # index of the last kept odd lag
+    if even > 0.0:
+        rho[last + 1] = even            # keep the last positive even autocorrelation
+    # initial monotone sequence: no pair may exceed the pair before it
+    t = 1
+    while t <= last - 2:
+        if rho[t + 1] + rho[t + 2] > rho[t - 1] + rho[t]:
+            rho[t + 1] = rho[t + 2] = 0.5 * (rho[t - 1] + rho[t])
+        t += 2
+    tau = -1.0 + 2.0 * float(np.sum(rho[:last + 1])) + float(np.sum(rho[last + 1:last + 2]))
+    tau = max(tau, 1.0 / np.log10(m * n))   # Stan's safeguard against tau -> 0
     return float(m * n / tau)
 
 
@@ -116,10 +142,11 @@ def tail_ess(x: np.ndarray) -> float:
 
 
 def mcse_mean(x: np.ndarray) -> float:
-    """Monte-Carlo standard error of the posterior mean."""
-    s = _split(x)
-    e = ess(s)
-    return float(s.std(ddof=1) / np.sqrt(e)) if e and np.isfinite(e) else float("nan")
+    """Monte-Carlo standard error of the posterior mean: ``sd / sqrt(ESS)``, with
+    the SD of all draws and the ESS of the split chains."""
+    x = np.asarray(x, dtype=np.float64)
+    e = ess(_split(x))
+    return float(x.std(ddof=1) / np.sqrt(e)) if e and np.isfinite(e) else float("nan")
 
 
 def summarize(x: np.ndarray) -> dict:

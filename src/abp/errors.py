@@ -228,3 +228,27 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     return str(value)
+
+
+def markdown_table() -> str:
+    """The error-code reference (``docs/error_codes.md``), generated from the registry."""
+    lines = ["# Error codes and exit statuses", "",
+             "Generated from `abp.errors` (`python -m abp.errors docs/error_codes.md`; "
+             "`abp errors` prints the same table). Codes are stable and never re-used.", "",
+             "| Code | Name | Exit status | Meaning | Remedy |", "|---|---|---:|---|---|"]
+    for s in sorted(_SPECS, key=lambda e: e.code):
+        lines.append(f"| {s.code} | {s.name} | {s.exit_status} | {s.summary} | {s.remedy} |")
+    lines += ["", "Exit statuses: 0 success, 1 internal error, 2 usage/output-folder problem, "
+                  "3 input/contract error, 4 blocking QC finding, 5 model/identifiability "
+                  "problem, 6 numerical failure, 7 resource/platform limit, 130 cancelled.", ""]
+    return "\n".join(lines)
+
+
+if __name__ == "__main__":  # pragma: no cover - documentation generator
+    import sys
+    from pathlib import Path
+    if len(sys.argv) > 1:
+        Path(sys.argv[1]).write_text(markdown_table(), encoding="utf-8")
+        print(f"wrote {sys.argv[1]}")
+    else:
+        print(markdown_table())

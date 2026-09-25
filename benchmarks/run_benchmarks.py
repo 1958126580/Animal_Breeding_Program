@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Reproducible performance measurements for ABP kernels (synthetic inputs).
 
-Usage:  python benchmarks/run_benchmarks.py [--full] [--out benchmarks/results/<name>.json]
+Usage:  python benchmarks/run_benchmarks.py [--full] [--only GROUP ...] [--out FILE]
+
+Groups: pedigree, blup, reml, g (round 1); bayes, ocs, upg, plink (round 2).
 
 Every case builds its own synthetic data from a fixed seed, times the step
 with ``time.perf_counter`` (wall clock, single run unless stated), and checks
@@ -124,22 +126,121 @@ def case_g(n, m):
             "mean_diag": float(np.mean(np.diag(G)))}
 
 
+def case_bayes_sweep(n, m, reps):
+    """One Gibbs marker sweep (BayesC code path): C++ kernel vs Python reference."""
+    from abp.core import pedigree as pmod
+    from abp.solvers.bayes import sweep_python
+    rng = np.random.default_rng(13)
+    Wf = np.asfortranarray(rng.integers(0, 3, (n, m)).astype(float) - 1.0)
+    wtw = np.einsum("ij,ij->j", Wf, Wf)
+    args = (np.full(m, 0.01), np.log([0.95, 0.05]), np.array([0.0, 0.01]), 1.0, 1,
+            rng.normal(size=m), rng.random(m))
+    rec = {"case": f"bayes_sweep_{n}x{m}", "records": n, "markers": m}
+    runs = [("python_reference", lambda e, b, d: sweep_python(Wf, wtw, e, b, d, *args))]
+    if pmod._native is not None and hasattr(pmod._native, "bayes_sweep"):
+        runs.append(("native_cpp", lambda e, b, d: pmod._native.bayes_sweep(Wf.T, wtw, e, b, d,
+                                                                            *args)))
+    outs = {}
+    e0, b0, d0 = rng.normal(size=n), np.zeros(m), np.zeros(m, dtype=np.int64)   # same start
+    for name, fn in runs:
+        e, b, d = e0.copy(), b0.copy(), d0.copy()
+        _, t = timed(lambda: [fn(e, b, d) for _ in range(reps)])
+        rec[f"{name}_s_per_sweep"] = t / reps
+        e, b, d = e0.copy(), b0.copy(), d0.copy()
+        fn(e, b, d)
+        outs[name] = b
+    if len(outs) == 2:
+        rec["max_abs_diff_native_vs_python"] = float(np.max(np.abs(outs["native_cpp"]
+                                                                   - outs["python_reference"])))
+        rec["speedup"] = rec["python_reference_s_per_sweep"] / rec["native_cpp_s_per_sweep"]
+    return rec
+
+
+def case_ocs(n_male, n_female, n_matings):
+    from abp.decision.mating import allocate, forbidden_mask
+    from abp.decision.ocs import coancestry_target_from_delta_f, integer_matings, solve_ocs
+    ids, s, d = sim_pedigree(6, 2 * (n_male + n_female), 20, seed=17)
+    ped = Pedigree.from_parent_ids(ids, s, d)
+    last = ped.index_of(ids[-2 * (n_male + n_female):])
+    male_all = np.arange(last.size) % 2 == 0
+    cand = np.concatenate([last[male_all][:n_male], last[~male_all][:n_female]])
+    male = np.arange(cand.size) < n_male
+    A = ped.a_submatrix(cand)
+    g = np.random.default_rng(19).normal(size=cand.size)
+    cap = np.where(male, 20, 1)
+    _, ct = coancestry_target_from_delta_f(A, 0.01)
+    cmax = ct                                      # ceiling at the candidates' mean coancestry
+    oc, t_ocs = timed(lambda: solve_ocs(g, A, male, np.zeros(cand.size), cap / (2.0 * n_matings),
+                                        cmax))
+    counts = integer_matings(oc.c, cap, male, n_matings)
+    si, di = np.flatnonzero(male & (counts > 0)), np.flatnonzero(~male & (counts > 0))
+    A_sd = A[np.ix_(si, di)]
+    forb, _ = forbidden_mask(A_sd, 0.25, None, None, None)
+    plan, t_mate = timed(lambda: allocate(counts[si], counts[di], A_sd, forb))
+    return {"case": f"ocs_mating_{cand.size}candidates", "candidates": int(cand.size),
+            "matings": n_matings, "ocs_s": t_ocs, "ocs_status": oc.status,
+            "kkt_stationarity": oc.kkt["stationarity_max_abs"], "mating_lp_s": t_mate,
+            "sires_x_dams": int(si.size * di.size), "plan_checks": plan.checks}
+
+
+def case_upg(n_gen, per_gen, n_groups):
+    from abp.core.upg import GroupAssignment, ainv_with_groups, group_fractions
+    ids, s, d = sim_pedigree(n_gen, per_gen, 50)
+    ped = Pedigree.from_parent_ids(ids, s, d)
+    rng = np.random.default_rng(23)
+    unknown = ped.sire < 0
+    sg = np.where(unknown, rng.integers(0, n_groups, ped.n), -1)
+    dg = np.where(ped.dam < 0, rng.integers(0, n_groups, ped.n), -1)
+    grp = GroupAssignment(tuple(f"G{k}" for k in range(n_groups)), sg, dg)
+    _, t_f = timed(ped.inbreeding)                # shared by both A-inverse variants (cached)
+    M, t_ainv = timed(lambda: ainv_with_groups(ped, grp))
+    Q, t_q = timed(lambda: group_fractions(ped, grp))
+    _, t_plain = timed(ped.ainv)
+    return {"case": f"upg_{ped.n}animals_{n_groups}groups", "n_animals": ped.n,
+            "groups": n_groups, "inbreeding_s": t_f, "ainv_with_groups_s": t_ainv,
+            "group_fractions_s": t_q,
+            "plain_ainv_s": t_plain, "nnz": int(M.nnz),
+            "q_rows_sum_to_one": bool(np.allclose(Q.sum(axis=1), 1.0))}
+
+
+def case_plink(n, m):
+    from abp.io.plink import decode_bed
+    rng = np.random.default_rng(29)
+    raw = bytes([0x6C, 0x1B, 0x01]) + rng.integers(0, 256, m * ((n + 3) // 4),
+                                                    dtype=np.uint8).tobytes()
+    M, t = timed(lambda: decode_bed(raw, n, m))
+    return {"case": f"plink_decode_{n}x{m}", "samples": n, "variants": m, "wall_s": t,
+            "bytes": len(raw), "missing_fraction": float(np.isnan(M).mean())}
+
+
+GROUPS = ("pedigree", "blup", "reml", "g", "bayes", "ocs", "upg", "plink")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="include slow Python reference timings")
+    ap.add_argument("--only", nargs="+", choices=GROUPS, default=list(GROUPS))
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
-    results = {"created_at": utc_now(), "environment": environment(), "cases": []}
+    results = {"created_at": utc_now(), "environment": environment(), "groups": args.only,
+               "cases": []}
     cases = [
-        lambda: case_pedigree(10, 1000, True),
-        lambda: case_pedigree(10, 10000, args.full),
-        lambda: case_pedigree(20, 5000, args.full),
-        lambda: case_blup(5000, 4000, "dense", True),
-        lambda: case_blup(100000, 80000, "sparse_direct", False),
-        lambda: case_blup(100000, 80000, "pcg", False),
-        lambda: case_reml(3000, 2500),
-        lambda: case_g(2000, 50000),
+        ("pedigree", lambda: case_pedigree(10, 1000, True)),
+        ("pedigree", lambda: case_pedigree(10, 10000, args.full)),
+        ("pedigree", lambda: case_pedigree(20, 5000, args.full)),
+        ("blup", lambda: case_blup(5000, 4000, "dense", True)),
+        ("blup", lambda: case_blup(100000, 80000, "sparse_direct", False)),
+        ("blup", lambda: case_blup(100000, 80000, "pcg", False)),
+        ("reml", lambda: case_reml(3000, 2500)),
+        ("g", lambda: case_g(2000, 50000)),
+        ("bayes", lambda: case_bayes_sweep(1000, 10000, 3)),
+        ("bayes", lambda: case_bayes_sweep(5000, 50000, 1)),
+        ("ocs", lambda: case_ocs(100, 400, 400)),
+        ("ocs", lambda: case_ocs(300, 1200, 1200)),
+        ("upg", lambda: case_upg(10, 10000, 50)),
+        ("plink", lambda: case_plink(5000, 50000)),
     ]
+    cases = [c for grp, c in cases if grp in args.only]
     for c in cases:
         rec = c()
         print(json.dumps(rec))

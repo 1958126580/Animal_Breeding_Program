@@ -18,6 +18,8 @@ Mating spec (TOML)::
     max_pair_relationship = 0.25       # optional hard limit on A_sd
     max_affected_risk = 0.0            # optional; needs a carrier column
     forbidden_pairs = "forbidden.csv"  # optional: columns sire,dam
+    group_prefix = "UPG:"              # optional: parent codes naming unknown-parent
+                                       # groups (unknown parents for A; see abp.core.upg)
 """
 
 from __future__ import annotations
@@ -65,6 +67,7 @@ MATING_SCHEMA = Section({
         "max_pair_relationship": Field("float"),
         "max_affected_risk": Field("float"),
         "forbidden_pairs": Field("str"),
+        "group_prefix": Field("str"),
     }, required=True),
 }, required=True)
 
@@ -107,7 +110,8 @@ def plan_matings(spec_path: str | Path, out_dir: str | Path, force: bool = False
         for role, t in (("candidates", cand), ("pedigree", pedt)):
             manifest["inputs"].append({"role": role, "path": str(t.path), "sha256": t.sha256,
                                        "rows": t.n_rows})
-        ped = load_pedigree(pedt, PedigreeColumns(), {"0", "", "NA", "."}, {"", "NA", "."}).pedigree
+        ped = load_pedigree(pedt, PedigreeColumns(), {"0", "", "NA", "."}, {"", "NA", "."},
+                            group_prefix=m["group_prefix"]).pedigree
         ids = cand.column(m["id_column"])
         if len(set(ids)) != len(ids):
             raise ABPError("DUPLICATE_KEY", "candidate IDs must be unique")

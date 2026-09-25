@@ -1,10 +1,10 @@
 # ABP Python API
 
-Version 0.1.0. Every snippet below is taken from `examples/api_example.py`,
+Version 0.2.0. Every snippet below is taken from `examples/api_example.py`,
 which the test suite runs (`tests/test_examples.py::test_api_example_script_runs`).
 The mathematics behind each function is in [`methods.md`](methods.md).
 
-The public surface in 0.1 is the set of modules and names listed here. Other
+The public surface of this version is the set of modules and names listed here. Other
 names (leading underscore, or not listed) may change without notice. All
 arrays are NumPy `float64`, and sparse matrices are SciPy CSR.
 
@@ -12,12 +12,12 @@ arrays are NumPy `float64`, and sparse matrices are SciPy CSR.
 
 | Package | Role |
 |---|---|
-| `abp.core` | pedigree (`pedigree`), fixed-effect design (`design`), genomic relationships (`genomic`), model compiler (`model`), analysis spec (`spec`) |
-| `abp.io` | delimited-table reader with provenance (`tables`) |
+| `abp.core` | pedigree (`pedigree`), unknown-parent groups (`upg`), fixed-effect design (`design`), genomic relationships (`genomic`), model compiler (`model`), analysis spec (`spec`) |
+| `abp.io` | delimited-table reader with provenance (`tables`), PLINK 1 binary reader (`plink`) |
 | `abp.qc` | pedigree, phenotype and genotype QC with structured findings |
-| `abp.solvers` | MME assembly and solvers (`mme`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`) |
-| `abp.decision` | selection indices (`selection_index`) |
-| `abp.workflows` | end-to-end evaluation, outputs, manifests, reports |
+| `abp.solvers` | MME assembly and solvers (`mme`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`), Bayesian marker models (`bayes`), MCMC diagnostics (`mcmc_diagnostics`) |
+| `abp.decision` | selection indices (`selection_index`), optimal contributions (`ocs`), mating allocation (`mating`) |
+| `abp.workflows` | end-to-end evaluation, LR validation (`validation_lr`), mating plans (`mating_plan`), outputs, manifests, reports |
 | `abp.errors` | `ABPError` and the error-code table |
 
 ## Errors
@@ -59,7 +59,7 @@ ped.relationship(["7"], ["8"])  # -> array([[0.25]])
 | `.inbreeding()` | `F` (C++ kernel if available); `.inbreeding_kernel` names the kernel that ran |
 | `.mendelian_d()` | `d_i` of `A = T D T'` |
 | `.ainv()` | sparse `A⁻¹` |
-| `.logdet_a()` | `log|A|` |
+| `.logdet_a()` | log-determinant of A, `log det A` |
 | `.a_times(x)` | `A @ x` for a vector or matrix, without forming `A` |
 | `.a_columns(idx)`, `.a_submatrix(idx)`, `.a_dense()` | dense parts of `A` (`a_dense` refuses more than 20,000 animals) |
 
@@ -157,7 +157,92 @@ idx, idx_rel = ebv_index(mt.ebv, mt.pev_blocks, np.array([1.0, 2.0]), G0, 1 + pe
 `smith_hazel(..., restrict=["trait"])` computes the restricted index.
 `selection_intensity(p)` returns the truncation-selection intensity.
 
-## 8. Whole workflow: `abp.workflows.evaluate.run_evaluation`
+## 8. Unknown-parent groups: `abp.core.upg`
+
+```python
+from abp.core.upg import GroupAssignment, group_fractions, upg_structure_parts
+ped3 = Pedigree.from_parent_ids(["s", "d", "x"], [None, None, "s"], [None, None, "d"])
+groups = GroupAssignment(labels=("G_import",),
+                         sire_group=np.array([0, -1, -1]),   # per animal, pedigree order
+                         dam_group=np.array([0, -1, -1]))
+group_fractions(ped3, groups)        # Q, animals x groups
+k_inv, k_diag, logdet = upg_structure_parts(ped3, groups, "random", 1.0)
+```
+
+| Name | Returns |
+|---|---|
+| `GroupAssignment(labels, sire_group, dam_group)` | group index (or `-1`) of the unknown sire/dam of every animal, in `ped.ids` order |
+| `ainv_with_groups(ped, groups)` | `A*⁻¹` of size `n + g` (Henderson rules with groups as parents) |
+| `group_fractions(ped, groups)` | `Q` (`n × g`) |
+| `upg_structure_parts(ped, groups, effect, ratio)` | `(K⁻¹, diag(K), log det K)` over `(u*, g)`; for `"fixed"` `diag(K)` is `NaN` and `log det K` is `None` |
+| `check_fixed_groups_estimable(X, ZQ, labels)` | rank diagnostics, or `ABPError` `MODEL_NOT_IDENTIFIABLE` |
+| `upg_structure(ped, groups, effect, ratio)` | a `GeneticStructure` (animals, then groups) for `abp.core.model.build_single_trait` |
+
+`load_pedigree(..., group_prefix="UPG:")` in `abp.qc.pedigree` returns
+`PedigreeData.groups` from group codes in the parent columns.
+
+## 9. Optimal contributions and mating: `abp.decision.ocs`, `abp.decision.mating`
+
+```python
+from abp.decision.mating import allocate, forbidden_mask
+from abp.decision.ocs import coancestry_target_from_delta_f, integer_matings, solve_ocs
+cmax, ct = coancestry_target_from_delta_f(A_c, 0.02)
+ocs = solve_ocs(g_c, A_c, male_c, np.zeros(cand.size), cap / (2.0 * n_mat), cmax)
+ocs.c, ocs.merit, ocs.coancestry, ocs.status, ocs.kkt
+counts = integer_matings(ocs.c, cap, male_c, n_mat)
+forb, why = forbidden_mask(A_sd, 0.25, None, None, None)
+plan = allocate(counts[s_i], counts[d_i], A_sd, forb)
+plan.pairs, plan.offspring_inbreeding, plan.mean_inbreeding, plan.checks
+```
+
+| Name | Notes |
+|---|---|
+| `solve_ocs(g, A, male, lo, hi, max_coancestry)` | exact optimum with KKT certificate; `ABPError` if the ceiling is below the minimum achievable coancestry |
+| `coancestry_target_from_delta_f(A, delta_f)` | `(C_max, C_t)` |
+| `integer_matings(c, capacity, male, n_matings)` | largest-remainder rounding per sex |
+| `repair_integer_plan(counts, g, A, male, capacity, n_matings, max_coancestry)` | `(counts, moves)`; enforces the ceiling on whole matings |
+| `forbidden_mask(A_sd, max_pair_relationship, carrier_s, carrier_d, max_affected_risk, explicit=None)` | `(mask, counts per reason)` |
+| `allocate(n_s, m_d, A_sd, forbidden, carrier_s=None, carrier_d=None)` | minimum-inbreeding plan (`MatingPlan`); `ABPError` naming unmatchable parents if infeasible |
+| `abp.workflows.mating_plan.plan_matings(spec, out, force=False)` | the `abp mate` workflow; returns the published folder |
+
+## 10. PLINK input: `abp.io.plink`
+
+```python
+from abp.io.plink import load_plink, write_bed
+write_bed(Path(tmp) / "demo", ["a1", "a2", "a3"],
+          [("snp1", "1", 1000, "A", "G"), ("snp2", "1", 2000, "C", "T")],
+          np.array([[0.0, 2.0], [1.0, np.nan], [2.0, 1.0]]))
+gd = load_plink(Path(tmp) / "demo", "DEMO-ASSEMBLY")  # reads demo.bed/.bim/.fam
+gd.ids, gd.markers, gd.counted_allele                # counted allele = A1
+np.where(gd.missing, np.nan, gd.dosage)              # dosages of A1
+```
+
+`decode_bed(raw, n_samples, n_variants)` decodes SNP-major bytes;
+`write_bed(prefix, ids, markers, dosage_a1)` writes a fileset (tests,
+conversions).
+
+## 11. Bayesian marker models: `abp.solvers.bayes`, `abp.solvers.mcmc_diagnostics`
+
+```python
+from abp.solvers.bayes import BayesConfig, run_bayes
+from abp.solvers.mcmc_diagnostics import summarize
+cfg = BayesConfig(method="BayesC", pi0=0.95, chains=4, iterations=1000, burn_in=200, thin=1,
+                  seed=7, max_iterations=4000)
+bres = run_bayes(yb, np.ones((300, 1)), Wm, Wm, cfg, float(2 * np.sum(pb * (1 - pb))))
+if not bres.converged:                   # never use unconverged results
+    raise SystemExit("MCMC diagnostics failed; results withheld")
+bres.gebv_mean, bres.gebv_sd, bres.beta_mean, bres.inclusion_prob, bres.summaries
+summarize(chains)                        # any (chains, draws) array
+```
+
+`run_bayes(y, X, W_train, W_all, cfg, sum2pq)`: `W_train` rows match `y`;
+GEBVs are returned for the rows of `W_all`; `sum2pq = Σ 2pⱼ(1 − pⱼ)` scales
+the default priors. `BayesConfig` fields mirror the `[bayes]` spec keys.
+`run_bayes` does **not** raise on non-convergence (it returns
+`converged = False`); the workflow turns that into `ABP-E405`. Diagnostics:
+`rhat`, `bulk_ess`, `tail_ess`, `mcse_mean`, `summarize`, `passes`.
+
+## 12. Whole workflow: `abp.workflows.evaluate.run_evaluation`
 
 ```python
 from abp.workflows.evaluate import run_evaluation
@@ -173,4 +258,6 @@ On failure `run_evaluation` raises `ABPError` after writing
 `<out>.failed-<run id>/manifest.json`. Related helpers:
 `abp.workflows.validate.validate_inputs(spec)` (QC only),
 `abp.core.spec.load_spec(path)` (validated spec object) and
-`abp.examples.sheep.write_sheep_example(out, seed)` (synthetic data).
+`abp.examples.sheep.write_sheep_example(out, seed)` (synthetic data). With a
+`[validation]` section the run also performs LR validation
+(`abp.workflows.validation_lr.run_lr`); results are in `out.results["validation"]`.

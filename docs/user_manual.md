@@ -1,6 +1,6 @@
 # ABP User Manual
 
-Version 0.1.0 · 2026-09-25
+Version 0.2.0 · 2026-09-25
 
 This manual is for breeders, geneticists and evaluation-centre staff who run
 ABP. It covers installation, data preparation, every analysis-spec key, the
@@ -31,17 +31,19 @@ Contents
 
 ### 1.1 What ABP estimates
 
-ABP 0.1 estimates **additive breeding values (EBVs)**: the part of an
+ABP estimates **additive breeding values (EBVs)**: the part of an
 animal's genetic merit that is passed on to its offspring. On average an
 offspring receives half of each parent's breeding value. An EBV is:
 
 * **not** a prediction of the animal's own next phenotype. That would also
   include fixed and environmental effects.
 * **not** a total genetic value. That would also include dominance and
-  epistasis, which ABP 0.1 does not model.
+  epistasis, which ABP does not model.
 * always expressed **relative to a genetic base**. For a pedigree model the
   base is the founders: animals whose parents are unknown are treated as
-  unrelated, non-inbred and with mean EBV 0.
+  unrelated, non-inbred and with mean EBV 0. When unknown parents are
+  assigned to *genetic groups* (§7.9), the base is formed by the ungrouped
+  unknown parents and each group has its own estimated level.
 
 Every analysis spec must state this explicitly (`analysis.task`,
 `analysis.genetic_base`, `analysis.target_population`,
@@ -65,7 +67,16 @@ variance components themselves. They are not a validated measure of
 prediction accuracy on your population. A reliability of 0.35 means that
 roughly a third of the genetic variation among animals like this one is
 captured by the EBV. Such animals can re-rank considerably as information
-accumulates.
+accumulates. Forward-in-time validation (§7.11) checks the predictions
+against later data.
+
+Two analyses report something different and say so in every output:
+
+* **Bayesian marker models** (§7.10) report the posterior mean
+  (`gebv_posterior_mean`) and the posterior standard deviation
+  (`gebv_posterior_sd`) instead of PEV and reliability.
+* With **fixed** genetic groups (§7.9) the prior variance of an EBV is not
+  defined, so reliabilities are left empty; PEV and SEP are reported.
 
 ### 1.3 Synthetic data
 
@@ -149,13 +160,17 @@ abp selftest
 ### 2.5 Verifying an installation
 
 `abp selftest` runs the installed build on analytical cases whose answers
-were derived by hand: minor allele frequency, a selection index, inbreeding
-and the inverse relationship matrix, BLUP and PEV, a REML derivative, the
-single-step identity, and the textbook example of Mrode (2005). It must end
-with `RESULT: PASS`. It also reports whether the native C++ kernel is in use.
+were derived by hand or come from an independent implementation: minor
+allele frequency, a selection index, inbreeding and the inverse relationship
+matrix, BLUP and PEV, a REML derivative, the single-step identity, the
+textbook example of Mrode (2005), PLINK byte decoding, the inverse
+relationship matrix with genetic groups, a closed-form optimal-contribution
+problem, MCMC diagnostics against ArviZ reference values, and (if compiled)
+the C++ Bayesian sweep against the Python reference. It must end with
+`RESULT: PASS`. It also reports whether the native C++ kernel is in use.
 
 ```
-ABP 0.1.0 self-test (native kernel: True)
+ABP 0.2.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
@@ -163,6 +178,11 @@ ABP 0.1.0 self-test (native kernel: True)
   [PASS] T05 REML genetic score = -0.01463020355
   [PASS] T06 H-inverse = A-inverse when G* = A22
   [PASS] Mrode Ex. 3.1 sex and animal solutions (+-6e-4)
+  [PASS] T07 PLINK bytes 78 00 2F 01 -> A1 dosages
+  [PASS] T08 group A*-inverse and gene fractions (Quaas 1988)
+  [PASS] T09 OCS closed form a = (1 + sqrt(16C - 2))/4
+  [PASS] T10 R-hat, bulk and tail ESS = reference values
+  [PASS] T11 native Bayesian sweep = Python reference
 RESULT: PASS
 ```
 
@@ -239,8 +259,12 @@ error naming each offending line. ABP never drops data without telling you.
 |---|---|
 | prepare your own files | §4 |
 | write your own analysis spec | §5 and the examples in `examples/` |
-| use genotypes | §7.4–7.5 |
+| use genotypes (CSV or PLINK files) | §4.3, §7.4–7.5 |
+| fit BayesA/B/C/Cπ/R or Bayesian ridge regression | §7.10 |
+| handle purchased animals or imports without ancestry | §7.9 (genetic groups) |
 | combine traits into an economic index | §7.6–7.7 |
+| check predictions forward in time | §7.11 |
+| choose parents and plan matings | §7.12 |
 | understand an error message | §12 and [`error_codes.md`](error_codes.md) |
 
 ---
@@ -276,6 +300,21 @@ Column names can differ. Map them in `[data.pedigree_columns]`. Rows may be
 in any order: ABP sorts parents before offspring. Parents that have no row of
 their own are added as founders and listed in the QC report.
 
+**Genetic-group codes.** If some unknown parents belong to identifiable
+populations (for example rams bought from a particular breeder in a
+particular period), write a group code instead of `0` in the parent field
+and declare the code prefix in `[upg]` (§5.13, §7.9):
+
+```
+id,sire,dam,sex,birth_year
+P16A1,UPG:A_16_19,UPG:A_16_19,M,2014
+E11001,0,0,F,2011
+```
+
+A code starting with the prefix is **not** an animal: it names a group of
+unknown parents. Animal IDs must not start with the prefix (`PED-UPG-ID`).
+Without an `[upg]` section such codes would be read as ordinary parent IDs.
+
 ### 4.2 Phenotypes
 
 One row per **record**: one animal measured on one occasion. A row can hold
@@ -297,6 +336,9 @@ W2100002,F2,2021,F,2,2-5,F2-2021-F,31.85,NA,NA,2,F2-2022
 * A record counts as used for a trait when it has a value for that trait.
   Every classification variable the model applies to that trait must then be
   present.
+* Forward validation (§7.11) needs the date of each record: map a date
+  column (`YYYY`, `YYYY-MM` or `YYYY-MM-DD`) in
+  `[data.phenotype_columns] date = "..."`.
 
 ### 4.3 Genotypes and marker map
 
@@ -324,12 +366,30 @@ W2400902,1,NA,2
   markers of the map, in any order.
 * Values are 0, 1 or 2. Decimals between 0 and 2 are accepted as imputed
   dosages. Missing-value codes are allowed.
-* PLINK, VCF and BGEN files are **not** read directly in 0.1. Convert them
-  with a trusted tool and keep the counted allele explicit. For example,
-  `plink --recode A` writes a `.raw` file whose dosage columns are named
-  `<marker>_<counted allele>`. Keep its `IID` column (renamed `id`) and the
-  dosage columns (renamed to the marker IDs). Take `counted_allele` for the
-  map from the column suffixes, and `ref`/`alt`/`pos` from the `.bim` file.
+
+**PLINK 1 binary files.** Instead of `genotypes` + `marker_map`, give the
+prefix of a PLINK 1 fileset (`.bed`, `.bim`, `.fam`) and the assembly of its
+positions:
+
+```toml
+[data]
+plink = "geno/flock2025"                 # reads flock2025.bed/.bim/.fam
+genotype_assembly = "Oar_rambouillet_v1.0"
+```
+
+* Only the standard SNP-major `.bed` layout is accepted (the obsolete
+  individual-major layout is refused).
+* The **counted allele is A1** of the `.bim` file, exactly the allele that
+  `plink --recode A` counts. A `.bim` file does not say which allele is the
+  reference and carries no assembly, so ABP records ref/alt as unknown and
+  requires `genotype_assembly`; it never guesses either.
+* The individual ID (`IID`) of the `.fam` file is the animal ID; family IDs
+  are ignored. Duplicated IIDs or variant IDs, and variants whose two alleles
+  are identical, stop the run; strand-ambiguous A/T and C/G variants are
+  flagged for review.
+* VCF and BGEN files are not read directly. Convert them to PLINK 1 binary
+  or to the dosage format above with a trusted tool, keeping the counted
+  allele explicit.
 
 ### 4.4 Allele frequencies (optional)
 
@@ -373,7 +433,7 @@ machine-readable schema is `contracts/analysis_spec.schema.json`.
 
 | Key | Type | Required | Notes |
 |---|---|---|---|
-| `task` | string | yes | `additive_ebv` (implemented); `phenotype_prediction`, `total_genetic_value` and `mating_utility` are reserved and rejected in 0.1 |
+| `task` | string | yes | `additive_ebv` (implemented); `phenotype_prediction`, `total_genetic_value` and `mating_utility` are reserved and rejected in this version |
 | `target_population` | string | yes | the population the results apply to |
 | `information_cutoff` | date | yes | `YYYY-MM-DD`: the latest date of information used |
 | `genetic_base` | string | yes | how the base is defined (for example "founders with unknown parents") |
@@ -385,7 +445,9 @@ machine-readable schema is `contracts/analysis_spec.schema.json`.
 |---|---|---|---|
 | `pedigree` | path | none | required for `pedigree` and `single_step` relationships |
 | `phenotypes` | path | **required** | |
-| `genotypes`, `marker_map` | path | none | required for `genomic` and `single_step` |
+| `genotypes`, `marker_map` | path | none | required for `genomic` and `single_step` (or use `plink`) |
+| `plink` | path prefix | none | PLINK 1 fileset `<prefix>.bed/.bim/.fam` (§4.3); counted allele = A1 |
+| `genotype_assembly` | string | none | required with `plink` (a `.bim` file has no assembly) |
 | `allele_frequencies` | path | none | required when `genomic.frequency_source = "file"` |
 | `delimiter` | 1 character | `","` | use `"\t"` for tab-separated files |
 | `missing_values` | list | `["", "NA", "."]` | codes meaning "not measured" |
@@ -394,7 +456,8 @@ machine-readable schema is `contracts/analysis_spec.schema.json`.
 `[data.pedigree_columns]`: `id` (default `"id"`), `sire` (`"sire"`),
 `dam` (`"dam"`), `sex` (none), `birth_date` (none).
 `[data.phenotype_columns]`: `id` (default `"id"`), `record_id` (none; if
-given, values must be unique).
+given, values must be unique), `date` (none; record dates, required by
+`[validation]`).
 
 ### 5.5 `[[traits]]` (one block per trait)
 
@@ -437,7 +500,7 @@ you want the intercept to refer to the mean covariate.
 
 | Key | Notes |
 |---|---|
-| `variances.mode` | `"known"` or `"reml"` |
+| `variances.mode` | `"known"`, `"reml"` or `"bayes"` (Bayesian marker models: variances are sampled, see §5.14) |
 | `variances.values` | required for `known`: a variance for every random term and `residual`. Multi-trait models need square covariance matrices ordered like `model.traits`. |
 
 ```toml
@@ -503,20 +566,75 @@ values = { animal = 20.0, residual = 40.0 }
 | `output.top_n` | 20 | rows in the report's top-animal tables |
 | `resources.max_memory_gb` | 4.0 | dense solvers that would exceed it are refused (`ABP-E500`) |
 | `resources.min_free_disk_mb` | 200 | checked before and after the run (`ABP-E501`) |
-| `backend.device` | `"cpu"` | `"cuda"` is accepted as a request, but ABP 0.1 has no CUDA code |
+| `backend.device` | `"cpu"` | `"cuda"` is accepted as a request, but ABP has no CUDA code yet |
 | `backend.on_unavailable` | `"error"` | `"fallback_cpu"`: run on the CPU and record the fallback |
 
-### 5.13 Cross-field rules
+### 5.13 `[upg]` (optional): unknown-parent groups
+
+| Key | Default | Notes |
+|---|---|---|
+| `prefix` | **required** | parent codes starting with it name groups, for example `"UPG:"` → `UPG:A_16_19` |
+| `effect` | `"random"` | `"random"` (recommended) or `"fixed"` (must be estimable, §7.9) |
+| `variance_ratio` | none | σ²g/σ²a, required for random groups, not allowed for fixed groups |
+
+```toml
+[upg]
+prefix = "UPG:"
+effect = "random"
+variance_ratio = 1.0
+```
+
+### 5.14 `[bayes]`: Bayesian marker models
+
+Used with `variances.mode = "bayes"` (and only then).
+
+| Key | Default | Notes |
+|---|---|---|
+| `method` | **required** | `BRR`, `BayesA`, `BayesB`, `BayesC`, `BayesCpi`, `BayesR` (§7.10) |
+| `pi0` | 0.95 | prior probability that a marker effect is **exactly zero** (fixed for BayesB/BayesC; start value for BayesCpi) |
+| `chains` | 4 | at least 2; 4 or more recommended |
+| `iterations` | 6000 | per chain, including burn-in |
+| `burn_in` | 1000 | must be smaller than `iterations` |
+| `thin` | 5 | keep every `thin`-th draw after burn-in |
+| `seed` | 20260925 | master seed; each chain gets an independent stream |
+| `prior_r2` | 0.5 | share of the phenotypic variance expected to be genetic; sets the default prior scales |
+| `nu`, `nu_e` | 5.0, 5.0 | degrees of freedom of the scaled inverse-χ² priors (> 2) |
+| `rhat_max` | 1.01 | convergence: split R-hat must be below it |
+| `ess_min` | 400 | convergence: bulk and tail ESS must reach it |
+| `max_iterations` | 30000 | the chains are doubled in length until the criteria pass or this budget is used |
+
+### 5.15 `[validation]`: forward-in-time (LR) validation
+
+| Key | Default | Notes |
+|---|---|---|
+| `method` | **required** | `"lr"` |
+| `cutoff` | **required** | records dated after this day are hidden from the partial evaluation; must be earlier than `analysis.information_cutoff` |
+| `focal` | `"new_records_only"` | `new_records_only`: animals whose only records are after the cutoff; `born_after_cutoff`: animals born after it (needs `birth_date`) |
+| `bootstrap_replicates` | 1000 | 0 disables the bootstrap |
+| `bootstrap_cluster` | `"sire"` | resample sire families (`"none"`: single animals) |
+| `seed` | 20260925 | bootstrap seed |
+
+### 5.16 Cross-field rules
 
 ABP also checks, before running:
 
 * every `model.traits` entry is declared in `[[traits]]`;
 * exactly one additive genetic term. Random-term names are unique and never `residual`;
-* `pedigree`/`single_step` need a pedigree; `genomic`/`single_step` need genotypes and a map;
+* `pedigree`/`single_step` need a pedigree; `genomic`/`single_step` need
+  genotypes and a map, or a PLINK fileset (not both). `plink` needs
+  `genotype_assembly`;
 * known variances list exactly the random terms plus `residual`. Single-trait
   models take numbers; multi-trait models take t×t matrices;
-* REML is single-trait only in 0.1, and `reml.start` (if given) lists every component;
+* REML is single-trait only, and `reml.start` (if given) lists every component;
 * multi-trait models contain only the additive term;
+* `variances.mode = "bayes"` and `[bayes]` go together; Bayesian marker
+  models are single-trait, have exactly one additive term with
+  `relationship = "genomic"`, and cannot be combined with `[validation]`;
+* `[validation]` needs `data.phenotype_columns.date` and a single-trait
+  model;
+* `[upg]` needs `relationship = "pedigree"` and a single-trait model; fixed
+  groups need `variances.mode = "known"` and cannot be combined with
+  `[validation]`; the prefix must differ from every unknown-parent code;
 * `index.weights` refer to model traits.
 
 ---
@@ -554,6 +672,8 @@ offending line.
 | PED-FOUNDER-ADDED | info | parents without their own row |
 | PED-RECORD-ANIMAL-ADDED | info | animals with records added as founders (`qc.unknown_animals`) |
 | PED-SINGLE-PARENT | info | animals with one known parent |
+| PED-UPG-ID | error | an animal ID starts with the group prefix (`[upg]`) |
+| PED-UPG | info | groups found, with how often each replaces a sire or a dam |
 
 ### 6.2 Phenotype rules
 
@@ -580,6 +700,7 @@ offending line.
 | GEN-MONOMORPHIC | quarantine | no variation in the frequency sample |
 | GEN-MAF / GEN-LOW-MAF | quarantine / review | below `min_maf` / below 0.01 |
 | GEN-MENDEL | review / error | genotyped parent–offspring pairs with opposing homozygotes above 1% (review) or above 5% (error: pedigree error or sample swap) |
+| GEN-PLINK | info | PLINK input: counted allele = A1; reference/alternative unknown; declared assembly |
 
 ---
 
@@ -683,6 +804,17 @@ manifest records the tuning constants and the mean diagonal and off-diagonal
 elements of `A22` and `G*`, so the compatibility of the two bases can be
 checked. Every genotyped animal must be in the pedigree. Example 05.
 
+> **Caution (validation finding F6).** In ABP's 50-replicate calibration
+> study, single step with `match_a22` tuning and a 5% blend under-predicted
+> the selection candidates by 0.66 kg on average, and its PEV understated
+> the real prediction error by about 28% (95% intervals covered 91.7% of
+> true values). Pedigree BLUP in the same study was calibrated. The cause
+> is a mismatch between the genomic and pedigree bases, not a numerical
+> error. Until base alignment (metafounders) is implemented, compare
+> single-step and pedigree EBV levels for your population, validate
+> forward in time (§7.11), and do not rely on single-step reliabilities
+> alone.
+
 ### 7.6 Multi-trait BLUP
 
 Give several traits and covariance matrices:
@@ -710,7 +842,7 @@ values.residual = [[12.25, 0.735], [0.735, 0.49]]
   first litter size two years later (a structural zero).
 * ABP checks that both matrices are symmetric positive definite.
 * Multi-trait models support the additive term only, and variances must be
-  known: multi-trait REML is not part of 0.1.
+  known: multi-trait REML is not implemented yet.
 
 Outputs: `ebv_multitrait.csv` with EBV, reliability and SEP per trait.
 
@@ -748,6 +880,305 @@ selection intensity, and the expected response per trait. Duplicated
 information (a singular `P`) is reported with the offending combination.
 Infeasible restrictions are reported and never relaxed.
 
+### 7.9 Unknown-parent groups
+
+**When you need them.** An animal with an unknown parent is normally
+treated as a son or daughter of the genetic base (mean 0). That is wrong
+when the missing parents come from populations with a different genetic
+level: rams bought from a breeder who has been selecting for years, imported
+semen, or founders entering in different decades. Their EBVs, and those of
+all their descendants, are then biased towards the base. Genetic groups give
+each such population its own estimated level.
+
+**How to declare them.** Put group codes in the pedigree (§4.1) and add
+
+```toml
+[upg]
+prefix = "UPG:"
+effect = "random"
+variance_ratio = 1.0
+```
+
+Define groups by what describes the missing parent: origin, period (for
+example the purchase or birth year of its offspring, in blocks of several
+years) and, if relevant, sex. Each group needs enough descendants with
+records to be estimated. Never define groups from the performance of the
+animals themselves.
+
+**What is computed.** Each animal's breeding value becomes
+`u*ᵢ = uᵢ + Qᵢ·g`, where `Qᵢ` is the expected fraction of its genes from each
+group (a parent that is a group contributes ½ to that group; a known parent
+passes on half of its own fractions) and `g` are the group effects. ABP uses
+the QP transformation of Quaas (1988): the group equations are added to
+`A⁻¹` by Henderson's rules with groups acting as parents, so no extra
+matrices are formed (§12 of `methods.md`).
+
+* The EBV file contains `u*` (group contributions included) for animals
+  only. Group solutions, their PEV/SEP, the number of animals with a
+  non-zero gene fraction and the summed gene fraction are written to
+  `upg_solutions_<trait>.csv`.
+* **Random groups** (`effect = "random"`, recommended): `g ~ N(0, σ²g·I)`
+  with the declared ratio `σ²g/σ²a`. Reliabilities use
+  `Var(u*ᵢ) = σ²a·(Aᵢᵢ + ratio·QᵢQᵢ')`. REML is available; it estimates σ²a
+  and σ²e with the ratio held at its declared value. Random groups are
+  shrunk towards 0: a small ratio shrinks strongly, a large ratio approaches
+  fixed groups (see the study below).
+* **Fixed groups** (`effect = "fixed"`): no shrinkage, but the group effects
+  must be estimable together with the fixed effects. ABP checks the rank of
+  `[X, ZQ]` before solving and stops with `ABP-E300` if, for example, the
+  model has an intercept and *every* recorded lineage ends in a group (the
+  gene fractions then sum to one and duplicate the intercept), or a group
+  has no recorded descendants. It never picks an arbitrary constraint. The
+  prior variance of `u*` is not defined for fixed groups, so reliabilities
+  are left empty; PEV includes the estimation error of the groups. REML is
+  refused (the covariance matrix is improper): declare the variances.
+
+**Example 11** simulates a closed ewe flock that buys all its rams from two
+breeders without recorded ancestry: breeder A, whose rams improve by
+0.6 kg/year, and breeder B, whose rams are 1 kg below the base. Groups are
+`UPG:A_16_19`, `UPG:A_20_24` and `UPG:B`; the local base flock has ordinary
+unknown parents (`0`), which keeps fixed groups estimable.
+
+```bash
+python examples/11_sheep_upg/make_data.py        # regenerates the data (seeded)
+abp run examples/11_sheep_upg/analysis.toml --out runs/ex11        # random groups, REML
+abp run examples/11_sheep_upg/analysis_fixed.toml --out runs/ex11f # fixed groups
+python examples/11_sheep_upg/compare.py          # all three models against the truth
+```
+
+`compare.py` also runs the same data *without* groups (codes replaced by
+`0`). For this one synthetic replicate:
+
+| model | corr(EBV, TBV), lambs | bias of purchased rams (kg) | bias of 2024 lambs (kg) |
+|---|---:|---:|---:|
+| random groups (ratio 1.0) | 0.767 | −0.71 | −1.79 |
+| fixed groups | 0.778 | +0.38 | −0.72 |
+| no groups | 0.717 | −1.91 | −3.00 |
+
+Over 20 replicates (`benchmarks/upg_study.py`, evidence in
+`docs/validation/upg_study*.json`) groups removed 0.74 ± 0.10 kg (random)
+and 1.11 ± 0.14 kg (fixed) of the absolute bias of purchased rams and raised
+the EBV–TBV correlation by 0.04. Some bias remains even with fixed groups,
+because breeder A's level also rises *within* each 4–5-year period, which a
+period group cannot represent; in a control scenario without that
+within-period trend, fixed groups were unbiased within Monte-Carlo error.
+These numbers describe one synthetic design, not your population.
+
+Limitations: pedigree relationship and single-trait models only; groups are
+unrelated and non-inbred (no metafounders); the variance ratio is declared,
+not estimated.
+
+### 7.10 Bayesian marker models
+
+```toml
+random = [{ name = "animal", kind = "additive", relationship = "genomic" }]
+
+[variances]
+mode = "bayes"
+
+[bayes]
+method = "BayesC"
+pi0 = 0.95          # probability that a marker effect is exactly zero
+chains = 4
+iterations = 4000
+burn_in = 1000
+thin = 3
+seed = 20260925
+prior_r2 = 0.3
+max_iterations = 16000
+```
+
+The model is `y = Xb + Wβ + e`, with `W` the centred dosages (the same
+coding as G, §7.4) and one of these priors on each marker effect:
+
+| Method | Prior on a marker effect βⱼ |
+|---|---|
+| `BRR` | normal, one common variance (Bayesian ridge regression; with the variances fixed, its posterior mean equals SNP-BLUP/GBLUP) |
+| `BayesA` | normal with a marker-specific variance (heavy-tailed) |
+| `BayesB` | exactly 0 with probability `pi0`, otherwise normal with a marker-specific variance |
+| `BayesC` | exactly 0 with probability `pi0`, otherwise normal with a common variance |
+| `BayesCpi` | as BayesC, with `pi0` estimated (uniform prior) |
+| `BayesR` | 0, or normal with variance 10⁻⁴, 10⁻³ or 10⁻² × σ²b; mixture weights estimated |
+
+`pi0` is always the probability of a **zero** effect (some software uses π
+for the opposite). Prior scales are derived from `prior_r2`: the
+phenotypic variance after the fixed effects is split into an expected
+genetic and residual part, and each variance prior is centred on the value
+this implies. Every hyper-parameter and its derivation is written to
+`mcmc_diagnostics_<trait>.json`.
+
+**Sampling and convergence.** ABP runs `chains` independent Gibbs chains
+(each with its own random stream derived from `seed`). After `iterations`
+it computes, for every monitored quantity — residual variance, genetic
+variance, heritability, marker-variance parameters, `pi0` where it is
+estimated — **and for every GEBV**, the rank-normalised split R-hat and the
+bulk and tail effective sample sizes (Vehtari et al. 2021). If any value
+misses `rhat_max` or `ess_min`, the chains are doubled in length, up to
+`max_iterations`. If the criteria are still not met, **no EBVs are
+published**: the run stops with `ABP-E405` (exit status 6) and the
+diagnostics stay in the failed run folder. (If storing all GEBV draws
+would exceed 5×10⁷ numbers, GEBV-level diagnostics are skipped and the
+report says so.)
+
+**Example 10** (BayesC, `pi0 = 0.95`, log faecal egg count of 476 genotyped
+animals, 2,000 markers) converged after one extension to 8,000 iterations:
+posterior mean h² 0.31 (SD 0.12), R-hat ≤ 1.005 for every scalar and ≤ 1.003
+for every GEBV, smallest bulk ESS 813. The same data with `BayesCpi` did
+**not** pass the diagnostics within 16,000 iterations (`pi0` mixes slowly),
+and ABP withheld the results — this is the intended behaviour.
+
+**Checking the model against the data.** At every saved draw ABP also
+simulates a replicate data set from the model and compares four features
+with the observed records: SD, skewness, minimum and maximum. The
+posterior predictive p-value `P(T(y_rep) ≥ T(y))` of each is reported; a
+value below 0.01 or above 0.99 means that the model does not reproduce that
+feature (for example skewed data analysed with a normal residual) and is
+logged as a warning. Convergence diagnostics and predictive checks answer
+different questions — one does not replace the other.
+
+**Evidence that the sampler is right.** Besides the unit tests against
+exact results, every method passed a prior simulation-based calibration
+study (`benchmarks/sbc_bayes.py`, §3 of the validation report): parameters
+drawn from the prior, data simulated, the sampler run, and the ranks of the
+true values among the posterior draws tested for uniformity.
+
+Outputs: `ebv_<trait>.csv` (`gebv_posterior_mean`, `gebv_posterior_sd`
+for every QC-passed genotyped animal, with or without records),
+`marker_effects_<trait>.csv` (posterior mean effect and inclusion
+probability per marker), `fixed_effects_<trait>.csv`,
+`mcmc_diagnostics_<trait>.json` (priors, seeds, diagnostics, predictive
+checks) and `mcmc_trace_<trait>.csv` (every saved draw of every monitored
+quantity, per chain, for trace plots). Records of non-genotyped animals follow
+`qc.ungenotyped_records` as for GBLUP. Only one record per animal is
+allowed.
+
+Run time grows with records × markers × iterations × chains. The optional
+C++ kernel does the marker sweep; it matches the Python reference to
+10⁻¹² and is reported in the output (`kernel`).
+
+### 7.11 Forward-in-time validation (LR method)
+
+Add a `[validation]` section and a record-date column to a single-trait
+pedigree, genomic or single-step spec (example 08):
+
+```toml
+[data.phenotype_columns]
+date = "year"          # weaning weights are dated by their year
+
+[validation]
+method = "lr"
+cutoff = "2024-12-31"
+focal = "new_records_only"
+bootstrap_replicates = 1000
+```
+
+ABP then runs two extra evaluations with the **same** variance components:
+a *partial* one in which all records dated after `cutoff` are hidden (their
+values are never read), and a *whole* one with all records. With
+`variances.mode = "reml"` the variances are estimated on the partial data
+only, so no hidden record can influence the partial evaluation. On the
+focal animals (by default: animals whose only records are after the cutoff)
+it reports (Legarra and Reverter 2018):
+
+| Statistic | Definition | Expected if the model is right |
+|---|---|---|
+| bias `Δp` | mean(partial EBV) − mean(whole EBV) | 0 |
+| dispersion `b_w\|p` | slope of whole on partial EBVs | 1 (below 1: partial EBVs over-dispersed) |
+| `ρ_wp` | correlation of partial and whole EBVs | acc(partial)/acc(whole), below 1 |
+
+Each statistic gets a bootstrap standard error and 95% interval, resampling
+sire families (seed recorded). The published main evaluation is not changed.
+
+Example 08 (weaning weight, cutoff end of 2024, 403 focal lambs):
+`Δp = 0.057 kg` (95% interval −0.25 to 0.21), `b_w|p = 0.99` (0.90 to
+1.24), `ρ_wp = 0.67` (0.58 to 0.78): no sign of bias or over-dispersion at
+this sample size.
+
+Read the results with care: `ρ_wp` near 1 only shows that the two
+evaluations agree, not that either is accurate; the statistics refer to
+this cutoff and these animals. The LR "population accuracy" estimator is
+deliberately not computed in this version (its published formula has an
+erratum that could not be verified). Outputs: `lr_validation.json`
+(statistics, bootstrap, assumptions) and `lr_focal_<trait>.csv` (partial and
+whole EBVs and reliabilities of every focal animal).
+
+### 7.12 Optimal contributions and mating plans (`abp mate`)
+
+`abp mate` answers two questions for the next breeding season: how much
+should each candidate contribute, and who should be mated with whom? The
+result is a **proposal** for the breeder; ABP never executes matings.
+
+```bash
+abp mate examples/09_sheep_mating/mating.toml --out runs/mating
+```
+
+The mating spec:
+
+```toml
+schema_version = "1"
+
+[project]
+name = "sheep_mating_2026"
+species = "sheep"
+synthetic_data = true
+
+[mating]
+candidates = "candidates.csv"   # id, sex (M/F), merit, capacity [, carrier]
+pedigree = "../sheep_data/data/pedigree.csv"
+merit_units = "SCU (synthetic index units)"
+n_matings = 150
+delta_f = 0.01                  # or max_coancestry = ... (exactly one)
+max_pair_relationship = 0.25    # optional: no pair with A_sd above it
+carrier_column = "carrier"      # optional: carrier probability of a recessive
+max_affected_risk = 0.01        # optional: needs carrier_column
+```
+
+| Key | Notes |
+|---|---|
+| `candidates` | CSV with `id`, `sex` (`M`/`F`), `merit` (EBV or index), `capacity` (maximum number of matings); column names can be changed with `id_column`, `sex_column`, `merit_column`, `capacity_column` |
+| `pedigree` | defines the relationships `A` among candidates; `group_prefix` marks unknown-parent group codes (§4.1) |
+| `n_matings` | number of matings to plan |
+| `delta_f` / `max_coancestry` | coancestry ceiling: `C_max = C_t + ΔF·(1 − C_t)` with `C_t` the mean coancestry of the candidates, or an explicit value |
+| `max_pair_relationship` | forbids pairs with `A_sd` above it (0.25 forbids half sibs and closer) |
+| `carrier_column`, `max_affected_risk` | forbids pairs whose risk of an affected lamb for a declared autosomal recessive, `p_s·p_d/4`, exceeds the limit |
+| `forbidden_pairs` | optional CSV with columns `sire,dam` |
+| `delimiter` | default `","` |
+
+**Step 1, contributions** (Meuwissen 1997): maximise the expected merit
+`c'g` of the next generation subject to each sex contributing ½, each
+candidate between 0 and `capacity/(2·n_matings)`, and the group coancestry
+`c'Ac/2 ≤ C_max`. ABP solves this exactly and prints a KKT certificate
+(stationarity, feasibility and multipliers), so the optimality can be
+checked. If the ceiling is below the lowest achievable coancestry, the run
+stops and reports that minimum.
+
+**Step 2, whole matings.** Contributions are converted to whole numbers of
+matings and, if rounding pushes the coancestry above the ceiling, repaired
+by a local search. The ceiling is a hard constraint for the integer plan
+too; the loss of merit against the continuous optimum is reported.
+
+**Step 3, pairs.** Sires and dams are paired so that each parent gets its
+number of matings, no pair is repeated, no forbidden pair is used, and the
+total inbreeding of the progeny (`A_sd/2`) is minimal. The progeny's
+expected merit is the same for every such plan. ABP solves this as a
+transportation problem, checks that the plan is integral and satisfies
+every constraint, and, if no plan exists, names the parents that cannot be
+matched instead of relaxing a constraint.
+
+Example 09 (150 matings among the 2025 candidates of example 06): the
+ceiling `C_max = 0.0506` was binding (the maximum-merit selection would
+have had coancestry 0.120); the plan uses 20 sires and 150 ewes, its merit
+is 0.0019 SCU below the continuous optimum, 331 pairs were forbidden by the
+relationship limit and 258 by the recessive risk, and the mean planned
+progeny inbreeding is 0.00003.
+
+Outputs: `contributions.csv` (optimal and realised contribution and number
+of matings per candidate), `mating_plan.csv` (pairs with `A_sd`, progeny
+inbreeding, expected progeny merit and recessive risk), `mating_summary.json`,
+`mating_report.md` and `manifest.json`. Coancestry refers to the pedigree
+base; candidates' merits are taken as given (their errors are not
+propagated).
+
 ---
 
 ## 8. Solvers, memory and run time
@@ -778,6 +1209,10 @@ Memory for the dense path is about 16 × N² bytes (solutions) or
 | REML (AI), dense | 3,050 equations, 6 iterations | 3.2 s |
 | four-trait BLUP with PEV blocks (example 06) | 8,506 equations | about 8 s end to end |
 | G matrix | 2,000 animals × 50,000 markers | 1.3 s |
+| BayesC, 4 chains × 8,000 iterations (example 10) | 247 records × 2,000 markers | about 25 s |
+| one Gibbs marker sweep, C++ kernel | 1,000 records × 10,000 markers | 0.012 s |
+| A⁻¹ with 50 genetic groups | 100,000 animals | 0.05 s (after inbreeding, 0.7 s) |
+| optimal contributions + mating LP | 1,500 candidates, 97,200 candidate pairs | 1.0 s + 12.6 s |
 
 ---
 
@@ -791,6 +1226,12 @@ Memory for the dense path is about 16 × N² bytes (solutions) or
 | `fixed_effects_<trait>.csv` | `term, level, solution, status` (`estimated_under_constraints` or `constrained_to_zero`) |
 | `random_<term>_<trait>.csv` | solutions and PEV of iid terms (for example permanent environment) |
 | `index.csv` | `rank, animal, sex, index, reliability` |
+| `upg_solutions_<trait>.csv` | genetic groups: `group, effect, solution, pev, sep, reliability, n_animals_with_contribution, sum_gene_fraction` (§7.9) |
+| `lr_validation.json`, `lr_focal_<trait>.csv` | LR validation statistics, bootstrap and assumptions; partial and whole EBVs of the focal animals (§7.11) |
+| `ebv_<trait>.csv` (Bayesian) | `animal, sire, dam, sex, n_records, gebv_posterior_mean, gebv_posterior_sd` (§7.10) |
+| `marker_effects_<trait>.csv` | `marker_id, counted_allele, frequency, effect_posterior_mean, inclusion_probability` |
+| `mcmc_diagnostics_<trait>.json`, `mcmc_trace_<trait>.csv` | priors, chain seeds, R-hat/ESS/MCSE, predictive checks; per-draw traces |
+| `contributions.csv`, `mating_plan.csv`, `mating_summary.json`, `mating_report.md` | outputs of `abp mate` (§7.12), with their own `manifest.json` |
 | `qc_pedigree.json`, `qc_phenotypes.json`, `qc_genotypes.json` | QC statistics and findings |
 | `qc_excluded_records.csv` | every record excluded by an approved rule, with the reason |
 | `results.json` | every number shown in the report (machine-readable) |
@@ -835,9 +1276,16 @@ then atomically.
 ### 10.3 Determinism
 
 Given the same inputs, spec and software environment, ABP writes
-byte-identical EBV files; the test suite checks this. No random numbers are
-used in any analysis. The data generator is seeded
-(`abp simulate-sheep --seed …`).
+byte-identical EBV files; the test suite checks this. BLUP, REML, indices,
+genetic groups, contributions and mating plans use no random numbers.
+Three steps do, always from a declared seed that is written to the
+manifest: the Bayesian samplers (`bayes.seed`; each chain gets its own
+stream), the LR bootstrap (`validation.seed`) and the data generators
+(`abp simulate-sheep --seed …`, `examples/11_sheep_upg/make_data.py`).
+The same seed reproduces the same draws with the same kernel; the C++ and
+Python samplers agree to about 10⁻¹² per sweep, so long chains run with
+different kernels may diverge slightly, as any floating-point Markov chain
+does.
 
 ### 10.4 Interruptions and resume
 
@@ -854,8 +1302,9 @@ Ctrl+C, or a termination signal from a scheduler, cancels the run cleanly
 |---|---|
 | `abp run SPEC --out DIR [--force] [--resume] [--quiet]` | full evaluation |
 | `abp validate SPEC` | spec validation and all QC, no model fitting; prints a JSON summary |
-| `abp pedigree PED.csv --out DIR [--sex COL] [--birth-date COL] [--id/--sire/--dam COL] [--delimiter C]` | pedigree QC, `inbreeding.csv` and `ainv_triplets.csv` (1-based lower triangle) |
+| `abp pedigree PED.csv --out DIR [--sex COL] [--birth-date COL] [--id/--sire/--dam COL] [--delimiter C] [--group-prefix P]` | pedigree QC, `inbreeding.csv` and `ainv_triplets.csv` (1-based lower triangle); with `--group-prefix` group codes are unknown parents for A and are listed in the QC report |
 | `abp index INDEX.toml` | stand-alone Smith-Hazel or restricted index (JSON to stdout) |
+| `abp mate MATING.toml --out DIR [--force]` | optimal contributions and a mating plan proposal (§7.12) |
 | `abp simulate-sheep --out DIR [--seed N] [--force]` | write the synthetic sheep data set |
 | `abp selftest` | installation check |
 | `abp errors` | list error codes and exit statuses |
@@ -900,6 +1349,10 @@ remedy: Correct the parent IDs or the sex column for the listed animals.
 | `ABP-E303` "repeated records" | Add `{ name = "pe", kind = "iid" }` to `model.random`. |
 | `ABP-E303` "exact PEV … exceeds" | Set `solver.pev = "none"` for very large models. |
 | `ABP-E403 REML_NOT_CONVERGED` | Raise `reml.max_iter`, give better `reml.start` values, or simplify the model (see the history in `manifest.json`). |
+| `ABP-E405 MCMC_NOT_CONVERGED` | The chains did not meet R-hat/ESS within `bayes.max_iterations`. Raise it, increase `thin`, fix `pi0` instead of estimating it (BayesCπ mixes slowly), or check the model. Diagnostics are in the failed run folder. |
+| `ABP-E300` "fixed unknown-parent group effects are confounded" | Every recorded lineage ends in a group, or a group has no recorded descendants. Use `upg.effect = "random"`, merge groups, or leave the base population's unknown parents ungrouped. |
+| `ABP-E202` for parents such as `UPG:…` | Group codes without an `[upg]` section are read as animals. Declare `[upg] prefix` (or `group_prefix` in a mating spec). |
+| `ABP-E223` with PLINK input | Declare `data.genotype_assembly`, or fix variants with identical alleles in the `.bim` file. |
 | `ABP-E500 RESOURCE_MEMORY` | Raise `resources.max_memory_gb` if the machine has the memory, or use a sparse/iterative solver. |
 | `ABP-E503 OUTPUT_EXISTS` | Choose a new `--out` folder or add `--force`. |
 | Garbled Chinese text in the console on Windows | Use `packaging\windows\abp.ps1`, which sets UTF-8. The files ABP writes are always UTF-8. |
@@ -911,12 +1364,12 @@ The complete list is in [`error_codes.md`](error_codes.md).
 
 ## 13. Limitations and good practice
 
-What ABP 0.1 does **not** do: unknown-parent groups and metafounders, maternal
-and social effects, random regression and test-day models, threshold and
-survival models, genotype × environment models, dominance and epistasis,
-Bayesian marker models, APY and other approximations for very large genomic
-data, multi-trait REML, optimal contribution selection and mating plans,
-PLINK/VCF/BGEN readers, and GPU computation.
+What ABP does **not** do yet: metafounders, maternal and social effects,
+random regression and test-day models, threshold and survival models,
+genotype × environment models, dominance and epistasis, APY and other
+approximations for very large genomic data, multi-trait REML, multi-trait
+or single-step Bayesian models, Bayesian LASSO/horseshoe priors, genomic
+OCS, VCF/BGEN/PLINK 2 readers, and GPU computation.
 
 What has **not** been verified: external validity on real data, comparisons
 with BLUPF90, MiXBLUP, ASReml, DMU, JWAS or BGLR, CUDA, and Windows beyond
@@ -933,11 +1386,16 @@ Good practice:
    the examples do.
 4. Judge candidates on both EBV and reliability. Treat low-reliability
    animals with caution.
-5. Validate predictions forward in time (train on data up to year t, then
-   check against later records) before relying on them for selection
-   decisions. ABP 0.1 does not automate this step.
-6. ABP produces **recommendations** for breeders to review. It never triggers
-   matings or other real-world actions.
+5. Validate predictions forward in time (§7.11) before relying on them for
+   selection decisions, and repeat the validation when the population or
+   the model changes.
+6. Use genetic groups when unknown parents come from populations of
+   different genetic level (§7.9); record how the groups were defined.
+7. Never use Bayesian results whose diagnostics failed; ABP withholds them.
+   Read the predictive checks as well.
+8. ABP produces **recommendations** for breeders to review, including the
+   mating plans of `abp mate`. It never triggers matings or other
+   real-world actions.
 
 ---
 
@@ -948,6 +1406,15 @@ Good practice:
 | A | numerator (pedigree) relationship matrix; `Aᵢᵢ = 1 + Fᵢ` |
 | A22 | pedigree relationships among genotyped animals |
 | BLUP | best linear unbiased prediction |
+| coancestry | probability that two alleles drawn from two animals are identical by descent; `A_ij/2`; the group coancestry of parents with contributions `c` is `c'Ac/2` |
+| ESS | effective sample size of MCMC draws (bulk: centre of the distribution; tail: 5% and 95% quantiles) |
+| genetic group (UPG) | a population of unknown parents with its own genetic level |
+| LR method | forward validation comparing partial and whole evaluations (Legarra and Reverter 2018) |
+| MCSE | Monte-Carlo standard error of a posterior summary |
+| OCS | optimal contribution selection: maximising genetic merit under a coancestry ceiling |
+| π₀ (`pi0`) | prior probability that a marker effect is exactly zero |
+| R-hat | convergence diagnostic comparing chains; values near 1 indicate agreement |
+| SBC | simulation-based calibration of a sampler (ranks of true values must be uniform) |
 | contemporary group | animals managed and recorded together (for example flock × year × sex) |
 | EBV / GEBV | (genomic) estimated breeding value |
 | F | inbreeding coefficient |
@@ -958,6 +1425,7 @@ Good practice:
 | REML | restricted maximum likelihood |
 | reliability | `1 − PEV / genetic variance`; squared model-based accuracy |
 | transductive | using candidates' genotypes (never their phenotypes) when building the model |
+| u* | breeding value including genetic-group contributions, `u + Qg` |
 
 ---
 
@@ -973,5 +1441,14 @@ Good practice:
 * Kempthorne O, Nordskog AW (1959) Biometrics 15:10–19.
 * Meuwissen THE, Luo Z (1992) Genet Sel Evol 24:305–313.
 * Mrode RA (2005) Linear Models for the Prediction of Animal Breeding Values, 2nd ed. CABI.
+* Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
+* Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.
+* Legarra A, Reverter A (2018) Genet Sel Evol 50:53.
+* Meuwissen THE (1997) J Anim Sci 75:934–940.
+* Meuwissen THE, Hayes BJ, Goddard ME (2001) Genetics 157:1819–1829.
 * Quaas RL (1976) Biometrics 32:949–953.
+* Quaas RL (1988) J Dairy Sci 71:1338–1345.
+* Talts S, Betancourt M, Simpson D, Vehtari A, Gelman A (2018) arXiv:1804.06788.
 * VanRaden PM (2008) J Dairy Sci 91:4414–4423.
+* Vehtari A, Gelman A, Simpson D, Carpenter B, Bürkner P-C (2021) Bayesian Analysis 16:667–718.
+* Westell RA, Quaas RL, Van Vleck LD (1988) J Dairy Sci 71:1310–1318.

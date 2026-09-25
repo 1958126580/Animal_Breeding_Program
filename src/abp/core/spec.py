@@ -96,7 +96,7 @@ SCHEMA = Section({
     }, required=True),
     "analysis": Section({
         "task": Field("str", required=True, choices=TASKS,
-                      doc="Estimand class; only additive_ebv is implemented in 0.1."),
+                      doc="Estimand class; only additive_ebv is implemented in this version."),
         "target_population": Field("str", required=True,
                                    doc="Population to which results apply."),
         "information_cutoff": Field("str", required=True, check=_date,
@@ -200,6 +200,16 @@ SCHEMA = Section({
         "weight_units": Field("str", required=True, doc="e.g. 'EUR per kg'."),
         "synthetic_weights": Field("bool", required=True,
                                    doc="True if the weights are placeholders, not industry values."),
+    }),
+    "upg": Section({
+        "prefix": Field("str", required=True,
+                        check=lambda x: None if x.strip() == x and x else "non-empty, no spaces",
+                        doc="Parent codes starting with this prefix name unknown-parent groups "
+                            "(e.g. 'UPG:' -> 'UPG:1990_M')."),
+        "effect": Field("str", default="random", choices=("random", "fixed"),
+                        doc="Random groups (recommended) or fixed groups (must be estimable)."),
+        "variance_ratio": Field("float", check=_positive,
+                                doc="sigma_g^2 / sigma_a^2 for random groups (required)."),
     }),
     "bayes": Section({
         "method": Field("str", required=True,
@@ -399,7 +409,7 @@ def validate_spec_dict(raw: dict) -> dict:
         raise _err("model.random", "random term names must be unique and not 'residual'")
     additive = [r for r in m["random"] if r["kind"] == "additive"]
     if len(additive) != 1:
-        raise _err("model.random", "exactly one additive genetic term is required in 0.1")
+        raise _err("model.random", "exactly one additive genetic term is required in this version")
     for r in m["random"]:
         if r["kind"] == "additive":
             if r["relationship"] is None:
@@ -414,7 +424,7 @@ def validate_spec_dict(raw: dict) -> dict:
                 r["column"] = d["data"]["phenotype_columns"]["id"]
     if len(m["traits"]) > 1 and len(m["random"]) > 1:
         raise ABPError("UNSUPPORTED_COMBINATION",
-                       "multi-trait models support only the additive genetic term in 0.1")
+                       "multi-trait models support only the additive genetic term in this version")
     rel = additive[0]["relationship"]
     if rel in ("pedigree", "single_step") and d["data"]["pedigree"] is None:
         raise _err("data.pedigree", f"relationship {rel!r} needs a pedigree file")
@@ -449,7 +459,7 @@ def validate_spec_dict(raw: dict) -> dict:
                 raise _err(f"variances.values.{k}", f"multi-trait models need a {t}x{t} matrix")
     elif v["mode"] == "reml":
         if t > 1:
-            raise _err("variances.mode", "multi-trait REML is not implemented in 0.1; "
+            raise _err("variances.mode", "multi-trait REML is not implemented in this version; "
                                          "use mode = 'known'")
         if v["values"] is not None:
             raise _err("variances.values", "not used with mode = 'reml' (use reml.start)")
@@ -460,7 +470,7 @@ def validate_spec_dict(raw: dict) -> dict:
         raise _err("variances.values", "not used with mode = 'bayes' (variances are sampled)")
     if d["analysis"]["task"] not in IMPLEMENTED_TASKS:
         raise ABPError("UNSUPPORTED_COMBINATION",
-                       f"analysis.task = {d['analysis']['task']!r} is not implemented in 0.1 "
+                       f"analysis.task = {d['analysis']['task']!r} is not implemented in this version "
                        f"(implemented: {list(IMPLEMENTED_TASKS)})")
     if (v["mode"] == "bayes") != (raw.get("bayes") is not None):
         raise _err("bayes", "variances.mode = 'bayes' and a [bayes] section go together")
@@ -491,6 +501,30 @@ def validate_spec_dict(raw: dict) -> dict:
                            "LR validation is implemented for single-trait models only")
         if v["focal"] == "born_after_cutoff" and d["data"]["pedigree_columns"]["birth_date"] is None:
             raise _err("validation.focal", "'born_after_cutoff' needs data.pedigree_columns.birth_date")
+    if raw.get("upg") is None:
+        d["upg"] = None
+    else:
+        u = d["upg"]
+        if rel != "pedigree":
+            raise ABPError("UNSUPPORTED_COMBINATION", "unknown-parent groups are implemented "
+                           "for relationship = 'pedigree' only in this version")
+        if len(m["traits"]) > 1:
+            raise ABPError("UNSUPPORTED_COMBINATION", "unknown-parent groups are implemented "
+                           "for single-trait models only in this version")
+        if u["effect"] == "random" and u["variance_ratio"] is None:
+            raise _err("upg.variance_ratio", "required for random groups")
+        if u["effect"] == "fixed":
+            if u["variance_ratio"] is not None:
+                raise _err("upg.variance_ratio", "not used with fixed groups")
+            if d["variances"]["mode"] != "known":
+                raise ABPError("UNSUPPORTED_COMBINATION", "fixed unknown-parent groups make "
+                               "the genetic covariance improper; REML needs upg.effect = "
+                               "'random' (or variances.mode = 'known')")
+            if d["validation"] is not None:
+                raise ABPError("UNSUPPORTED_COMBINATION", "LR validation with fixed "
+                               "unknown-parent groups is not implemented; use random groups")
+        if u["prefix"] in d["data"]["unknown_parent_values"]:
+            raise _err("upg.prefix", "must differ from every data.unknown_parent_values code")
     idx = raw.get("index")
     if idx is None:
         d["index"] = None

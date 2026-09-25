@@ -55,6 +55,8 @@ from . import mcmc_diagnostics as dg
 
 METHODS = ("BRR", "BayesA", "BayesB", "BayesC", "BayesCpi", "BayesR")
 BAYESR_GAMMA = (0.0, 1e-4, 1e-3, 1e-2)
+#: largest number of stored GEBV draws (animals x draws x chains) for per-GEBV diagnostics
+GEBV_STORE_LIMIT = 5e7
 
 
 @dataclass
@@ -184,6 +186,8 @@ class BayesConfig:
     ess_min: float = 400.0
     max_iterations: int = 30000
     fix_variances: dict | None = None      # testing only: {"sigma_b2":..., "sigma_e2":...}
+    priors: "BayesPriors | None" = None    # explicit hyper-parameters (default: from prior_r2)
+    return_draws: bool = False             # keep GEBV and marker-effect draws (SBC, API)
 
 
 @dataclass
@@ -203,6 +207,34 @@ class BayesResult:
     seeds: list[int]
     kernel: str
     wall_seconds: float
+    traces: dict = field(default_factory=dict)   # scalar -> (chains, draws)
+    ppc: dict = field(default_factory=dict)      # posterior predictive checks
+    gebv_draws: np.ndarray | None = None         # (chains, draws, animals) if requested
+    beta_draws: np.ndarray | None = None         # (chains, draws, markers) if requested
+
+
+#: statistics of the posterior predictive check, T(y) for records y
+PPC_STATISTICS = ("sd", "skewness", "min", "max")
+
+
+def _ppc_stats(v: np.ndarray) -> np.ndarray:
+    c = v - v.mean()
+    sd = float(np.sqrt(np.mean(c * c)))
+    skew = float(np.mean(c**3) / sd**3) if sd > 0 else 0.0
+    return np.array([sd, skew, float(v.min()), float(v.max())])
+
+
+def _check_priors(method: str, pri: BayesPriors) -> None:
+    ok = pri.nu > 2 and pri.nu_e > 2 and pri.s2 > 0 and pri.s2_e > 0 and 0 <= pri.pi0 < 1
+    if method == "BayesR":
+        ok = ok and len(pri.gamma) == len(pri.dirichlet) >= 2 and pri.gamma[0] == 0.0 \
+            and all(g > 0 for g in pri.gamma[1:]) and all(a > 0 for a in pri.dirichlet)
+    else:
+        ok = ok and tuple(pri.gamma) == (0.0, 1.0)
+    if not ok:
+        raise ABPError("SPEC_INVALID", f"explicit priors are not valid for {method}: need "
+                       "nu, nu_e > 2, positive scales, 0 <= pi0 < 1 and matching mixture "
+                       "components (gamma = (0, 1) except for BayesR)")
 
 
 class _Chain:
@@ -302,11 +334,19 @@ def run_bayes(y: np.ndarray, X: np.ndarray, W_train: np.ndarray, W_all: np.ndarr
         raise ABPError("GENOTYPE_ZERO_SCALING", "a marker has no variation among the records")
     beta_ols, *_ = np.linalg.lstsq(X, y, rcond=None)
     vy = float(np.var(y - X @ beta_ols, ddof=X.shape[1]))
-    pri = default_priors(cfg.method, vy, sum2pq, cfg.prior_r2, cfg.pi0, cfg.nu, cfg.nu_e)
+    if cfg.priors is not None:
+        _check_priors(cfg.method, cfg.priors)
+        pri = cfg.priors
+    else:
+        pri = default_priors(cfg.method, vy, sum2pq, cfg.prior_r2, cfg.pi0, cfg.nu, cfg.nu_e)
     code = 0 if cfg.method in ("BRR", "BayesA") else (2 if cfg.method == "BayesR" else 1)
     ss = np.random.SeedSequence(cfg.seed)
     child = ss.spawn(cfg.chains)
     chains = [_Chain(cfg, pri, X, Wf, wtw, y, np.random.default_rng(c), code) for c in child]
+    # posterior predictive replicates use their own streams, so the chains are unaffected
+    ppc_rng = [np.random.default_rng(c) for c in ss.spawn(cfg.chains)]
+    t_obs = _ppc_stats(y)
+    ppc_ge = np.zeros(len(PPC_STATISTICS))
     from ..core.pedigree import native_kernel_available
     kernel = "python_reference"
     if native_kernel_available():
@@ -319,7 +359,8 @@ def run_bayes(y: np.ndarray, X: np.ndarray, W_train: np.ndarray, W_all: np.ndarr
     n_all = W_all.shape[0]
     store = {k: [[] for _ in chains] for k in names}
     gebv_draws = [[] for _ in chains]
-    keep_gebv = n_all * (cfg.max_iterations // cfg.thin) * cfg.chains <= 5e7
+    beta_draws = [[] for _ in chains]
+    keep_gebv = n_all * (cfg.max_iterations // cfg.thin) * cfg.chains <= GEBV_STORE_LIMIT
     sum_b = np.zeros(X.shape[1])
     sum_beta = np.zeros(W_all.shape[1])
     incl = np.zeros(W_all.shape[1])
@@ -351,6 +392,11 @@ def run_bayes(y: np.ndarray, X: np.ndarray, W_train: np.ndarray, W_all: np.ndarr
                         store[k][c].append(vals[k])
                     if keep_gebv:
                         gebv_draws[c].append(g_all)
+                    if cfg.return_draws:
+                        beta_draws[c].append(ch.beta.copy())
+                    y_rep = ch.X @ ch.b + g_tr + math.sqrt(ch.sigma_e2) * \
+                        ppc_rng[c].standard_normal(g_tr.size)
+                    ppc_ge += _ppc_stats(y_rep) >= t_obs
                     sum_b += ch.b
                     sum_beta += ch.beta
                     incl += ch.delta > 0
@@ -360,7 +406,10 @@ def run_bayes(y: np.ndarray, X: np.ndarray, W_train: np.ndarray, W_all: np.ndarr
                         n_saved += 1
         summaries = {k: dg.summarize(np.array(store[k])) for k in names
                      if np.ptp(np.array(store[k])) > 0}
-        gdiag = {}
+        gdiag = {} if keep_gebv else {
+            "not_computed": "per-GEBV diagnostics skipped: storing the GEBV draws would exceed "
+                            f"{GEBV_STORE_LIMIT:.0e} values; only the scalar quantities were "
+                            "diagnosed", "n_animals": n_all}
         if keep_gebv and n_saved >= 4:
             G = np.array(gebv_draws)          # chains x draws x animals
             rh = [dg.rhat(G[:, :, i]) for i in range(n_all)]
@@ -368,8 +417,8 @@ def run_bayes(y: np.ndarray, X: np.ndarray, W_train: np.ndarray, W_all: np.ndarr
             gdiag = {"max_rhat": float(np.nanmax(rh)), "min_ess_bulk": float(np.nanmin(eb)),
                      "n_animals": n_all}
         ok = all(dg.passes(s, cfg.rhat_max, cfg.ess_min) for k, s in summaries.items()
-                 if k != "n_nonzero") and (not gdiag or (gdiag["max_rhat"] < cfg.rhat_max
-                                                          and gdiag["min_ess_bulk"] >= cfg.ess_min))
+                 if k != "n_nonzero") and ("max_rhat" not in gdiag or (
+                     gdiag["max_rhat"] < cfg.rhat_max and gdiag["min_ess_bulk"] >= cfg.ess_min))
         if ok or cfg.fix_variances:
             converged = bool(ok)
             break
@@ -379,7 +428,16 @@ def run_bayes(y: np.ndarray, X: np.ndarray, W_train: np.ndarray, W_all: np.ndarr
     total = n_saved * len(chains)
     mean_g = g_sum / total
     sd_g = np.sqrt(np.maximum(g_sq / total - mean_g**2, 0.0) * total / max(total - 1, 1))
+    ppc = {"statistics": {k: {"observed": float(t_obs[i]), "p_value": float(ppc_ge[i] / total)}
+                          for i, k in enumerate(PPC_STATISTICS)},
+           "definition": "p = P(T(y_rep) >= T(y) | y) over the saved draws, y_rep = Xb + "
+                         "W beta + e_rep with e_rep ~ N(0, sigma_e^2 I); values near 0 or 1 "
+                         "indicate a mismatch between model and data",
+           "n_replicates": int(total)}
     return BayesResult(cfg.method, mean_g, sd_g, sum_beta / total, incl / total, sum_b / total,
                        summaries, gdiag, converged, it, n_saved, pri,
                        [int(c.generate_state(1)[0]) for c in child], kernel,
-                       time.perf_counter() - t0)
+                       time.perf_counter() - t0,
+                       traces={k: np.array(store[k]) for k in names}, ppc=ppc,
+                       gebv_draws=np.array(gebv_draws) if (cfg.return_draws and keep_gebv) else None,
+                       beta_draws=np.array(beta_draws) if cfg.return_draws else None)

@@ -1,0 +1,10 @@
+# Keep code, specs and data byte-identical on every platform: tests compare
+# regenerated example files byte for byte, and run manifests hash the inputs.
+* text=auto eol=lf
+# Windows batch files need CRLF line endings.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+# Binary formats.
+*.bed binary
+*.png binary
+*.pdf binary

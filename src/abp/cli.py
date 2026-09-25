@@ -52,7 +52,8 @@ def cmd_pedigree(args) -> int:
     from .workflows.pedigree_tools import pedigree_report
     out = pedigree_report(args.pedigree, args.out, id_col=args.id, sire_col=args.sire,
                           dam_col=args.dam, sex_col=args.sex, birth_col=args.birth_date,
-                          delimiter=args.delimiter, force=args.force)
+                          delimiter=args.delimiter, force=args.force,
+                          group_prefix=args.group_prefix)
     print(f"outputs: {out}")
     return EXIT_OK
 
@@ -119,6 +120,8 @@ def build_parser() -> argparse.ArgumentParser:
     pd.add_argument("--sex", default=None)
     pd.add_argument("--birth-date", default=None)
     pd.add_argument("--delimiter", default=",")
+    pd.add_argument("--group-prefix", default=None,
+                    help="parent codes starting with this prefix name unknown-parent groups")
     pd.add_argument("--force", action="store_true")
     pd.set_defaults(func=cmd_pedigree)
 

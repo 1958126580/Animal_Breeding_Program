@@ -16,7 +16,14 @@ PED-BIRTH-ORDER            error     parent born on/after offspring
 PED-FOUNDER-ADDED          info      parents without own row -> founders
 PED-CYCLE                  error     directed cycle in the parent graph
 PED-SINGLE-PARENT          info      animals with exactly one known parent
+PED-UPG-ID                 error     animal ID uses the group prefix
+PED-UPG                    info      unknown parents assigned to genetic groups
 =========================  ========  =========================================
+
+With ``group_prefix`` set (spec ``[upg]``), a parent field starting with the
+prefix names an unknown-parent *group*, not an animal: the parent is unknown
+for the relationship matrix and the group is recorded in
+:attr:`PedigreeData.groups` (see :mod:`abp.core.upg`).
 
 Nothing is silently corrected: identical duplicate rows are the only rows
 merged, and they are listed.
@@ -31,6 +38,7 @@ from typing import Sequence
 import numpy as np
 
 from ..core.pedigree import Pedigree
+from ..core.upg import GroupAssignment
 from ..errors import ABPError
 from ..io.tables import Table
 from .report import QCReport
@@ -55,6 +63,7 @@ class PedigreeData:
     birth: dict[str, tuple[int, ...]]
     added_founders: list[str]
     qc: QCReport
+    groups: GroupAssignment | None = None
 
 
 def parse_date(value: str) -> tuple[int, ...] | None:
@@ -79,11 +88,13 @@ def _born_not_before(parent: tuple[int, ...], child: tuple[int, ...]) -> bool:
 
 
 def load_pedigree(table: Table, cols: PedigreeColumns, unknown_parent: set[str],
-                  missing: set[str], extra_founders: Sequence[str] = ()) -> PedigreeData:
+                  missing: set[str], extra_founders: Sequence[str] = (),
+                  group_prefix: str | None = None) -> PedigreeData:
     """Validate a pedigree table and build an ordered :class:`Pedigree`.
 
     ``extra_founders`` are animals with records but no pedigree row that the
     spec explicitly allows to be added as founders (listed in the QC report).
+    ``group_prefix`` marks parent codes that name unknown-parent groups.
     """
     qc = QCReport("pedigree")
     ids = table.column(cols.id)
@@ -104,8 +115,20 @@ def load_pedigree(table: Table, cols: PedigreeColumns, unknown_parent: set[str],
                bad_ids, "ID_INVALID")
         qc.raise_if_blocking()
 
+    def is_group(v: str) -> bool:
+        return group_prefix is not None and v.startswith(group_prefix)
+
     def norm_parent(v: str) -> str | None:
-        return None if v in unknown_parent else v
+        return None if v in unknown_parent or is_group(v) else v
+
+    if group_prefix is not None:
+        bad = [{"line": table.lines[k], "animal": a} for k, a in enumerate(ids) if is_group(a)]
+        bad += [{"animal": a} for a in sorted(set(extra_founders)) if is_group(a)]
+        if bad:
+            qc.add("PED-UPG-ID", "error", f"animal IDs must not start with the group prefix "
+                                          f"{group_prefix!r}", bad, "ID_INVALID")
+            qc.raise_if_blocking()
+    group_of: dict[str, tuple[str | None, str | None]] = {}
 
     rows: dict[str, tuple] = {}
     first_line: dict[str, int] = {}
@@ -128,8 +151,9 @@ def load_pedigree(table: Table, cols: PedigreeColumns, unknown_parent: set[str],
             if bd is None:
                 bad_date.append({"line": table.lines[k], "animal": a, "value": bd_raw})
         rec = (norm_parent(sires[k]), norm_parent(dams[k]), sx, bd)
+        grp = (sires[k] if is_group(sires[k]) else None, dams[k] if is_group(dams[k]) else None)
         if a in rows:
-            if rows[a] == rec:
+            if rows[a] == rec and group_of.get(a) == grp:
                 identical.append({"line": table.lines[k], "animal": a,
                                   "first_line": first_line[a]})
             else:
@@ -137,6 +161,7 @@ def load_pedigree(table: Table, cols: PedigreeColumns, unknown_parent: set[str],
                                   "first_line": first_line[a]})
             continue
         rows[a] = rec
+        group_of[a] = grp
         first_line[a] = table.lines[k]
         order.append(a)
     if bad_sex:
@@ -245,11 +270,41 @@ def load_pedigree(table: Table, cols: PedigreeColumns, unknown_parent: set[str],
         "max_inbreeding": float(F.max()),
         "inbreeding_kernel": ped.inbreeding_kernel,
     }
+    groups = None
+    if group_prefix is not None:
+        groups = _group_assignment(ped, group_of)
+        if groups.labels:
+            use = {g: [0, 0] for g in groups.labels}
+            for a, (gs, gd) in group_of.items():
+                if gs is not None:
+                    use[gs][0] += 1
+                if gd is not None:
+                    use[gd][1] += 1
+            qc.add("PED-UPG", "info", "unknown parents assigned to genetic groups "
+                                      "(QP transformation; see abp.core.upg)",
+                   [{"group": g, "n_as_sire": u[0], "n_as_dam": u[1]} for g, u in use.items()])
+        qc.stats["n_groups"] = len(groups.labels)
+        qc.stats["n_parents_in_groups"] = int((groups.sire_group >= 0).sum()
+                                              + (groups.dam_group >= 0).sum())
     sex = {a: rows[a][2] for a in order}
     sex.update({p: ("M" if p in as_sire else "F" if p in as_dam else "U")
                 for p in missing_parents})
     birth = {a: rows[a][3] for a in order if rows[a][3] is not None}
-    return PedigreeData(ped, sex, birth, missing_parents, qc)
+    return PedigreeData(ped, sex, birth, missing_parents, qc, groups)
+
+
+def _group_assignment(ped: Pedigree, group_of: dict) -> GroupAssignment:
+    labels = tuple(sorted({g for pair in group_of.values() for g in pair if g is not None}))
+    pos = {g: k for k, g in enumerate(labels)}
+    sg = np.full(ped.n, -1, dtype=np.int64)
+    dg = np.full(ped.n, -1, dtype=np.int64)
+    animals = list(group_of)
+    for i, (gs, gd) in zip(ped.index_of(animals), (group_of[a] for a in animals)):
+        if gs is not None:
+            sg[i] = pos[gs]
+        if gd is not None:
+            dg[i] = pos[gd]
+    return GroupAssignment(labels, sg, dg)
 
 
 def mean_inbreeding_by_generation(ped: Pedigree) -> list[dict]:

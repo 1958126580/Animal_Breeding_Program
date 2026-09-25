@@ -1,6 +1,6 @@
 # Error codes and exit statuses
 
-Generated from `abp.errors` (`abp errors` prints the same table). Codes are stable and never re-used.
+Generated from `abp.errors` (`python -m abp.errors docs/error_codes.md`; `abp errors` prints the same table). Codes are stable and never re-used.
 
 | Code | Name | Exit status | Meaning | Remedy |
 |---|---|---:|---|---|
@@ -33,6 +33,7 @@ Generated from `abp.errors` (`abp errors` prints the same table). Codes are stab
 | ABP-E402 | RELIABILITY_OUT_OF_RANGE | 6 | A computed reliability lies clearly outside [0, 1]. | This signals a scale or model inconsistency; results are withheld. |
 | ABP-E403 | REML_NOT_CONVERGED | 6 | REML did not converge within the iteration budget. | Increase reml.max_iter, change start values, or simplify the model. |
 | ABP-E404 | FACTORIZATION_FAILED | 6 | A matrix that should be positive definite could not be factorized. | Check variance components (must be > 0) and fixed-effect dependencies. |
+| ABP-E405 | MCMC_NOT_CONVERGED | 6 | MCMC diagnostics (R-hat, bulk/tail ESS) did not pass within the iteration budget. | Increase bayes.max_iterations or thin, simplify the model, or review the diagnostics in the failed run folder; results are withheld. |
 | ABP-E500 | RESOURCE_MEMORY | 7 | The requested computation exceeds the configured memory budget. | Raise resources.max_memory_gb or choose a sparse/iterative solver. |
 | ABP-E501 | RESOURCE_DISK | 7 | Not enough free disk space to write the outputs safely. | Free disk space or choose another output folder. |
 | ABP-E502 | BACKEND_UNAVAILABLE | 7 | The requested compute backend is not available. | Use backend.device = "cpu" or set backend.on_unavailable = "fallback_cpu". |

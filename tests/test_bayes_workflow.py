@@ -1,9 +1,11 @@
 """Bayesian marker regression through the workflow: outputs, gating, spec rules."""
 
+import csv
 import json
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from abp.cli import main
@@ -37,6 +39,17 @@ def test_example10_converges_and_writes_outputs(tmp_path):
     assert all(v["rhat"] < 1.01 for k, v in diag["summaries"].items() if k != "n_nonzero")
     assert diag["gebv_diagnostics"]["max_rhat"] < 1.01
     assert len(set(diag["chain_seeds"])) == 4
+    # traces: one row per chain and saved draw, one column per monitored scalar
+    with open(out.out_dir / "mcmc_trace_fec.csv", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    assert len(rows) == 4 * diag["draws_per_chain"]
+    assert set(diag["summaries"]) <= set(rows[0])
+    h2 = np.array([float(r["h2"]) for r in rows])
+    assert np.mean(h2) == pytest.approx(diag["summaries"]["h2"]["mean"], rel=1e-12)
+    pp = diag["posterior_predictive"]["statistics"]
+    assert set(pp) == {"sd", "skewness", "min", "max"}
+    assert all(0.0 <= v["p_value"] <= 1.0 for v in pp.values())
+    assert 0.01 < pp["sd"]["p_value"] < 0.99      # the model reproduces the spread of y
 
 
 def test_nonconvergence_withholds_results(tmp_path):

@@ -114,3 +114,7 @@ ungenotyped_records = "exclude"
     roles = {i["role"] for i in rb.manifest["inputs"]}
     assert {"genotypes", "marker_map", "sample_list"} <= roles
     assert rb.manifest["relationship"]["counted_allele"] == "A1 of the PLINK .bim file"
+    # abp validate reads the PLINK fileset as well (genotype QC without fitting)
+    from abp.workflows.validate import validate_inputs
+    summary = validate_inputs(b)
+    assert any(f["check"] == "GEN-PLINK" for f in summary["genotypes"]["findings"])

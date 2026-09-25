@@ -48,7 +48,7 @@
             "total_genetic_value",
             "mating_utility"
           ],
-          "description": "Estimand class; only additive_ebv is implemented in 0.1."
+          "description": "Estimand class; only additive_ebv is implemented in this version."
         },
         "target_population": {
           "type": "string",
@@ -530,6 +530,32 @@
         "weights",
         "weight_units",
         "synthetic_weights"
+      ]
+    },
+    "upg": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prefix": {
+          "type": "string",
+          "description": "Parent codes starting with this prefix name unknown-parent groups (e.g. 'UPG:' -> 'UPG:1990_M')."
+        },
+        "effect": {
+          "type": "string",
+          "enum": [
+            "random",
+            "fixed"
+          ],
+          "default": "random",
+          "description": "Random groups (recommended) or fixed groups (must be estimable)."
+        },
+        "variance_ratio": {
+          "type": "number",
+          "description": "sigma_g^2 / sigma_a^2 for random groups (required)."
+        }
+      },
+      "required": [
+        "prefix"
       ]
     },
     "bayes": {

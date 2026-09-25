@@ -272,3 +272,39 @@ def test_example09_plan_satisfies_every_hard_constraint(tmp_path):
     assert summ["integer_plan"]["ceiling_satisfied"]
     assert summ["integer_plan"]["coancestry_realized"] <= summ["coancestry_target"]["C_max"]
     assert summ["ocs"]["kkt_certificate"]["stationarity_max_abs"] < 1e-8
+
+
+def test_mating_pedigree_with_group_codes(tmp_path):
+    """Parent codes naming unknown-parent groups are unknown parents for A when
+    mating.group_prefix is declared; without it they would be one 'animal'
+    used as both sire and dam, which pedigree QC rejects."""
+    import csv
+    from pathlib import Path
+    from abp.errors import ABPError
+    from abp.workflows.mating_plan import plan_matings
+    root = Path(__file__).resolve().parents[1]
+    ped = root / "examples" / "11_sheep_upg" / "data" / "pedigree.csv"
+    with open(ped, encoding="utf-8") as fh:
+        lambs = [r for r in csv.DictReader(fh) if r["birth_year"] == "2024"]
+    rams = [r["id"] for r in lambs if r["sex"] == "M"][:6]
+    ewes = [r["id"] for r in lambs if r["sex"] == "F"][:24]
+    rng = np.random.default_rng(1)
+    with open(tmp_path / "cand.csv", "w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh, lineterminator="\n")
+        w.writerow(["id", "sex", "merit", "capacity"])
+        for a in rams:
+            w.writerow([a, "M", f"{rng.normal():.4f}", 12])
+        for a in ewes:
+            w.writerow([a, "F", f"{rng.normal():.4f}", 1])
+    body = ('schema_version = "1"\n[project]\nname = "t"\nspecies = "sheep"\n'
+            'synthetic_data = true\n[mating]\ncandidates = "cand.csv"\n'
+            f'pedigree = "{ped.as_posix()}"\nmerit_units = "u"\nn_matings = 24\n'
+            'delta_f = 0.02\n')
+    (tmp_path / "plain.toml").write_text(body, encoding="utf-8")
+    with pytest.raises(ABPError) as exc:
+        plan_matings(tmp_path / "plain.toml", tmp_path / "o1")
+    assert exc.value.code == "ABP-E202"
+    (tmp_path / "upg.toml").write_text(body + 'group_prefix = "UPG:"\n', encoding="utf-8")
+    out = plan_matings(tmp_path / "upg.toml", tmp_path / "o2")
+    with open(out / "mating_plan.csv", encoding="utf-8") as fh:
+        assert len(list(csv.DictReader(fh))) == 24

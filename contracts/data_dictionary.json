@@ -13,48 +13,206 @@
     "pedigree": {
       "primary_key": "id",
       "columns": {
-        "id": {"type": "string", "required": true, "description": "animal identifier"},
-        "sire": {"type": "string", "required": true, "description": "sire id or an unknown-parent token (data.unknown_parent_values, default '0', '', 'NA', '.')"},
-        "dam": {"type": "string", "required": true, "description": "dam id or an unknown-parent token"},
-        "sex": {"type": "enum", "values": ["M", "F", "U"], "required": false, "description": "lower case accepted; missing -> U"},
-        "birth_date": {"type": "date", "formats": ["YYYY", "YYYY-MM", "YYYY-MM-DD"], "required": false}
+        "id": {
+          "type": "string",
+          "required": true,
+          "description": "animal identifier"
+        },
+        "sire": {
+          "type": "string",
+          "required": true,
+          "description": "sire id, an unknown-parent token (data.unknown_parent_values, default '0', '', 'NA', '.') or, with [upg], a genetic-group code starting with upg.prefix"
+        },
+        "dam": {
+          "type": "string",
+          "required": true,
+          "description": "dam id, an unknown-parent token or, with [upg], a genetic-group code"
+        },
+        "sex": {
+          "type": "enum",
+          "values": [
+            "M",
+            "F",
+            "U"
+          ],
+          "required": false,
+          "description": "lower case accepted; missing -> U"
+        },
+        "birth_date": {
+          "type": "date",
+          "formats": [
+            "YYYY",
+            "YYYY-MM",
+            "YYYY-MM-DD"
+          ],
+          "required": false
+        }
       },
-      "rules": ["parents not listed as animals are added as founders (reported)", "no cycles, no self-parenthood, no animal as both sire and dam", "parents must be born before offspring when both dates are known"]
+      "rules": [
+        "parents not listed as animals are added as founders (reported)",
+        "no cycles, no self-parenthood, no animal as both sire and dam",
+        "parents must be born before offspring when both dates are known",
+        "with [upg], animal ids must not start with upg.prefix (PED-UPG-ID); group codes are not animals"
+      ]
     },
     "phenotypes": {
       "grain": "one row = one record (animal x measurement occasion)",
       "primary_key": "record_id if declared in data.phenotype_columns.record_id, otherwise the file line",
       "columns": {
-        "id": {"type": "string", "required": true, "foreign_key": "pedigree.id (or genotypes.id for GBLUP)"},
-        "<trait column>": {"type": "number", "required": "for each trait in model.traits", "unit": "declared in [[traits]].unit", "valid_range": "[[traits]].min/max"},
-        "<fixed factor>": {"type": "string", "required": "for records measured on a trait the term applies to"},
-        "<covariate>": {"type": "number", "required": "for records measured on a trait the term applies to"},
-        "<iid random-effect column>": {"type": "string", "required": "for records used in the analysis"}
+        "id": {
+          "type": "string",
+          "required": true,
+          "foreign_key": "pedigree.id (or genotypes.id for GBLUP)"
+        },
+        "<trait column>": {
+          "type": "number",
+          "required": "for each trait in model.traits",
+          "unit": "declared in [[traits]].unit",
+          "valid_range": "[[traits]].min/max"
+        },
+        "<fixed factor>": {
+          "type": "string",
+          "required": "for records measured on a trait the term applies to"
+        },
+        "<covariate>": {
+          "type": "number",
+          "required": "for records measured on a trait the term applies to"
+        },
+        "<iid random-effect column>": {
+          "type": "string",
+          "required": "for records used in the analysis"
+        },
+        "<record date column>": {
+          "type": "date",
+          "formats": [
+            "YYYY",
+            "YYYY-MM",
+            "YYYY-MM-DD"
+          ],
+          "required": "when [validation] is present (data.phenotype_columns.date)",
+          "description": "date of the record; decides which records the LR partial evaluation hides"
+        }
       },
-      "rules": ["repeated records of an animal require an iid term on the animal id column", "values outside the declared range: error or quarantine (qc.out_of_range)"]
+      "rules": [
+        "repeated records of an animal require an iid term on the animal id column",
+        "values outside the declared range: error or quarantine (qc.out_of_range)"
+      ]
     },
     "marker_map": {
       "primary_key": "marker_id",
       "columns": {
-        "marker_id": {"type": "string", "required": true},
-        "chrom": {"type": "string", "required": true},
-        "pos": {"type": "integer", "required": true, "description": "position on the declared assembly"},
-        "ref": {"type": "string", "required": true},
-        "alt": {"type": "string", "required": true},
-        "counted_allele": {"type": "string", "required": true, "description": "must equal ref or alt; dosages count copies of this allele"},
-        "assembly": {"type": "string", "required": true, "description": "exactly one assembly per file"}
+        "marker_id": {
+          "type": "string",
+          "required": true
+        },
+        "chrom": {
+          "type": "string",
+          "required": true
+        },
+        "pos": {
+          "type": "integer",
+          "required": true,
+          "description": "position on the declared assembly"
+        },
+        "ref": {
+          "type": "string",
+          "required": true
+        },
+        "alt": {
+          "type": "string",
+          "required": true
+        },
+        "counted_allele": {
+          "type": "string",
+          "required": true,
+          "description": "must equal ref or alt; dosages count copies of this allele"
+        },
+        "assembly": {
+          "type": "string",
+          "required": true,
+          "description": "exactly one assembly per file"
+        }
       }
     },
     "genotypes": {
       "grain": "one row = one animal; one column per marker of the map (any order)",
       "columns": {
-        "id": {"type": "string", "required": true, "position": "first column"},
-        "<marker_id>": {"type": "number", "range": [0, 2], "description": "copies of the counted allele; decimals allowed (imputed dosages); missing tokens allowed"}
+        "id": {
+          "type": "string",
+          "required": true,
+          "position": "first column"
+        },
+        "<marker_id>": {
+          "type": "number",
+          "range": [
+            0,
+            2
+          ],
+          "description": "copies of the counted allele; decimals allowed (imputed dosages); missing tokens allowed"
+        }
       }
     },
     "allele_frequencies": {
       "used_when": "genomic.frequency_source = 'file'",
-      "columns": {"marker_id": {"type": "string"}, "frequency": {"type": "number", "range": [0, 1], "description": "frequency of the counted allele"}}
+      "columns": {
+        "marker_id": {
+          "type": "string"
+        },
+        "frequency": {
+          "type": "number",
+          "range": [
+            0,
+            1
+          ],
+          "description": "frequency of the counted allele"
+        }
+      }
+    },
+    "plink_fileset": {
+      "description": "alternative to genotypes + marker_map: data.plink = '<prefix>' reads <prefix>.bed/.bim/.fam",
+      "bed": "PLINK 1 binary, magic 0x6c 0x1b, SNP-major (0x01) only",
+      "bim": "chromosome, variant id, genetic position, bp position, A1, A2 (whitespace separated); counted allele = A1",
+      "fam": "family id, individual id (= animal id), father, mother, sex, phenotype (only the individual id is used)",
+      "rules": [
+        "data.genotype_assembly is required (a .bim file has no assembly)",
+        "reference/alternative alleles are recorded as unknown",
+        "duplicated IIDs or variant ids and identical A1/A2 are errors; A/T and C/G variants are flagged"
+      ]
+    },
+    "mating_candidates": {
+      "description": "input of abp mate (mating.candidates)",
+      "primary_key": "id",
+      "columns": {
+        "id": {
+          "type": "string",
+          "required": true,
+          "foreign_key": "mating.pedigree id"
+        },
+        "sex": {
+          "type": "enum",
+          "values": [
+            "M",
+            "F"
+          ],
+          "required": true
+        },
+        "merit": {
+          "type": "number",
+          "required": true,
+          "unit": "mating.merit_units"
+        },
+        "capacity": {
+          "type": "integer >= 0",
+          "required": true,
+          "description": "maximum number of matings"
+        },
+        "<carrier column>": {
+          "type": "number in [0, 1]",
+          "required": "with mating.max_affected_risk",
+          "description": "probability of carrying the declared recessive"
+        }
+      },
+      "column_names": "configurable by mating.id_column, sex_column, merit_column, capacity_column, carrier_column"
     }
   },
   "outputs": {
@@ -68,6 +226,16 @@
     "results.json": "all numbers shown in the report",
     "report.md": "breeder-facing report rendered from results.json and manifest.json",
     "manifest.json": "run record, see run_manifest.schema.json",
-    "run.log": "time-stamped UTF-8 log"
+    "run.log": "time-stamped UTF-8 log",
+    "upg_solutions_<trait>.csv": "group, effect, solution, pev, sep, reliability (empty for fixed groups), n_animals_with_contribution, sum_gene_fraction",
+    "lr_validation.json": "LR statistics (bias_delta_p, dispersion_b_w_p, rho_wp), bootstrap, variance source, assumptions",
+    "lr_focal_<trait>.csv": "animal, ebv_partial, ebv_whole, reliability_partial, reliability_whole",
+    "ebv_<trait>.csv (variances.mode = bayes)": "animal, sire, dam, sex, n_records, gebv_posterior_mean, gebv_posterior_sd",
+    "marker_effects_<trait>.csv": "marker_id, counted_allele, frequency, effect_posterior_mean, inclusion_probability",
+    "mcmc_diagnostics_<trait>.json": "priors and their derivation, chain seeds, kernel, R-hat/ESS/MCSE per scalar, GEBV diagnostics, posterior predictive checks",
+    "mcmc_trace_<trait>.csv": "chain, iteration, then one column per monitored scalar",
+    "contributions.csv (abp mate)": "animal, sex, merit, capacity, contribution_optimal, n_matings, contribution_realized",
+    "mating_plan.csv (abp mate)": "sire, dam, relationship_A_sd, offspring_inbreeding, expected_offspring_merit, affected_risk",
+    "mating_summary.json / mating_report.md (abp mate)": "targets, OCS result with KKT certificate, integer plan, mating checks, definitions"
   }
 }

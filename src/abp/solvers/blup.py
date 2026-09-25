@@ -14,7 +14,9 @@ terms, reliability ``1 - PEV_i / (sigma_k^2 K_k[i, i])`` where
 ``K_k[i, i] = 1 + F_i`` for the pedigree relationship.  Reliabilities
 outside ``[-1e-8, 1 + 1e-8]`` indicate a scale/model inconsistency and raise
 ``RELIABILITY_OUT_OF_RANGE``; values within that round-off band are clamped
-to ``[0, 1]`` and the number of clamped values is reported.
+to ``[0, 1]`` and the number of clamped values is reported.  A ``NaN`` in
+``k_diag`` marks an equation whose prior variance is undefined (fixed
+unknown-parent groups); its reliability is ``NaN`` and is not range-checked.
 """
 
 from __future__ import annotations
@@ -125,7 +127,7 @@ def blup(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm],
                 if t.k_diag is None:
                     raise ValueError(f"genetic term {t.name!r} needs k_diag for reliability")
                 prior = variances[t.name] * np.asarray(t.k_diag, dtype=np.float64)
-                rel_raw = 1.0 - pev / prior
+                rel_raw = 1.0 - pev / prior      # NaN where diag(K) is undefined (fixed UPG)
                 bad = (rel_raw < -RELIABILITY_ROUNDING_BAND) | (rel_raw > 1 + RELIABILITY_ROUNDING_BAND)
                 if np.any(bad):
                     k = int(np.flatnonzero(bad)[0])
@@ -135,7 +137,8 @@ def blup(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm],
                                    term=t.name, label=t.labels[k], value=float(rel_raw[k]),
                                    n_bad=int(bad.sum()))
                 rel = np.clip(rel_raw, 0.0, 1.0)
-                n_clamped = int(np.sum(rel != rel_raw))
+                defined = np.isfinite(rel_raw)
+                n_clamped = int(np.sum(rel[defined] != rel_raw[defined]))
         out[t.name] = TermResult(t.name, t.labels, sol, pev, rel, n_clamped)
     fixed = s[:system.p].copy()
     residuals = y - system.W @ s

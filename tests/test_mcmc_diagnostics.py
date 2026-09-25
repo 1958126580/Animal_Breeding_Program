@@ -47,3 +47,38 @@ def test_summary_fields():
     s = summarize(np.random.default_rng(3).normal(2.0, 1.0, size=(4, 500)))
     assert set(s) >= {"mean", "sd", "q05", "q95", "rhat", "ess_bulk", "ess_tail", "mcse_mean"}
     assert s["mean"] == pytest.approx(2.0, abs=0.1)
+
+
+def _det_chains(m, n, phi, shift=0.0):
+    """Deterministic (RNG-free) chains: Weyl sequence plus a sine, AR(1)-filtered."""
+    t = np.arange(n)
+    x = np.zeros((m, n))
+    for c in range(m):
+        e = ((t * 0.6180339887498949 + (c + 1) * 0.41421356237309515) % 1.0) - 0.5
+        e = e + 0.3 * np.sin(1.7 * t + c)
+        v = 0.0
+        for k in range(n):
+            v = phi * v + e[k]
+            x[c, k] = v
+        x[c] += shift * c
+    return x
+
+
+# Reference values from ArviZ 0.23.4 (independent implementation, Apache-2.0; not an
+# ABP dependency): az.rhat(method="rank"), az.ess(method="bulk"|"tail"),
+# az.mcse(method="mean"). See benchmarks/mcmc_diagnostics_crosscheck.py.
+ARVIZ_REFERENCE = [
+    ((4, 400, 0.0, 0.0), (0.9978807438844917, 3811.716474366458, 1806.2889589250117,
+                          0.0054700793274743194)),
+    ((4, 401, 0.7, 0.0), (0.9977880860052293, 1507.7710457404758, 1557.687953082816,
+                          0.007693585283813083)),
+    ((3, 300, 0.5, 0.4), (1.4985641145868853, 6.7914893422866, 115.27984174196739,
+                          0.1754562666114481)),
+]
+
+
+@pytest.mark.parametrize("args, ref", ARVIZ_REFERENCE)
+def test_agreement_with_arviz_reference_values(args, ref):
+    x = _det_chains(*args)
+    got = (rhat(x), bulk_ess(x), tail_ess(x), mcse_mean(x))
+    np.testing.assert_allclose(got, ref, rtol=1e-10)

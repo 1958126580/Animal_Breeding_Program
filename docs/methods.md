@@ -1,6 +1,6 @@
 # ABP Methods Reference
 
-Version 0.1.0 · 2026-09-25
+Version 0.2.0 · 2026-09-25
 
 This document states, for every implemented method, the model, its
 assumptions, the equations as implemented, the matrix dimensions and data
@@ -14,7 +14,11 @@ Contents: [1 Estimands](#1-estimands) · [2 Pedigree](#2-pedigree-relationships)
 [5 REML](#5-reml) · [6 Genomic](#6-genomic-relationships-and-gblup) ·
 [7 Single step](#7-single-step) · [8 Multi-trait](#8-multi-trait-blup) ·
 [9 Indices](#9-selection-indices) · [10 Numerics](#10-numerical-safeguards) ·
-[11 Errata](#11-source-errata-handled)
+[11 Errata](#11-source-errata-handled) · [12 Genetic groups](#12-unknown-parent-groups) ·
+[13 LR validation](#13-forward-in-time-validation-lr-method) ·
+[14 OCS and mating](#14-optimal-contributions-and-mating-allocation) ·
+[15 PLINK input](#15-plink-1-binary-input) ·
+[16 Bayesian marker models](#16-bayesian-marker-models-and-mcmc-diagnostics)
 
 ---
 
@@ -374,7 +378,293 @@ implements the corrected forms and tests them:
 | Source (physical PDF page) | Issue | ABP |
 |---|---|---|
 | Legarra et al., *Bases for Genomic Prediction* (gsip.pdf p.15) | MAF text says minimum, code uses `maxval` | `minor_allele_frequency` uses the minimum; test T01 |
-| gsip.pdf p.125 | correlation formula denominator reuses one variance | validation statistics (planned) will use the product of both SDs |
+| gsip.pdf p.125 | correlation formula denominator reuses one variance | LR `ρ_wp` uses `sqrt(Var(u_w)·Var(u_p))`; `test_lr_statistics_definitions` |
 | Mrode 4th ed. PDF p.63 | shortcut for index accuracy multiplies instead of dividing | `r_IH = sqrt(Var(I)/Var(H))`; test T02 |
-| Misztal course PDF p.146 | sign of the random part in the conditional mean of missing records | not used in 0.1 (no data augmentation); planned modules must follow the corrected form in the spec |
+| Misztal course PDF p.146 | sign of the random part in the conditional mean of missing records | not used: no implemented model augments missing records (Bayesian marker models use observed records only); future modules must follow the corrected form in the spec |
 | Early R teaching code accompanying Mrode (uploaded ZIP) | REML genetic-variance derivative without A | score uses `Z A Z'`; test T05 detects the wrong form |
+
+## 12. Unknown-parent groups
+
+Code: `abp/core/upg.py` (`ainv_with_groups`, `group_fractions`,
+`upg_structure_parts`, `check_fixed_groups_estimable`, `upg_structure`);
+pedigree codes in `abp/qc/pedigree.py`. Registry id `ped.upg`.
+
+**Model.** Unknown parents may be assigned to groups `k = 1..g`. With `Q`
+(`n × g`) the expected gene fractions, `Qᵢ = (Q_s + Q_d)/2` where a group
+parent contributes its unit vector `e_k` and a plain unknown parent
+contributes 0, the breeding value is
+
+    u*ᵢ = uᵢ + Qᵢ g,     u ~ N(0, σ²a A),
+
+with `A` built as if every unknown parent (grouped or not) were an
+unrelated, non-inbred base animal. For `θ = (u*, g)` the mixed-model
+equations use (Quaas 1988; Westell et al. 1988)
+
+    A*⁻¹ = [[ A⁻¹,       −A⁻¹Q  ],
+            [ −Q'A⁻¹,   Q'A⁻¹Q ]],
+
+which equals Henderson's rules for `A⁻¹` applied with groups acting as
+parents: for animal `i` with `δᵢ = 1/dᵢ` (`dᵢ` computed from the *animal*
+parents only, including their inbreeding) the contributions
+`δᵢ·[1, −½, −½] ⊗ [1, −½, −½]` are added to rows/columns `(i, s, d)`, where
+`s` or `d` is the group column `n + k` when that parent is group `k`.
+
+* **Random groups:** `g ~ N(0, σ²g I)` with a declared ratio
+  `r = σ²g/σ²a`. Then `K⁻¹ = A*⁻¹ + blockdiag(0, I/r)` is the inverse of
+  `K = Var(θ)/σ²a = [[A + rQQ', rQ], [rQ', rI]]`, `diag(K) = (1 + Fᵢ + r‖Qᵢ‖², r)`
+  (used for reliabilities) and `log|K| = log|A| + g·log r` (used by REML,
+  which therefore estimates σ²a and σ²e with `r` fixed).
+* **Fixed groups:** `K⁻¹ = A*⁻¹` is singular (improper prior). The system for
+  `(b, u*, g)` is a non-singular linear transformation of the MME of
+  `y = Xb + ZQg + Zu + e` with fixed `(b, g)`, so it has a unique solution
+  exactly when `[X, ZQ]` has full column rank. `check_fixed_groups_estimable`
+  scales each column of `[X, ZQ]` to unit norm and requires every singular
+  value to exceed `10⁻⁹ ×` the largest; groups whose `ZQ` column is zero
+  (no recorded descendants) are reported by name. `Var(u*ᵢ)` is undefined,
+  so `diag(K)` is `NaN` and no reliabilities are produced; `PEV(u*)`
+  includes the estimation error of `g`. REML is refused.
+
+The workflow appends the groups after the animals in equation order, writes
+animal solutions (`u*`) to the EBV file and group solutions to
+`upg_solutions_<trait>.csv`.
+
+**Tests.** `test_qp_identity`: `A*⁻¹` from the Henderson construction equals
+the explicit block formula with `A⁻¹` from the tabular method, and `Q` equals
+an independent recursion. `test_random_groups_blup_equals_explicit_model`:
+solutions and PEV of `(u*, g)` equal the V-form BLUP with the explicit
+covariance `K σ²a` (1e−9), and `log|K|` equals the log-determinant of that
+covariance. `test_fixed_groups_blup_equals_explicit_model`: solutions and
+`PEV = diag(T C⁻¹ T')` equal the explicit MME in `(b, g, u)` transformed by
+`T: (b, g, u) → (u + Qg, g)` (1e−10). `test_fixed_groups_confounded_*`:
+confounding with the intercept and empty groups stop with `ABP-E300`
+(unit and workflow level). Simulation evidence: `benchmarks/upg_study.py`
+(§3 of the validation report).
+
+## 13. Forward-in-time validation (LR method)
+
+Code: `abp/workflows/validation_lr.py`. Registry id `val.lr`.
+
+Records are split by their date against `validation.cutoff`: a record is
+*hidden* if its whole date range (e.g. all of `2025` for a `YYYY` date) lies
+after the cutoff; a date range that straddles the cutoff is an error, never
+guessed. The **partial** evaluation is built from a copy of the record set
+in which the hidden trait values are set to missing before the model is
+constructed; the **whole** evaluation uses all records. Both use the same
+variance components: the spec values (`known`) or REML on the partial
+records only (`reml`). A genomic or single-step structure whose allele
+frequencies come from the phenotyped animals
+(`frequency_source = "training_genotyped"`) is rebuilt from the partial
+records; otherwise both evaluations share the main structure.
+
+Focal animals: `new_records_only` = animals whose records of the trait are
+all hidden; `born_after_cutoff` = animals born after the cutoff. On the
+focal EBVs `u_p` (partial) and `u_w` (whole):
+
+    Δp     = mean(u_p) − mean(u_w)
+    b_w|p  = Cov(u_w, u_p) / Var(u_p)
+    ρ_wp   = Cov(u_w, u_p) / sqrt(Var(u_w) · Var(u_p))
+
+(Legarra and Reverter 2018). Under a correct model with the same
+parameters, `E[Δp] = 0`, `E[b_w|p] = 1` and `ρ_wp` estimates
+`acc_p/acc_w`. Uncertainty: `B` bootstrap replicates resampling clusters
+(sire families; animals with unknown sire form their own cluster) with a
+recorded PCG64 seed; standard errors and 95% percentile intervals.
+Replicates in which the statistics are undefined (fewer than 3 focal
+animals, or zero variance of `u_p` or `u_w`) are counted as failed and
+reported. The
+LR population-accuracy estimator is not computed (see the registry entry:
+its published form has a 2019 erratum that could not be verified here).
+
+**Tests.** `test_lr_statistics_definitions` (hand-computed values),
+`test_split_by_cutoff_rules`, `test_cluster_bootstrap_is_seeded_and_counts_clusters`,
+`test_hidden_phenotypes_cannot_leak_into_partial_evaluation` (adding 25 kg
+to every hidden record leaves the partial EBVs bit-identical while the whole
+EBVs change),
+`test_partial_reml_ignores_hidden_records`, `test_validation_spec_rules`.
+
+## 14. Optimal contributions and mating allocation
+
+Code: `abp/decision/ocs.py`, `abp/decision/mating.py`,
+`abp/workflows/mating_plan.py`. Registry ids `dec.ocs`, `dec.mating`.
+
+**Contributions** (Meuwissen 1997). For candidates with merit `g`, sex and
+pedigree relationships `A` (positive definite):
+
+    maximise  c'g   subject to  Σ_{males} cᵢ = ½,  Σ_{females} cᵢ = ½,
+                                0 ≤ cᵢ ≤ capacityᵢ / (2N),   c'Ac/2 ≤ C_max.
+
+With `ΔF` declared, `C_max = C_t + ΔF(1 − C_t)`, `C_t` the mean coancestry
+`1'A1/(2n²)` of the candidates. For a penalty `μ ≥ 0` the problem
+`max c'g − μ c'Ac/2` over the linear constraints is a strictly convex QP,
+solved exactly by a primal active-set method; its coancestry is
+non-increasing in `μ`. `μ = 0` is the linear programme (greedy fill per
+sex, the maximum-merit solution); the QP with objective `c'Ac/2` alone
+gives the minimum achievable coancestry. If `C_max` lies between them, `μ`
+is found by bisection so that the coancestry constraint is active. The KKT
+certificate reports the stationarity residual
+`‖μAc − g + K'η − ν_lower + ν_upper‖∞` (`K` the two sex-indicator rows,
+`η` their multipliers, `ν ≥ 0` the bound multipliers), the sex-sum and bound
+residuals, the coancestry slack, complementary slackness and the smallest
+bound multiplier. `C_max` below the minimum is reported as infeasible with
+that minimum.
+
+**Integer plan.** Matings `nᵢ = 2N cᵢ` are rounded by largest remainder per
+sex (totals `N`, capacities respected). If rounding violates `C_max`, a
+local search moves single matings within a sex until the ceiling
+holds, then improves merit by moves that keep it; the merit gap to the
+continuous optimum is reported (it bounds the integer loss from above).
+A move transfers one mating from candidate `i` to `j` of the same sex, with
+exact changes `(g_j − g_i)/(2N)` in merit and
+`((Ac)_j − (Ac)_i)/(2N) + (A_ii + A_jj − 2A_ij)/(8N²)` in coancestry. Repair
+applies the move with the smallest merit loss per unit of coancestry
+reduction while the ceiling is exceeded; improvement then applies the move
+with the largest merit gain that keeps the ceiling. The result is feasible
+and locally optimal for single moves, not a proven integer optimum.
+
+**Pairs.** With integer counts `n_s`, `m_d`, choose `x_sd ∈ {0,1}` with
+`Σ_d x_sd = n_s`, `Σ_s x_sd = m_d`, `x_sd = 0` on forbidden pairs, minimising
+`Σ x_sd A_sd/2`. The expected progeny merit `Σ x_sd (g_s + g_d)/2` is the
+same for every feasible plan. The constraint matrix is that of a bipartite
+transportation problem (totally unimodular), so the LP relaxation (HiGHS
+dual simplex) has integral optimal vertices; ABP verifies integrality and
+every constraint of the returned plan. Forbidden pairs: `A_sd` above
+`max_pair_relationship`; `p_s p_d / 4 > max_affected_risk` for declared
+carrier probabilities of an autosomal recessive; explicit pairs. If no plan
+exists, an elastic LP (slack on each parent's count) names the parents that
+cannot be matched.
+
+**Tests.** `test_ocs_matches_independent_optimizer_and_kkt` (SciPy
+trust-constr reference and an independent KKT check), `test_closed_form_for_unrelated_candidates`,
+`test_unconstrained_case_equals_linear_programme`, `test_infeasible_ceiling_reports_minimum`,
+`test_tighter_ceiling_never_increases_merit`, `test_integer_repair_meets_ceiling_and_is_bounded_by_continuous_optimum`,
+`test_mating_plan_is_optimal_by_enumeration` (all assignments of small
+problems enumerated), `test_carrier_risk_forbids_only_risky_pairs`,
+`test_infeasible_plan_names_unmatchable_dam`,
+`test_example09_plan_satisfies_every_hard_constraint`.
+
+## 15. PLINK 1 binary input
+
+Code: `abp/io/plink.py`. Registry id `io.plink`.
+
+`.bed` must start with `0x6c 0x1b 0x01` (SNP-major). Each variant occupies
+`⌈n/4⌉` bytes; sample `i` is in byte `⌊i/4⌋`, bits `2(i mod 4)` and
+`2(i mod 4)+1` (lowest-order first). Two-bit codes map to dosages of the
+first `.bim` allele A1: `00 → 2`, `01 → missing`, `10 → 1`, `11 → 0`.
+Decoding uses a 256-entry lookup table. The file size must equal
+`3 + m⌈n/4⌉` bytes. The counted allele is A1; ref/alt are recorded as
+unknown and the assembly must be declared. The loaded genotypes enter the
+same QC and G construction as dosage files.
+
+**Tests.** `test_hand_derived_bytes` (a byte pattern decoded by hand),
+`test_round_trip_and_loader`, `test_bad_files` (magic number,
+individual-major mode, wrong file size, identical alleles),
+`test_plink_and_dosage_inputs_give_identical_gblup` (identical EBVs from
+both formats).
+
+## 16. Bayesian marker models and MCMC diagnostics
+
+Code: `abp/solvers/bayes.py`, `abp/solvers/mcmc_diagnostics.py`,
+`abp/workflows/bayes_eval.py`, native sweep `bayes_sweep` in
+`abp/_native.cpp`. Registry ids `bayes.brr`, `bayes.a`, `bayes.b`,
+`bayes.c`, `bayes.cpi`, `bayes.r`, `diag.mcmc`.
+
+**Model.** `y = Xb + Wβ + e`, `W = M − 2p'` (missing dosages at their
+expectation, i.e. `W = 0`), flat prior on `b`, `e ~ N(0, σ²e I)`,
+`σ²e ~ Inv-χ²(ν_e, S²_e)`. Marker priors (π₀ = probability of a zero
+effect):
+
+| method | prior |
+|---|---|
+| BRR | `βⱼ ~ N(0, σ²b)`, `σ²b ~ Inv-χ²(ν, S²)` |
+| BayesA | `βⱼ ~ N(0, vⱼ)`, `vⱼ ~ Inv-χ²(ν, S²)` |
+| BayesB | `βⱼ = 0` w.p. π₀, else `N(0, vⱼ)`; `vⱼ` drawn from its prior when `βⱼ = 0` (Habier et al. 2011) |
+| BayesC | `βⱼ = 0` w.p. π₀, else `N(0, σ²b)` |
+| BayesCπ | as BayesC, `π₀ ~ Beta(1, 1)` |
+| BayesR | component `k` w.p. `π_k`, `βⱼ ~ N(0, γ_k σ²b)`, `γ = (0, 10⁻⁴, 10⁻³, 10⁻²)`, `π ~ Dirichlet(1,…,1)` (Erbe et al. 2012; ABP scales `γ` on centred, not standardised, genotypes) |
+
+**Default hyper-parameters.** `V_y` = residual variance of `y` after the
+fixed effects; `V_g = r²·V_y`, `V_e = (1 − r²)·V_y` with `r² = prior_r2`.
+The expected variance of an included marker is
+`V_g / (Σⱼ 2pⱼ(1 − pⱼ) · E[inclusion] · E[γ])`, and each scale is set so
+that the prior mean `ν S²/(ν − 2)` equals its target.
+
+**Sampler.** Per iteration: `b | ·` jointly from its normal full
+conditional; for each marker `j` in order (residual updating, `e = y − Xb − Wβ`):
+`rⱼ = (wⱼ'e + wⱼ'wⱼ βⱼ)/σ²e`; for a slab of variance `v`,
+`Cⱼ = wⱼ'wⱼ/σ²e + 1/v`, log-weight
+`log π_k − ½(log Cⱼ + log v) + ½ rⱼ²/Cⱼ` against `log π₀` for the zero
+component (normalised by log-sum-exp); if included,
+`βⱼ ~ N(rⱼ/Cⱼ, 1/Cⱼ)`; then the variance parameters, mixture weights and
+σ²e from their conjugate full conditionals. The normal and uniform numbers
+of a sweep are drawn beforehand from the chain's PCG64 stream
+(`SeedSequence(seed).spawn(chains)`), so the compiled sweep can be compared
+with the Python reference on identical inputs.
+`test_inclusion_probability_matches_exact_marginal_likelihood` checks the
+inclusion probability against the ratio of the exact Gaussian marginal
+likelihoods `N(r; 0, σ²I + v ww')` and `N(r; 0, σ²I)`.
+
+**Diagnostics** (Vehtari et al. 2021). Draws after burn-in and thinning,
+arrays `(chains, draws)`, each chain split in halves. R-hat: the maximum of
+the classic `sqrt(V̂⁺/W)` computed on rank-normalised draws (normal scores
+of pooled fractional ranks, offset 3/8) and on rank-normalised folded draws
+`|x − median|`. ESS: multi-chain autocorrelation from FFT autocovariances,
+`ρ_t = 1 − (W − mean_chain acov_t)/V̂⁺`; pairs `(ρ_{2k}, ρ_{2k+1})` are kept
+while their sum is positive (Geyer's initial positive sequence; lags 0 and 1
+always), a positive last even `ρ` is kept, the pairs are made
+non-increasing (initial monotone sequence), and
+`τ = −1 + 2Σ_{t≤T} ρ_t + ρ_{T+1}`, `ESS = mn/max(τ, 1/log10(mn))` (Stan's
+reference algorithm). Bulk ESS on rank-normalised split draws; tail ESS =
+min of the ESS of the indicators `x ≤ q05` and `x ≤ q95`. MCSE of the mean =
+SD of all draws / `sqrt(ESS of the split draws)`. All four agree with the
+independent ArviZ 0.23.4 implementation to ≤ 8·10⁻¹⁶ relative on eleven
+chain types (`benchmarks/mcmc_diagnostics_crosscheck.py`,
+`docs/validation/mcmc_diagnostics_crosscheck.json`); ArviZ is used only as a
+test oracle, not as a dependency. Gate: every
+monitored scalar (except the count of non-zero effects) and every GEBV must
+have R-hat `< rhat_max` and bulk and tail ESS `≥ ess_min`; otherwise the
+run length is doubled up to `max_iterations`, and then the run fails with
+`ABP-E405`. If storing the GEBV draws would exceed `5·10⁷` values,
+GEBV-level diagnostics are skipped and reported as not computed.
+
+**Traces and posterior predictive checks.** Every saved draw of every
+monitored scalar is written per chain to `mcmc_trace_<trait>.csv`. At each
+saved draw a replicate `y_rep = Xb + Wβ + e_rep`, `e_rep ~ N(0, σ²e I)`, is
+simulated from a separate PCG64 stream per chain (so the chains are
+unchanged) and `p_T = P(T(y_rep) ≥ T(y) | y)` is estimated for `T` = SD,
+skewness, minimum and maximum; `p_T` outside `[0.01, 0.99]` is logged as a
+warning. Predictive checks test the fit of the model to the data; they do
+not replace the convergence diagnostics or SBC, which test the computation.
+
+**Simulation-based calibration** (Talts et al. 2018;
+`benchmarks/sbc_bayes.py`). With hyper-parameters fixed and passed to the
+sampler (`BayesConfig.priors`), parameters are drawn from the prior, data
+simulated from the model, the sampler run, and the rank of each true value
+among `L` posterior draws recorded; under a correct computation the ranks
+are uniform on `{0, …, L}` (ties at point masses broken at random). The
+sampler's intercept prior is flat, so the intercept cannot be drawn from
+it; because the posterior of every other quantity depends on `y` only
+through the residuals after projecting out `X`, a fixed intercept is valid
+for SBC of those quantities. Results: §3 of the validation report.
+
+**Tests.** `test_brr_fixed_variances_matches_exact_gaussian_posterior`
+(posterior means within 5 MCSE and SDs within 10% of the exact MME
+posterior), `test_bayescpi_recovers_sparse_architecture`,
+`test_all_methods_run_and_report_diagnostics`,
+`test_seed_determinism_and_chain_independence`,
+`test_native_sweep_matches_python_reference` (1e−12),
+`test_iid_draws`, `test_ar1_effective_sample_size` (ESS of AR(1) chains
+against `n(1 − φ)/(1 + φ)`), `test_nonmixing_chains_are_flagged`,
+`test_agreement_with_arviz_reference_values` (RNG-free chains, 1e−10),
+`test_example10_converges_and_writes_outputs`,
+`test_nonconvergence_withholds_results`.
+
+## 17. References (additions)
+
+* Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
+* Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.
+* Legarra A, Reverter A (2018) Genet Sel Evol 50:53.
+* Meuwissen THE (1997) J Anim Sci 75:934–940.
+* Meuwissen THE, Hayes BJ, Goddard ME (2001) Genetics 157:1819–1829.
+* Quaas RL (1988) J Dairy Sci 71:1338–1345.
+* Vehtari A, Gelman A, Simpson D, Carpenter B, Bürkner P-C (2021) Bayesian Analysis 16:667–718.
+* Westell RA, Quaas RL, Van Vleck LD (1988) J Dairy Sci 71:1310–1318.

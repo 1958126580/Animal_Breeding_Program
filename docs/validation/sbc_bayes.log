@@ -1,0 +1,9 @@
+BRR     (117 s): sigma_e2 p=0.328  marker_variance p=0.590  genetic_variance p=0.189  beta_0 p=0.052  gebv_0 p=0.043
+BayesA  (121 s): sigma_e2 p=0.271  marker_variance p=0.954  genetic_variance p=0.649  beta_0 p=1.000  gebv_0 p=0.042
+BayesB  (119 s): sigma_e2 p=0.474  marker_variance p=0.776  genetic_variance p=0.953  beta_0 p=0.915  gebv_0 p=0.457
+BayesC  (115 s): sigma_e2 p=0.732  marker_variance p=0.494  genetic_variance p=0.029  beta_0 p=0.252  gebv_0 p=0.676
+BayesCpi (123 s): sigma_e2 p=0.823  marker_variance p=0.624  genetic_variance p=0.077  beta_0 p=0.249  gebv_0 p=0.963  pi0 p=0.886
+BayesR  (150 s): sigma_e2 p=0.833  marker_variance p=0.654  genetic_variance p=0.638  beta_0 p=0.072  gebv_0 p=0.988  pi0 p=0.634
+all passed: True
+wrote /home/user/Animal_Breeding_Program/docs/validation/sbc_bayes.json
+exit=0

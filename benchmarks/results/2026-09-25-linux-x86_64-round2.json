@@ -1,0 +1,100 @@
+{
+  "created_at": "2026-09-25T14:56:08+00:00",
+  "environment": {
+    "os": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "blas": {
+      "name": "scipy-openblas",
+      "version": "0.3.31.188.0"
+    },
+    "cpu_count": 4,
+    "gpu": null,
+    "native_kernel": true,
+    "dtype": "float64"
+  },
+  "groups": [
+    "bayes",
+    "ocs",
+    "upg",
+    "plink"
+  ],
+  "cases": [
+    {
+      "case": "bayes_sweep_1000x10000",
+      "records": 1000,
+      "markers": 10000,
+      "python_reference_s_per_sweep": 0.032237307999821496,
+      "native_cpp_s_per_sweep": 0.01211982499989972,
+      "max_abs_diff_native_vs_python": 1.457167719820518e-16,
+      "speedup": 2.659882300288018
+    },
+    {
+      "case": "bayes_sweep_5000x50000",
+      "records": 5000,
+      "markers": 50000,
+      "python_reference_s_per_sweep": 0.39338627199958864,
+      "native_cpp_s_per_sweep": 0.3366609750000862,
+      "max_abs_diff_native_vs_python": 2.8449465006019636e-16,
+      "speedup": 1.1684938297332739
+    },
+    {
+      "case": "ocs_mating_500candidates",
+      "candidates": 500,
+      "matings": 400,
+      "ocs_s": 0.15359973599970544,
+      "ocs_status": "constraint_active",
+      "kkt_stationarity": 3.666826842163573e-10,
+      "mating_lp_s": 0.563945375000003,
+      "sires_x_dams": 30400,
+      "plan_checks": {
+        "sire_counts_match": true,
+        "dam_counts_match": true,
+        "no_forbidden_pair": true,
+        "no_repeated_pair": true,
+        "lp_objective": 3.1845703125,
+        "plan_objective": 3.1845703125
+      }
+    },
+    {
+      "case": "ocs_mating_1500candidates",
+      "candidates": 1500,
+      "matings": 1200,
+      "ocs_s": 1.0047502440002063,
+      "ocs_status": "constraint_active",
+      "kkt_stationarity": 7.5500050655819e-11,
+      "mating_lp_s": 12.57749818100001,
+      "sires_x_dams": 97200,
+      "plan_checks": {
+        "sire_counts_match": true,
+        "dam_counts_match": true,
+        "no_forbidden_pair": true,
+        "no_repeated_pair": true,
+        "lp_objective": 8.04931640625,
+        "plan_objective": 8.04931640625
+      }
+    },
+    {
+      "case": "upg_100000animals_50groups",
+      "n_animals": 100000,
+      "groups": 50,
+      "inbreeding_s": 0.7287569660002191,
+      "ainv_with_groups_s": 0.05207633900045039,
+      "group_fractions_s": 0.05004545700012386,
+      "plain_ainv_s": 0.036482713000623335,
+      "nnz": 678606,
+      "q_rows_sum_to_one": true
+    },
+    {
+      "case": "plink_decode_5000x50000",
+      "samples": 5000,
+      "variants": 50000,
+      "wall_s": 10.306296970000403,
+      "bytes": 62500003,
+      "missing_fraction": 0.249997912
+    }
+  ],
+  "peak_rss_bytes": 4068360192
+}

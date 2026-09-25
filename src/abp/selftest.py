@@ -1,7 +1,8 @@
 """``abp selftest``: installation check against hand-derived analytical values.
 
-Every expected value below was derived by hand (or is printed in the cited
-source) - none is produced by ABP itself.  The checks exercise the production
+Every expected value below was derived by hand, is printed in the cited
+source, or (T10) was computed by an independent implementation (ArviZ) -
+none is produced by ABP itself.  The checks exercise the production
 kernels on the target machine (BLAS/LAPACK, optional C++ kernel), so a pass
 shows that the installed build computes the documented quantities.
 Tolerance: |actual - expected| <= 1e-10 + 1e-8 |expected| unless noted.
@@ -101,5 +102,77 @@ def run_selftest() -> tuple[bool, list[str]]:
           _close(rm.fixed_solution, [3.404, 4.358], atol=6e-4, rtol=0)
           and _close(u, [0.098, -0.019, -0.041, -0.009, -0.186, 0.177, -0.249, 0.183],
                      atol=6e-4, rtol=0))
+    # T07 PLINK .bed decoding (low bits first; 00=2, 01=missing, 10=1, 11=0 copies of A1)
+    from .io.plink import decode_bed
+    Mb = decode_bed(bytes([0x6C, 0x1B, 0x01, 0x78, 0x00, 0x2F, 0x01]), 5, 2)
+    exp_b = np.array([[2, 0], [1, 0], [0, 1], [np.nan, 2], [2, np.nan]])
+    check("T07 PLINK bytes 78 00 2F 01 -> A1 dosages",
+          bool(np.array_equal(np.isnan(Mb), np.isnan(exp_b))
+               and _close(np.nan_to_num(Mb, nan=-1), np.nan_to_num(exp_b, nan=-1))))
+
+    # T08 unknown-parent groups: x has both parents in group G, y = x x unknown.
+    # By hand: A*^-1 (x, y, G) = [[4/3, -2/3, -1], [-2/3, 4/3, 0], [-1, 0, 1]], Q = (1, 1/2).
+    from .core.upg import GroupAssignment, ainv_with_groups, group_fractions
+    pu = Pedigree.from_parent_ids(["x", "y"], [None, "x"], [None, None])
+    iu = pu.index_of(["x", "y"])
+    sg = np.full(2, -1)
+    dg = np.full(2, -1)
+    sg[iu[0]] = dg[iu[0]] = 0
+    grp = GroupAssignment(("G",), sg, dg)
+    order = np.concatenate([iu, [2]])
+    check("T08 group A*-inverse and gene fractions (Quaas 1988)",
+          _close(ainv_with_groups(pu, grp).toarray()[np.ix_(order, order)],
+                 [[4 / 3, -2 / 3, -1], [-2 / 3, 4 / 3, 0], [-1, 0, 1]])
+          and _close(group_fractions(pu, grp)[iu, 0], [1.0, 0.5]))
+
+    # T09 optimal contributions, 4 unrelated founders: males g = (1, 0), females g = (0, 0),
+    # ceiling C: female contributions 1/4 each, top male a = (1 + sqrt(16 C - 2)) / 4.
+    from .decision.ocs import solve_ocs
+    C = 0.14
+    oc = solve_ocs(np.array([1.0, 0.0, 0.0, 0.0]), np.eye(4),
+                   np.array([True, True, False, False]), np.zeros(4), np.full(4, 0.5), C)
+    a = (1 + np.sqrt(16 * C - 2)) / 4
+    check("T09 OCS closed form a = (1 + sqrt(16C - 2))/4",
+          _close(oc.c, [a, 0.5 - a, 0.25, 0.25], atol=1e-9) and _close(oc.coancestry, C, atol=1e-12))
+
+    # T10 MCMC diagnostics against reference values of an independent implementation
+    # (ArviZ 0.23.4) for an RNG-free chain set (see tests/test_mcmc_diagnostics.py)
+    from .solvers.mcmc_diagnostics import bulk_ess, rhat, tail_ess
+    tt = np.arange(401)
+    xm = np.zeros((4, 401))
+    for c in range(4):
+        e = ((tt * 0.6180339887498949 + (c + 1) * 0.41421356237309515) % 1.0) - 0.5
+        e = e + 0.3 * np.sin(1.7 * tt + c)
+        v = 0.0
+        for k in range(401):
+            v = 0.7 * v + e[k]
+            xm[c, k] = v
+    check("T10 R-hat, bulk and tail ESS = reference values",
+          _close([rhat(xm), bulk_ess(xm), tail_ess(xm)],
+                 [0.9977880860052293, 1507.7710457404758, 1557.687953082816], atol=0, rtol=1e-9))
+
+    # T11 compiled Bayesian marker sweep equals the Python reference (if compiled)
+    from .core import pedigree as pmod
+    if native_kernel_available() and hasattr(pmod._native, "bayes_sweep"):
+        from .solvers.bayes import sweep_python
+        k = np.arange(1, 7, dtype=float)
+        Wb = np.asfortranarray(np.sin(np.outer(np.arange(1, 9), k)))
+        wtw = np.einsum("ij,ij->j", Wb, Wb)
+        outs = []
+        for native in (False, True):
+            e0 = np.cos(np.arange(8.0))
+            beta, delta = np.zeros(6), np.zeros(6, dtype=np.int64)
+            args = (wtw, e0, beta, delta, np.full(6, 0.3), np.log([0.6, 0.4]), np.array([0.0, 0.3]),
+                    1.1, 1, np.linspace(-1, 1, 6), np.linspace(0.1, 0.9, 6))
+            if native:
+                pmod._native.bayes_sweep(Wb.T, *args)
+            else:
+                sweep_python(Wb, *args)
+            outs.append((e0, beta, delta))
+        check("T11 native Bayesian sweep = Python reference",
+              _close(outs[1][0], outs[0][0], atol=1e-12) and _close(outs[1][1], outs[0][1], atol=1e-12)
+              and bool(np.array_equal(outs[1][2], outs[0][2])))
+    else:
+        lines.append("  [SKIP] T11 native Bayesian sweep (native kernel not available or disabled)")
     lines.append("RESULT: " + ("PASS" if ok_all else "FAIL"))
     return ok_all, lines

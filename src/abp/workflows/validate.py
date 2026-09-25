@@ -22,6 +22,8 @@ def validate_inputs(spec_path) -> dict:
         ped_table = read_table(spec.resolve(data["pedigree"]), data["delimiter"])
         ped_ids = set(ped_table.column(pc["id"])) | (
             (set(ped_table.column(pc["sire"])) | set(ped_table.column(pc["dam"]))) - unknown_parent)
+        if d["upg"] is not None:
+            ped_ids = {a for a in ped_ids if not a.startswith(d["upg"]["prefix"])}
     records, phe_qc, to_add = load_phenotypes(phe, d, ped_ids)
     summary = {"spec": str(spec.path), "spec_sha256": spec.sha256, "status": "passed",
                "phenotypes": phe_qc.to_dict()}
@@ -29,9 +31,10 @@ def validate_inputs(spec_path) -> dict:
         pc = data["pedigree_columns"]
         ped = load_pedigree(ped_table, PedigreeColumns(pc["id"], pc["sire"], pc["dam"], pc["sex"],
                                                        pc["birth_date"]),
-                            unknown_parent, set(data["missing_values"]), extra_founders=to_add)
+                            unknown_parent, set(data["missing_values"]), extra_founders=to_add,
+                            group_prefix=d["upg"]["prefix"] if d["upg"] else None)
         summary["pedigree"] = ped.qc.to_dict()
-    if data["genotypes"]:
+    if data["genotypes"] or data["plink"]:
         from .genomic_inputs import load_genotype_inputs
         geno = load_genotype_inputs(spec)
         summary["genotypes"] = geno.qc.to_dict()

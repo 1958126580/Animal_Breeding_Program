@@ -89,7 +89,18 @@ def render_report(results: dict, manifest: dict) -> str:
                 L.append(f"| {k} | {v['mean']:.4g} | [{v['q05']:.4g}, {v['q95']:.4g}] | "
                          f"{v['rhat']:.4f} | {v['ess_bulk']:.0f} | {v['ess_tail']:.0f} |")
             g = bz.get("gebv_diagnostics") or {}
-            if g:
+            pp = bz.get("posterior_predictive") or {}
+            if pp:
+                L.append("")
+                L.append("Posterior predictive check (p = P(T(y_rep) >= T(y)); values below 0.01 or "
+                         "above 0.99 indicate that the model does not reproduce this feature of the "
+                         "data): " + ", ".join(f"{k} {v['p_value']:.3f}"
+                                              for k, v in pp["statistics"].items()) + ".")
+            if "not_computed" in g:
+                L.append("")
+                L.append(f"GEBVs of {g['n_animals']} animals: {g['not_computed']}. The SEP column "
+                         "below is the posterior standard deviation.")
+            elif g:
                 L.append("")
                 L.append(f"GEBVs of {g['n_animals']} animals: worst R-hat {g['max_rhat']:.4f}, "
                          f"smallest bulk ESS {g['min_ess_bulk']:.0f}. The SEP column below is the "
@@ -118,6 +129,21 @@ def render_report(results: dict, manifest: dict) -> str:
                  "individual fixed-effect solutions are not estimable functions and should not "
                  "be interpreted on their own).")
         L.append("")
+        if t.get("upg"):
+            u = t["upg"]
+            kind = (f"random, sigma_g^2/sigma_a^2 = {_f(u['variance_ratio'])} (declared)"
+                    if u["effect"] == "random" else
+                    "fixed (estimability verified: rank "
+                    f"{u['estimability']['rank']} of {u['estimability']['columns']})")
+            L.append(f"Unknown-parent groups: {u['n_groups']} group(s), {kind}. EBVs above "
+                     "include the group contributions (u* = u + Qg); group solutions and the "
+                     f"gene fractions they apply to are in `{u['file']}`.")
+            if u["effect"] == "fixed":
+                L.append("")
+                L.append("With fixed groups the prior variance of u* is not defined, so no "
+                         "reliabilities are reported; SEP includes the estimation error of the "
+                         "group effects.")
+            L.append("")
 
     if results.get("index"):
         ix = results["index"]

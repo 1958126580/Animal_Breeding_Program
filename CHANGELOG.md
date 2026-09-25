@@ -4,6 +4,27 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.2.0] - 2026-09-25
+
+Second development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Unknown-parent groups (`[upg]`): group codes in the pedigree, QP transformation (Quaas 1988), random groups with a declared variance ratio (REML available) or fixed groups with an SVD estimability test that stops confounded models (`ABP-E300`); `upg_solutions_<trait>.csv`; example 11 with a deterministic generator, a comparison script and a 20-replicate study.
+- Forward-in-time LR validation (`[validation]`): partial vs whole evaluations with the same variances (REML on partial data only), bias, dispersion and `ρ_wp`, sire-cluster bootstrap; example 08.
+- Optimal contribution selection and mating plans (`abp mate`): exact QP with KKT certificate, ceiling-preserving integer plans, minimum-inbreeding allocation with relationship and recessive-risk limits, infeasibility reports; example 09. Proposals only.
+- PLINK 1 binary input (`data.plink`, counted allele A1, declared assembly).
+- Bayesian marker models (`variances.mode = "bayes"`): BRR, BayesA, BayesB, BayesC, BayesCπ, BayesR by Gibbs sampling with an optional C++ sweep; rank-normalized split R-hat, bulk/tail ESS and MCSE for every scalar and every GEBV; automatic extension and withholding of unconverged results (`ABP-E405`); per-draw traces; posterior predictive checks; example 10.
+- Evidence: 50-replicate EBV calibration study, UPG study (three scenarios), prior simulation-based calibration of all six samplers, cross-check of the MCMC diagnostics against ArviZ.
+- `abp selftest` checks T07–T11 (PLINK bytes, group A*⁻¹, OCS closed form, MCMC diagnostics reference values, native sweep).
+- Python API sections for the new modules (`examples/api_example.py`).
+
+### Changed
+- **[results]** Effective sample sizes now follow Stan's reference truncation exactly (previously up to 0.9% different); the MCSE of the mean uses the SD of all draws. MCMC gating decisions can change marginally.
+- **[results]** `blup()` accepts `NaN` in `diag(K)` for equations without a defined prior variance (fixed groups); their reliabilities are `NaN`/empty instead of an error.
+- Per-GEBV diagnostics that are skipped for memory reasons are now reported as `not_computed` instead of being silently absent.
+- Messages and documentation no longer hard-code version 0.1.
+- The spec schema (`contracts/analysis_spec.schema.json`) gains `[upg]`, `[bayes]`, `[validation]`, `data.plink`, `data.genotype_assembly` and `data.phenotype_columns.date`.
+
 ## [0.1.0] - 2026-09-25
 
 First vertical slice. See `docs/validation_report.md` for evidence and gaps.

@@ -78,8 +78,21 @@ def run_bayes_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
                        "s2_e": res.priors.s2_e, "pi0": res.priors.pi0,
                        "gamma": list(res.priors.gamma), "dirichlet": list(res.priors.dirichlet),
                        "derivation": res.priors.derivation},
-            "frequencies": prep.freq_note}
+            "frequencies": prep.freq_note,
+            "posterior_predictive": res.ppc,
+            "trace_file": f"mcmc_trace_{trait}.csv"}
     atomic_write_json(stage.path(f"mcmc_diagnostics_{trait}.json"), diag)
+    extreme = {k: v["p_value"] for k, v in res.ppc["statistics"].items()
+               if not 0.01 <= v["p_value"] <= 0.99}
+    if extreme:
+        log.warning("%s: posterior predictive check flags %s (p outside [0.01, 0.99]); the model "
+                    "does not reproduce these features of the data - review before use",
+                    trait, extreme)
+    names = list(res.traces)
+    trace_rows = [[c + 1, cfg.burn_in + (k + 1) * cfg.thin]
+                  + [float(res.traces[q][c, k]) for q in names]
+                  for c in range(cfg.chains) for k in range(res.draws_per_chain)]
+    write_csv(stage.path(f"mcmc_trace_{trait}.csv"), ["chain", "iteration"] + names, trace_rows)
     manifest["diagnostics"][trait] = {"mcmc": {k: diag[k] for k in (
         "method", "converged", "iterations", "chains", "chain_seeds", "kernel", "criteria")}}
     manifest["randomness"] = {"seed": cfg.seed, "generator": "numpy PCG64 via SeedSequence.spawn",
@@ -136,7 +149,8 @@ def run_bayes_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
                   "summaries": {k: {m: v[m] for m in ("mean", "sd", "q05", "q95", "rhat",
                                                       "ess_bulk", "ess_tail", "mcse_mean")}
                                 for k, v in sm.items()},
-                  "gebv_diagnostics": res.gebv_diagnostics, "kernel": res.kernel},
+                  "gebv_diagnostics": res.gebv_diagnostics, "kernel": res.kernel,
+                  "posterior_predictive": res.ppc},
         "genetic_term": "animal",
         "solver": {"method": f"gibbs ({res.kernel})", "selection_reason": "variances.mode = bayes",
                    "n_equations": int(W_all.shape[1] + fd.rank), "relative_residual": None,
@@ -152,7 +166,8 @@ def run_bayes_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
                         "min": float(res.gebv_mean.min()), "max": float(res.gebv_mean.max())},
         "files": {"ebv": f"ebv_{trait}.csv", "fixed_effects": f"fixed_effects_{trait}.csv",
                   "marker_effects": f"marker_effects_{trait}.csv",
-                  "diagnostics": f"mcmc_diagnostics_{trait}.json"},
+                  "diagnostics": f"mcmc_diagnostics_{trait}.json",
+                  "trace": f"mcmc_trace_{trait}.csv"},
     }
     state = EvalState(tuple(geno.ids), [trait], res.gebv_mean[:, None], None,
                       np.array([[sm["genetic_variance"]["mean"]]]), np.ones(len(geno.ids)),

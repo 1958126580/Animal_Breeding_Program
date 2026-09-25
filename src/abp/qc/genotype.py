@@ -11,7 +11,8 @@ their orientation cannot be checked from allele names.
 the header must contain exactly the markers of the map).  Cells hold the
 number of copies of the counted allele (0..2; decimals allowed for imputed
 dosages) or a missing-value token.  This is ABP's own documented text
-format; PLINK/VCF/BGEN readers are *not* provided in 0.1 (not_run).
+format; PLINK 1 binary files are read by :mod:`abp.io.plink`; VCF/BGEN
+readers are *not* provided (not_run).
 
 QC rules (all reversible; excluded items are listed)
 ----------------------------------------------------

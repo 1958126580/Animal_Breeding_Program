@@ -119,3 +119,9 @@ def test_example09_candidates_are_reproducible(tmp_path):
                        capture_output=True, text=True, timeout=600)
     assert r.returncode == 0, r.stderr
     assert (EX / "09_sheep_mating" / "candidates.csv").read_bytes() == before
+
+
+def test_error_code_reference_is_current():
+    from abp.errors import markdown_table
+    on_disk = (ROOT / "docs" / "error_codes.md").read_text(encoding="utf-8")
+    assert on_disk == markdown_table(), "regenerate with: python -m abp.errors docs/error_codes.md"

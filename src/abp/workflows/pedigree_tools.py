@@ -15,13 +15,19 @@ from .outputs import OutputStage, atomic_write_json
 def pedigree_report(pedigree: str | Path, out: str | Path, id_col: str = "id",
                     sire_col: str = "sire", dam_col: str = "dam", sex_col: str | None = None,
                     birth_col: str | None = None, delimiter: str = ",",
-                    unknown=("0", "", "NA", "."), force: bool = False) -> Path:
+                    unknown=("0", "", "NA", "."), force: bool = False,
+                    group_prefix: str | None = None) -> Path:
     """Write ``inbreeding.csv``, ``ainv_triplets.csv`` (1-based, lower triangle)
-    and ``qc_pedigree.json`` for a pedigree file."""
+    and ``qc_pedigree.json`` for a pedigree file.
+
+    With ``group_prefix``, parent codes starting with it are unknown-parent
+    groups: they are unknown parents for ``A`` (the exported ``A^{-1}`` is that
+    of the animals only) and are listed in the QC report (``PED-UPG``).
+    """
     run_id = mf.new_run_id()
     table = read_table(pedigree, delimiter)
     data = load_pedigree(table, PedigreeColumns(id_col, sire_col, dam_col, sex_col, birth_col),
-                         set(unknown), {"", "NA", "."})
+                         set(unknown), {"", "NA", "."}, group_prefix=group_prefix)
     ped = data.pedigree
     stage = OutputStage(Path(out), run_id, force, 50.0)
     try:

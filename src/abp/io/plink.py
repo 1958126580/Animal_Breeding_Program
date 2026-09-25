@@ -33,6 +33,8 @@ from ..qc.report import QCReport
 MAGIC = b"\x6c\x1b"
 _LUT_CODES = np.array([[(b >> (2 * k)) & 3 for k in range(4)] for b in range(256)], dtype=np.uint8)
 _CODE_TO_DOSAGE = np.array([2.0, np.nan, 1.0, 0.0])   # 00, 01, 10, 11 -> copies of A1
+_BYTE_TO_DOSAGES = _CODE_TO_DOSAGE[_LUT_CODES]         # 256 x 4: one byte -> 4 samples
+DECODE_BLOCK = 2048                                    # variants decoded per block
 
 
 def _read_text(path: Path, n_cols: int, what: str) -> list[list[str]]:
@@ -73,8 +75,15 @@ def decode_bed(raw: bytes, n_samples: int, n_variants: int) -> np.ndarray:
                        f"{n_samples} samples x {n_variants} variants (mismatched .fam/.bim?)",
                        bytes=len(raw), expected=expected)
     body = np.frombuffer(raw, dtype=np.uint8, offset=3).reshape(n_variants, per)
-    codes = _LUT_CODES[body].reshape(n_variants, per * 4)[:, :n_samples]
-    return _CODE_TO_DOSAGE[codes].T.copy()
+    out = np.empty((n_samples, n_variants))
+    block = min(DECODE_BLOCK, max(n_variants, 1))
+    buf = np.empty((block, per, 4))                          # reused: bounded, touched once
+    for j0 in range(0, n_variants, block):
+        j1 = min(n_variants, j0 + block)
+        b = buf[:j1 - j0]
+        np.take(_BYTE_TO_DOSAGES, body[j0:j1], axis=0, out=b)
+        out[:, j0:j1] = b.reshape(j1 - j0, per * 4)[:, :n_samples].T
+    return out
 
 
 def load_plink(prefix: str | Path, assembly: str) -> GenotypeData:

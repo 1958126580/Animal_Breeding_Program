@@ -1,6 +1,6 @@
 # command: abp selftest
-# date: 2026-09-25T11:32:10+00:00
-ABP 0.1.0 self-test (native kernel: True)
+# date: 2026-09-25T14:58:33+00:00
+ABP 0.2.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
@@ -8,11 +8,15 @@ ABP 0.1.0 self-test (native kernel: True)
   [PASS] T05 REML genetic score = -0.01463020355
   [PASS] T06 H-inverse = A-inverse when G* = A22
   [PASS] Mrode Ex. 3.1 sex and animal solutions (+-6e-4)
+  [PASS] T07 PLINK bytes 78 00 2F 01 -> A1 dosages
+  [PASS] T08 group A*-inverse and gene fractions (Quaas 1988)
+  [PASS] T09 OCS closed form a = (1 + sqrt(16C - 2))/4
+  [PASS] T10 R-hat, bulk and tail ESS = reference values
+  [PASS] T11 native Bayesian sweep = Python reference
 RESULT: PASS
 # exit_code: 0
-
 # command: ABP_DISABLE_NATIVE=1 abp selftest
-ABP 0.1.0 self-test (native kernel: False)
+ABP 0.2.0 self-test (native kernel: False)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel python_meuwissen_luo
@@ -20,5 +24,10 @@ ABP 0.1.0 self-test (native kernel: False)
   [PASS] T05 REML genetic score = -0.01463020355
   [PASS] T06 H-inverse = A-inverse when G* = A22
   [PASS] Mrode Ex. 3.1 sex and animal solutions (+-6e-4)
+  [PASS] T07 PLINK bytes 78 00 2F 01 -> A1 dosages
+  [PASS] T08 group A*-inverse and gene fractions (Quaas 1988)
+  [PASS] T09 OCS closed form a = (1 + sqrt(16C - 2))/4
+  [PASS] T10 R-hat, bulk and tail ESS = reference values
+  [SKIP] T11 native Bayesian sweep (native kernel not available or disabled)
 RESULT: PASS
 # exit_code: 0
