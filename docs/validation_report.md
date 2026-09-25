@@ -1,10 +1,11 @@
 # Validation report: ABP 0.2.0
 
 Date: 2026-09-25 · Platforms executed: **Linux x86_64** (build machine, full
-evidence below). Round 1 (0.1.0) was also run on **Windows Server 2025 and
-Ubuntu** in GitHub Actions run
+evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
+(round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
-the CI result for this round is recorded in §3a.
+round 2: run
+[36151891410](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36151891410); §3a).
 Raw logs: `docs/validation/`. Status vocabulary: passed, failed, blocked,
 not_run.
 
@@ -57,7 +58,19 @@ AlphaMate has been run.
 Round 1: run 36130441504 (commit 2cd2922): all 7 jobs succeeded —
 Windows Server 2025 and Ubuntu × Python 3.11/3.12/3.13 (C++20 kernel built
 with MSVC on Windows; `abp selftest` PASS; launcher runs into
-`%RUNNER_TEMP%\结果 输出`) and a pure-Python-kernel job. Round 2: the CI run triggered by the push of this round is recorded in the follow-up commit on this branch.
+`%RUNNER_TEMP%\结果 输出`) and a pure-Python-kernel job. Round 2: run
+[36151891410](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36151891410)
+(commit c6f72df), all 7 jobs succeeded:
+
+| Job | Result | Notes from the job log |
+|---|---|---|
+| windows-latest / Python 3.11, 3.12, 3.13 | success | Windows Server 2025; C++20 kernel built with MSVC; `abp selftest` PASS including T07–T11; **173 passed** (3.13: NumPy 2.5.3, SciPy 1.18.1, 157.7 s); launcher run into `%RUNNER_TEMP%\结果 输出` passed and the repeat without `--force` returned exit status 2 |
+| ubuntu-latest / Python 3.11, 3.12, 3.13 | success | **173 passed**; `abp.sh` launcher run with a Chinese/space path |
+| ubuntu / pure-Python kernels (`ABP_DISABLE_NATIVE=1`, Python 3.12) | success | self-test PASS with T11 skipped (no native kernel); **173 passed** in 439.6 s |
+
+The byte-reproducibility tests of examples 09 and 11 passed on every job,
+including Windows (line endings fixed by `.gitattributes`) and the newer
+NumPy of the Python 3.12/3.13 jobs.
 
 ## 4. Analytical gold standards (spec §8.2 and round-2 additions)
 

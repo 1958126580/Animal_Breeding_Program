@@ -1,6 +1,6 @@
 # Continuous integration: every result is recorded per platform. A green Linux
 # job says nothing about Windows (and vice versa); CUDA is not tested because
-# ABP 0.1 has no CUDA code path.
+# ABP has no CUDA code path yet.
 name: ci
 
 on:

@@ -34,8 +34,9 @@ See `docs/validation_report.md` §3 for the full list with logs. In short:
 the full test suite with the native kernel and with `ABP_DISABLE_NATIVE=1`,
 `abp selftest` (both kernels), every example, the 50-replicate calibration
 study, the UPG study (three scenarios), the SBC of all six samplers, the
-ArviZ cross-check, and the round-2 benchmarks. CI for this round: see §3a
-of the validation report.
+ArviZ cross-check, and the round-2 benchmarks. CI run 36151891410 (commit
+c6f72df): all 7 jobs green (Windows and Ubuntu × Python 3.11–3.13, and the
+pure-Python-kernel job), 173 tests passed in each.
 
 ## 3. Not run, and why
 
