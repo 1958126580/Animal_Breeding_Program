@@ -315,6 +315,13 @@ A code starting with the prefix is **not** an animal: it names a group of
 unknown parents. Animal IDs must not start with the prefix (`PED-UPG-ID`).
 Without an `[upg]` section such codes would be read as ordinary parent IDs.
 
+**Metafounder codes.** Metafounders (§7.13) use the same mechanism with the
+prefix declared in `[metafounders]`, for example `MF:TEXEL` in a parent
+field. If all unknown parents come from one base population you do not need
+to change the file: `metafounders.default` assigns every plain unknown parent
+(`0`) to one metafounder. Declare either `[upg]` or `[metafounders]`, not
+both.
+
 ### 4.2 Phenotypes
 
 One row per **record**: one animal measured on one occasion. A row can hold
@@ -635,7 +642,33 @@ ABP also checks, before running:
 * `[upg]` needs `relationship = "pedigree"` and a single-trait model; fixed
   groups need `variances.mode = "known"` and cannot be combined with
   `[validation]`; the prefix must differ from every unknown-parent code;
+* `[metafounders]` needs `relationship = "pedigree"` or `"single_step"`, a
+  single-trait model, `variances.mode = "known"` or `"reml"`, and no
+  `[upg]` or `[validation]`; `gamma_source = "file"` needs `gamma_file` and
+  a non-empty `gamma_provenance`; `"genotypes_gls"` needs genotypes; single
+  step (and `"genotypes_gls"`) need `genomic.frequency_source = "fixed_0.5"`
+  and `genomic.tuning = "none"`; `default` and `reference` start with the
+  prefix;
 * `index.weights` refer to model traits.
+
+### 5.17 `[metafounders]` (optional): related base populations
+
+| Key | Default | Notes |
+|---|---|---|
+| `prefix` | **required** | parent codes starting with it name metafounders, for example `"MF:"` → `MF:TEXEL` |
+| `default` | none | metafounder for plain unknown parents (`0`); without it they are refused (`ABP-E205`) |
+| `reference` | `default`, or the only metafounder | base population that `ebv_vs_base` is expressed against |
+| `gamma_source` | **required** | `"file"` or `"genotypes_gls"` (estimated from the genotypes) |
+| `gamma_file` | none | CSV `metafounder_1, metafounder_2, gamma`; every pair once, including the diagonal |
+| `gamma_provenance` | none | required with `"file"`: where the values come from (study, data, method) |
+| `sampling_correction` | `true` | subtract the expected sampling inflation of the estimated Γ (§17 of `methods.md`) |
+
+```toml
+[metafounders]
+prefix = "MF:"
+default = "MF:BASE"
+gamma_source = "genotypes_gls"
+```
 
 ---
 
@@ -808,12 +841,13 @@ checked. Every genotyped animal must be in the pedigree. Example 05.
 > study, single step with `match_a22` tuning and a 5% blend under-predicted
 > the selection candidates by 0.66 kg on average, and its PEV understated
 > the real prediction error by about 28% (95% intervals covered 91.7% of
-> true values). Pedigree BLUP in the same study was calibrated. The cause
-> is a mismatch between the genomic and pedigree bases, not a numerical
-> error. Until base alignment (metafounders) is implemented, compare
-> single-step and pedigree EBV levels for your population, validate
-> forward in time (§7.11), and do not rely on single-step reliabilities
-> alone.
+> true values); with REML variances, by 0.82 kg and 57%. Pedigree BLUP in
+> the same study was calibrated. The cause is a mismatch between the
+> genomic and pedigree bases, not a numerical error. **Single step on a
+> metafounder base (§7.13) removed the bias in the same study** (0.06 ± 0.06
+> kg) and reduced the PEV understatement to about 8%, which is still
+> statistically detectable. Prefer the metafounder base, validate forward in
+> time (§7.11), and treat single-step reliabilities as slightly optimistic.
 
 ### 7.6 Multi-trait BLUP
 
@@ -1179,6 +1213,97 @@ inbreeding, expected progeny merit and recessive risk), `mating_summary.json`,
 base; candidates' merits are taken as given (their errors are not
 propagated).
 
+### 7.13 Metafounders: a related base population
+
+**When you need them.** Ordinary pedigree relationships assume that all
+unknown parents are unrelated and not inbred. That is never quite true: the
+founders of a flock descend from a population with its own history. For
+pedigree BLUP alone the assumption is harmless, but single step combines
+the pedigree with genomic relationships, and genomic relationships computed
+with allele frequency 0.5 describe an older, related base. Mixing the two
+bases biased single-step EBVs in ABP's calibration study (F6). Metafounders
+(Legarra et al. 2015) describe each base population by a pseudo-animal whose
+self-relationship γ says how related its members are, so the pedigree and
+the genotypes refer to the same base.
+
+**How to declare them.** With one base population nothing changes in the
+data:
+
+```toml
+[metafounders]
+prefix = "MF:"
+default = "MF:BASE"            # every unknown parent comes from this population
+gamma_source = "genotypes_gls" # estimate gamma from the genotypes
+
+[genomic]
+frequency_source = "fixed_0.5" # G05: the base the genotypes refer to
+tuning = "none"                # no rescaling of G
+singular_policy = "blend"
+blend_alpha = 0.05
+```
+
+With several base populations (breeds, lines, imported origins), write
+codes such as `MF:TEXEL` and `MF:SUFFOLK` in the parent fields (§4.1) and
+declare `reference`, the population your EBVs are expressed against. Define
+metafounders by the origin of the missing parents, never by the animals'
+own performance. A metafounder needs genotyped descendants for its γ to be
+estimated.
+
+**Where γ comes from.** Either estimated in the run from the genotypes (base
+allele frequencies by generalized least squares, then
+`γ = 8·mean((p − ½)²)`, minus the expected sampling inflation), or read from
+a file with the source stated in `gamma_provenance`. ABP refuses a Γ that is
+not a valid covariance matrix or that is inconsistent with the pedigree, and
+never assigns γ from breed names. The estimate, the uncorrected value and
+the diagnostics are written to `manifest.json`.
+
+**What you get.**
+
+* `ebv`, `pev`, `reliability`: breeding values including the genetic level
+  of the base population. That level is uncertain, and its uncertainty is
+  shared by every descendant, so these PEVs are larger and these
+  reliabilities lower than those of an ordinary evaluation.
+* `ebv_vs_base`, `pev_vs_base`, `reliability_vs_base`: the same animals
+  measured against the reference base population (`uᵢ − u_ref`). Ranking is
+  identical; PEV and reliability no longer contain the shared uncertainty.
+  **Use these columns for comparisons and decisions.** Their reliability is
+  relative to the genetic variance within the base population.
+* `inbreeding` is relative to the metafounder base: founders have `F = γ/2`.
+* `metafounder_solutions_<trait>.csv`: the estimated level of each base
+  population.
+* The genetic variance σ²a refers to the metafounder base. The equivalent
+  variance within the population is `σ²a·(1 − γ/2)`; estimate σ²a with REML
+  under the same model rather than reusing a conventional estimate.
+
+**Example 12** is example 05 on a metafounder base:
+
+```bash
+abp run examples/12_sheep_wwt_single_step_metafounder/analysis.toml --out runs/ex12
+```
+
+γ is estimated at 0.552 (0.563 before the sampling correction). Without any
+rescaling of G, the mean diagonal and off-diagonal of G05 (1.284, 0.588)
+agree with those of A22 on the metafounder base (1.292, 0.601).
+
+**Evidence.** Over 50 simulated replicates (`benchmarks/calibration_study.py`;
+validation report §7.1), for the selection candidates:
+
+| model | bias (kg) | MSE / mean PEV | 95% interval coverage |
+|---|---:|---:|---:|
+| single step, `match_a22` + 5% blend, true variances | 0.66 ± 0.07 | 1.28 | 0.917 |
+| single step on the metafounder base, true variances | 0.06 ± 0.06 | 1.08 | 0.941 |
+| single step, `match_a22`, REML | 0.82 ± 0.07 | 1.57 | 0.881 |
+| single step on the metafounder base, REML | 0.10 ± 0.07 | 1.17 | 0.930 |
+| pedigree BLUP, true variances (reference) | 0.02 ± 0.06 | 1.03 | 0.948 |
+
+"True variances" for metafounders means the simulated variance converted to
+the metafounder scale with the estimated γ. The bias is gone; PEV is still
+about 8% too small with true variances and 17% with REML. These numbers
+describe one synthetic design, not your population.
+
+Limitations: single-trait models; not combinable with genetic groups, LR
+validation or Bayesian marker models in this version; Γ is treated as known.
+
 ---
 
 ## 8. Solvers, memory and run time
@@ -1189,9 +1314,18 @@ written to the report and the manifest.
 | Situation | Solver | Why |
 |---|---|---|
 | ≤ 12,000 equations and within the memory budget | dense Cholesky (LAPACK) | fastest; exact PEV |
-| larger, `pev = "exact"`, ≤ 30,000 equations | sparse direct (SuperLU) | exact PEV by selected solves |
+| larger, `pev = "exact"` | sparse direct (SuperLU) with selected inversion | exact PEV for any size whose factor fits in memory |
 | larger, `pev = "none"` | Jacobi-preconditioned conjugate gradients | fast; falls back to sparse direct if it does not converge |
-| larger than 30,000 equations with `pev = "exact"` | refused (`ABP-E303`) | set `pev = "none"`; approximate reliabilities are on the roadmap |
+
+**Exact PEV at scale.** Selected inversion (Takahashi equations) computes
+the needed entries of the inverse coefficient matrix from the sparse
+factor at roughly the cost of the factorization, so exact PEV and
+reliabilities are no longer limited to 30,000 equations. The limit is the
+memory of the factor: ABP estimates it after the symbolic analysis and stops
+with `ABP-E500` before any numeric work if it exceeds
+`resources.max_memory_gb`. REML uses the same method above 12,000 equations
+(`trace_method` in the REML output), so REML is no longer limited by dense
+memory either. Details: §18 of `methods.md`.
 
 After every solve ABP recomputes the relative residual `‖C·s − r‖/‖r‖` on the
 original equations and refuses solutions above 1e-8 (direct) or `solver.tol`
@@ -1206,6 +1340,9 @@ Memory for the dense path is about 16 × N² bytes (solutions) or
 | inbreeding, C++ kernel | 100,000 animals, 10 generations | 0.8 s |
 | BLUP, PCG, no PEV | 100,500 equations | 0.26 s |
 | BLUP, dense, with PEV | 5,500 equations | 4.8 s |
+| BLUP, sparse direct, **exact PEV** (selected inversion) | 100,500 equations | 16.9 s (factorization 15.2 s, selected inversion 2.1 s) |
+| REML (AI), sparse factor + selected inversion | 20,050 equations, 6 iterations | 7.3 s |
+| metafounder relationships (5 metafounders), C++ kernel | 100,000 animals, 20 generations | 11.9 s (Python reference 168 s) |
 | REML (AI), dense | 3,050 equations, 6 iterations | 3.2 s |
 | four-trait BLUP with PEV blocks (example 06) | 8,506 equations | about 8 s end to end |
 | G matrix | 2,000 animals × 50,000 markers | 1.3 s |
@@ -1227,6 +1364,8 @@ Memory for the dense path is about 16 × N² bytes (solutions) or
 | `random_<term>_<trait>.csv` | solutions and PEV of iid terms (for example permanent environment) |
 | `index.csv` | `rank, animal, sex, index, reliability` |
 | `upg_solutions_<trait>.csv` | genetic groups: `group, effect, solution, pev, sep, reliability, n_animals_with_contribution, sum_gene_fraction` (§7.9) |
+| `ebv_<trait>.csv` with metafounders | the columns above (absolute scale; `inbreeding` relative to the metafounder base) plus `ebv_vs_base, pev_vs_base, reliability_vs_base` against the reference metafounder (§7.13) |
+| `metafounder_solutions_<trait>.csv` | `metafounder, gamma_self, solution, pev, sep, reliability, n_animals_with_contribution, sum_gene_fraction` |
 | `lr_validation.json`, `lr_focal_<trait>.csv` | LR validation statistics, bootstrap and assumptions; partial and whole EBVs of the focal animals (§7.11) |
 | `ebv_<trait>.csv` (Bayesian) | `animal, sire, dam, sex, n_records, gebv_posterior_mean, gebv_posterior_sd` (§7.10) |
 | `marker_effects_<trait>.csv` | `marker_id, counted_allele, frequency, effect_posterior_mean, inclusion_probability` |
@@ -1347,7 +1486,10 @@ remedy: Correct the parent IDs or the sex column for the listed animals.
 | `ABP-E210` for GBLUP | Records of non-genotyped animals. Use `single_step`, or set `qc.ungenotyped_records = "exclude"`. |
 | `ABP-E302 RELATIONSHIP_SINGULAR` | G is singular. Choose `genomic.singular_policy = "blend"` or `"ridge"`. |
 | `ABP-E303` "repeated records" | Add `{ name = "pe", kind = "iid" }` to `model.random`. |
-| `ABP-E303` "exact PEV … exceeds" | Set `solver.pev = "none"` for very large models. |
+| `ABP-E500` during selected inversion | The sparse factor does not fit in `resources.max_memory_gb`. Raise the budget if the machine has the memory, or set `solver.pev = "none"`. |
+| `ABP-E205 PEDIGREE_UNASSIGNED_BASE` | With `[metafounders]`, an unknown parent has no metafounder. Code it (`MF:…`) or set `metafounders.default`. |
+| `ABP-E302` with metafounders | Γ is not positive definite (file values, or too few genotyped descendants for an estimate), or is too large for the pedigree (Mendelian sampling variance ≤ 0). |
+| `ABP-E300` "base allele frequencies of the metafounders are not estimable" | A metafounder has no genotyped descendants, or the gene fractions of two metafounders are collinear. Merge them or supply Γ from a documented file. |
 | `ABP-E403 REML_NOT_CONVERGED` | Raise `reml.max_iter`, give better `reml.start` values, or simplify the model (see the history in `manifest.json`). |
 | `ABP-E405 MCMC_NOT_CONVERGED` | The chains did not meet R-hat/ESS within `bayes.max_iterations`. Raise it, increase `thin`, fix `pi0` instead of estimating it (BayesCπ mixes slowly), or check the model. Diagnostics are in the failed run folder. |
 | `ABP-E300` "fixed unknown-parent group effects are confounded" | Every recorded lineage ends in a group, or a group has no recorded descendants. Use `upg.effect = "random"`, merge groups, or leave the base population's unknown parents ungrouped. |
@@ -1364,7 +1506,8 @@ The complete list is in [`error_codes.md`](error_codes.md).
 
 ## 13. Limitations and good practice
 
-What ABP does **not** do yet: metafounders, maternal and social effects,
+What ABP does **not** do yet: metafounders with multi-trait models or LR
+validation, maternal and social effects,
 random regression and test-day models, threshold and survival models,
 genotype × environment models, dominance and epistasis, APY and other
 approximations for very large genomic data, multi-trait REML, multi-trait
@@ -1390,7 +1533,8 @@ Good practice:
    selection decisions, and repeat the validation when the population or
    the model changes.
 6. Use genetic groups when unknown parents come from populations of
-   different genetic level (§7.9); record how the groups were defined.
+   different genetic level (§7.9); record how the groups were defined. For
+   single step, prefer a metafounder base (§7.13) to rescaling G.
 7. Never use Bayesian results whose diagnostics failed; ABP withholds them.
    Read the predictive checks as well.
 8. ABP produces **recommendations** for breeders to review, including the

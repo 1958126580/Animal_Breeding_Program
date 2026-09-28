@@ -159,6 +159,30 @@ chains = rng.normal(size=(4, 1000))                         # any (chains, draws
 print("diagnostics of iid draws:", {k: round(v, 3) for k, v in summarize(chains).items()
                                     if k in ("rhat", "ess_bulk", "ess_tail")})
 
+# --- 12. Metafounders: a related base population -----------------------------
+from abp.core.metafounders import MetafounderPedigree
+# founders s and d come from base population MF:A (parents coded as metafounder 0);
+# x has sire s and an unknown dam from the same base population
+mf_groups = GroupAssignment(labels=("MF:A",), sire_group=np.array([0, 0, -1]),
+                            dam_group=np.array([0, 0, 0]))
+mfp = MetafounderPedigree(ped3, mf_groups, gamma=np.array([[0.4]]))
+print("metafounder base: diag A =", mfp.diag_ext().round(3),          # 1 + gamma/2 for founders
+      "| A[s, d] =", round(float(mfp.a_ext_dense()[0, 1]), 3))        # = gamma
+mf_term = RandomTerm("animal", sp.csr_matrix((np.ones(3), (np.arange(3), [0, 1, 2])), shape=(3, 4)),
+                     mfp.ainv_ext(), list(mfp.labels), genetic=True,
+                     k_diag=mfp.diag_ext(), logdet_k=mfp.logdet_ext())
+mf_res = blup(np.array([10.0, 12.0, 11.5]), sp.csr_matrix(np.ones((3, 1))), [mf_term],
+              {"animal": 2.0, "residual": 4.0})
+print("EBVs incl. metafounder:", mf_res.terms["animal"].solution.round(4))
+
+# --- 13. Exact PEV from the sparse factor (selected inversion) -------------------
+res_sparse = blup(y, fixed.X, [animal], {"animal": 20.0, "residual": 40.0},
+                  method="sparse_direct")
+si = res_sparse.solve.factor.selected_inverse()          # Takahashi equations
+print("sparse PEV equals dense PEV:",
+      np.allclose(res_sparse.terms["animal"].pev, t.pev, atol=1e-10),
+      "| factor entries:", si.nnz_factor, "| kernel:", si.kernel)
+
 # --- 11. Whole workflow from an analysis spec ----------------------------------
 root = Path(__file__).resolve().parent
 with tempfile.TemporaryDirectory() as tmp:

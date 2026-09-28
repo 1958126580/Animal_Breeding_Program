@@ -4,6 +4,27 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.3.0] - 2026-09-28
+
+Third development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Metafounders (`[metafounders]`; Legarra et al. 2015): related, possibly inbred base populations for pedigree BLUP, REML and single step. Extended relationship matrix `A^Γ = T D T' + QΓQ'` with a sparse inverse, log-determinant and Colleau products; generalised Meuwissen–Luo kernel in Python and C++ (`ml_general`); Γ from a file with required provenance, or estimated from genotypes by GLS base allele frequencies with a sampling correction; single step on the metafounder base (`G05`, no tuning). EBV files gain `ebv_vs_base`, `pev_vs_base`, `reliability_vs_base` against a reference metafounder; `metafounder_solutions_<trait>.csv`; new error `ABP-E205 PEDIGREE_UNASSIGNED_BASE`; example 12.
+- Sparse selected inversion (Takahashi equations) with a symbolic Cholesky pattern that closes over numeric cancellation; Python reference and C++ kernels (`symbolic_cholesky`, `takahashi`). Exact PEV is no longer limited to 30,000 equations (limit: factor memory, `ABP-E500`); REML above 12,000 equations uses the sparse factor and selected inversion (`trace_method` in the REML output); multi-trait PEV blocks use it too.
+- Calibration study scenarios `single_step_reml`, `single_step_mf_reml`, `single_step_mf_true`; parallel replicates (`--workers`).
+- Benchmark groups `selinv` and `metafounders`.
+- Python API sections 13 (metafounders) and 14 (selected inversion); methods reference §17 and §18.
+
+### Changed
+- **[results]** `solver.method = "auto"` with `pev = "exact"` above the dense limit now selects sparse direct with selected inversion instead of refusing above 30,000 equations. For systems that were already solved on the sparse path, PEV values are the same up to rounding.
+- **[results]** REML above 12,000 equations uses sparse selected inversion instead of the dense inverse (same likelihood, score and AI to rounding); systems beyond the dense memory budget are no longer refused.
+- `ABPError` is picklable (errors raised in worker processes reach the parent).
+- The `PED-UPG` QC message covers both genetic groups and metafounders.
+
+### Fixed
+- The prior variance of the base contrast in single step used `Cov(u_i, u_ref)` from `A^Γ` instead of `H` (found during development by the reliability range check; never released).
+- The calibration study set its one-thread BLAS limit after importing NumPy, which oversubscribed the CPU when run with several workers.
+
 ## [0.2.0] - 2026-09-25
 
 Second development round. Evidence and gaps: `docs/validation_report.md`.

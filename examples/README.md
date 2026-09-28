@@ -3,7 +3,8 @@
 All data here are **synthetic** or taken from a textbook teaching example.
 Each example is run end to end by the test suite (`tests/test_examples.py`,
 `tests/test_workflow.py`, `tests/test_ocs_mating.py`,
-`tests/test_bayes_workflow.py`, `tests/test_upg_workflow.py`), so the
+`tests/test_bayes_workflow.py`, `tests/test_upg_workflow.py`,
+`tests/test_metafounder_workflow.py`), so the
 commands below are known to work.
 
 | # | Folder | Analysis | Command |
@@ -19,6 +20,7 @@ commands below are known to work.
 | 09 | `09_sheep_mating` | optimal contributions and a mating plan for 150 ewes from the index of example 06 (ΔF 1%, no half-sib matings, recessive-risk limit); `make_candidates.py` rebuilds the candidate file | `abp mate examples/09_sheep_mating/mating.toml --out runs/mating` |
 | 10 | `10_sheep_fec_bayesc` | faecal egg count, BayesC (π₀ = 0.95), 4 chains, convergence-gated | `abp run examples/10_sheep_fec_bayesc/analysis.toml --out runs/ex10` |
 | 11 | `11_sheep_upg` | a flock buying rams from two breeders without ancestry: random (`analysis.toml`, REML) and fixed (`analysis_fixed.toml`) genetic groups; `make_data.py` regenerates the data, `compare.py` compares with and without groups against the truth | `abp run examples/11_sheep_upg/analysis.toml --out runs/ex11` |
+| 12 | `12_sheep_wwt_single_step_metafounder` | weaning weight, single step on a metafounder base: all unknown parents from base population `MF:BASE`, γ estimated from the genotypes, `G05` without rescaling, REML; EBVs also against the base (`ebv_vs_base`) | `abp run examples/12_sheep_wwt_single_step_metafounder/analysis.toml --out runs/ex12` |
 | - | `api_example.py` | the Python API, step by step | `python examples/api_example.py` |
 
 ## The synthetic sheep flock (`sheep_data/`)

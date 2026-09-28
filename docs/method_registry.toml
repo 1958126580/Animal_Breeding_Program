@@ -7,14 +7,14 @@
 # calibration, G5 external validity, G6 scale/platform, G7 decision/release.
 
 schema_version = "1"
-registry_date = "2026-09-25"
-abp_version = "0.2.0"
+registry_date = "2026-09-28"
+abp_version = "0.3.0"
 
 [[method]]
 method_id = "ped.a_matrix"
 name = "Numerator relationship matrix, inverse, inbreeding"
 estimand = "relationship structure (not an estimate)"
-scope = "diploid, autosomal; unknown parents = distinct unrelated non-inbred base animals (genetic groups: see ped.upg; no metafounders)"
+scope = "diploid, autosomal; unknown parents = distinct unrelated non-inbred base animals (genetic groups: see ped.upg; related base populations: see ped.metafounders)"
 math = "docs/methods.md#2-pedigree-relationships"
 sources = ["Henderson 1976 Biometrics 32:69", "Quaas 1976 Biometrics 32:949", "Meuwissen & Luo 1992 GSE 24:305", "Colleau 2002 GSE 34:409"]
 errata = []
@@ -30,7 +30,7 @@ tests = ["tests/test_pedigree.py::test_t03_hand_derived_gold_standard",
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["no metafounders", "inbreeding cost grows with pedigree depth (8.7 s for 100k animals x 20 generations)"]
+known_limits = ["base = unrelated founders (use ped.metafounders for a related base)", "inbreeding cost grows with pedigree depth (8.7 s for 100k animals x 20 generations)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -69,7 +69,7 @@ tests = ["tests/test_blup.py::test_solvers_agree_on_larger_problem",
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["exact PEV limited to 30000 equations on the sparse path", "no approximate reliabilities yet", "no matrix-free iteration on data"]
+known_limits = ["exact PEV on the sparse path bounded by the memory of the factor (see num.selected_inversion)", "no approximate reliabilities yet", "no matrix-free iteration on data"]
 dependencies = ["numpy", "scipy (LAPACK, SuperLU)"]
 
 [[method]]
@@ -117,7 +117,7 @@ tests = ["tests/test_reml.py::test_t05_score_matches_v_form_and_detects_wrong_de
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_40_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["dense only (memory N^2)", "no multi-trait REML", "SE invalid at the boundary"]
+known_limits = ["above 12,000 equations: sparse factor + selected inversion, bounded by factor memory", "no multi-trait REML", "SE invalid at the boundary"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -164,7 +164,7 @@ tests = ["tests/test_genomic.py::test_t06_single_step_identities",
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "failed_50_replicate_calibration_F6", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["no APY or ssSNPBLUP", "no metafounders / unknown-parent groups", "genomic and pedigree base alignment limited to match_a22 tuning", "biased and over-confident in the calibration scenario (F6); metafounders or other base alignment needed"]
+known_limits = ["no APY or ssSNPBLUP", "no unknown-parent groups in single step", "with match_a22 tuning: biased and over-confident in the calibration scenario (F6); a metafounder base is available (ped.metafounders)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -292,7 +292,7 @@ tests = ["tests/test_upg.py::test_qp_identity",
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_20_replicate_simulation_with_documented_misspecification_bias", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["no metafounders (groups unrelated, non-inbred)", "variance ratio declared, not estimated", "pedigree relationship and single-trait models only", "fixed groups: no reliabilities, REML refused"]
+known_limits = ["groups unrelated, non-inbred (related bases: ped.metafounders, not combinable with groups)", "variance ratio declared, not estimated", "pedigree relationship and single-trait models only", "fixed groups: no reliabilities, REML refused"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -438,10 +438,68 @@ maturity = "experimental"
 known_limits = ["HMC-specific diagnostics do not apply", "ESS of a constant quantity is reported as NaN (ArviZ reports the number of draws); constant quantities are not gated"]
 dependencies = ["numpy", "scipy"]
 
+[[method]]
+method_id = "ped.metafounders"
+name = "Metafounders: extended relationship matrix A^Gamma, inverse, Gamma estimation, single step on the metafounder base"
+estimand = "additive_ebv relative to related base populations (u_i and the contrast u_i - u_ref); metafounder levels"
+scope = "pedigree or single-step relationship, single trait, known variances or REML; every unknown parent assigned to a metafounder; Gamma from a documented file or GLS base allele frequencies; single step with G05 and no tuning"
+math = "docs/methods.md#17-metafounders"
+sources = ["Legarra, Christensen, Vitezica, Aguilar & Misztal 2015 Genetics 200:455", "Christensen 2012 GSE 44:37", "Garcia-Baccino et al. 2017 GSE 49:34", "Gengler, Mayeres & Szydlowski 2007 Animal 1:21"]
+errata = []
+exact_or_approximate = "A^Gamma, inverse, log-determinant and H exact given Gamma; Gamma estimate approximate (GLS with a common-p covariance; pooled sampling correction)"
+complexity = "diag(A^Gamma) as Meuwissen-Luo plus O(n k^2); inverse O(n + k^2); GLS Gamma O(n2^3 + n2^2 m) dense in genotyped animals"
+code = ["src/abp/core/metafounders.py", "src/abp/workflows/metafounder_inputs.py", "src/abp/_native.cpp"]
+tests = ["tests/test_metafounders.py::test_extended_matrix_inverse_and_logdet_match_tabular_reference",
+         "tests/test_metafounders.py::test_zero_inputs_reduce_to_ordinary_meuwissen_luo",
+         "tests/test_metafounders.py::test_native_and_python_kernels_agree_on_a_random_pedigree",
+         "tests/test_metafounders.py::test_blup_with_metafounders_equals_v_form_model",
+         "tests/test_metafounders.py::test_reml_loglik_and_score_under_metafounders_match_v_form",
+         "tests/test_metafounders.py::test_single_step_with_metafounders_matches_dense_h",
+         "tests/test_metafounders.py::test_gamma_estimation_recovers_simulated_base_and_correction_reduces_bias",
+         "tests/test_metafounders.py::test_gamma_estimation_with_missing_dosages_and_identifiability",
+         "tests/test_metafounders.py::test_g05_is_on_the_metafounder_scale",
+         "tests/test_metafounders.py::test_invalid_inputs_are_refused",
+         "tests/test_metafounder_workflow.py::test_pedigree_metafounder_run_matches_v_form_reference",
+         "tests/test_metafounder_workflow.py::test_unassigned_unknown_parent_is_refused",
+         "tests/test_metafounder_workflow.py::test_example12_single_step_on_metafounder_base"]
+# G4: benchmarks/calibration_study.py, 50 replicates: single-step bias 0.660 +- 0.067 kg (match_a22)
+# -> 0.057 +- 0.058 kg (metafounders, true variances); MSE/PEV 1.283 -> 1.077 +- 0.024; coverage
+# 0.917 -> 0.941. Residual PEV understatement is significant (F6 partly open).
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "partial_50_replicates_bias_removed_pev_understated_8pct", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["single trait; no LR validation, Bayesian models or genetic groups together with metafounders", "Gamma treated as known (its estimation error is not propagated)", "pooled sampling correction slightly over-corrects a metafounder with extreme base frequencies (simulation: -0.008 vs +0.018 uncorrected)", "GLS Gamma dense in genotyped animals"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "num.selected_inversion"
+name = "Sparse selected inversion (Takahashi equations) for exact PEV and REML traces"
+estimand = "entries of the inverse MME coefficient matrix on the pattern of its Cholesky factor (not an estimate)"
+scope = "symmetric positive-definite MME factored by SuperLU with a symmetric permutation and no pivoting"
+math = "docs/methods.md#18-sparse-selected-inversion-exact-pev-at-scale"
+sources = ["Takahashi, Fagan & Chin 1973 PICA", "Erisman & Tinney 1975 Commun ACM 18:177", "Liu 1990 SIAM J Matrix Anal Appl 11:134"]
+errata = []
+exact_or_approximate = "exact (floating-point); symbolic pattern closes over numeric cancellation; out-of-pattern entries refused"
+complexity = "symbolic O(nnz(L) log); numeric sum over columns of |S_j| times column lengths (order of the factorization); memory 24 bytes per factor entry"
+code = ["src/abp/solvers/selinv.py", "src/abp/solvers/mme.py", "src/abp/solvers/reml.py", "src/abp/solvers/multitrait.py", "src/abp/_native.cpp"]
+tests = ["tests/test_selinv.py::test_selected_inverse_equals_dense_inverse_on_pattern",
+         "tests/test_selinv.py::test_native_kernels_equal_python_reference",
+         "tests/test_selinv.py::test_symbolic_pattern_closes_over_numeric_cancellation",
+         "tests/test_selinv.py::test_entries_outside_the_pattern_are_refused",
+         "tests/test_selinv.py::test_memory_guard",
+         "tests/test_selinv.py::test_sparse_pev_and_reliability_equal_dense_path",
+         "tests/test_selinv.py::test_sparse_reml_traces_equal_dense_path",
+         "tests/test_selinv.py::test_multitrait_pev_blocks_sparse_equal_dense"]
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_applicable", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["single-threaded numeric phase", "memory grows with fill of the factor (dense genotyped blocks in single step)", "no approximate reliabilities for systems whose factor does not fit"]
+dependencies = ["numpy", "scipy"]
+
 # Methods of the specification that are NOT implemented in this version. They stay in
 # the registry so that they cannot silently disappear (spec: every method has a status).
 [[planned]]
-ids = ["upg.metafounders", "apy", "ss_snpblup", "bayes.lasso", "bayes.horseshoe",
+ids = ["metafounders.multi_trait", "apy", "ss_snpblup", "bayes.lasso", "bayes.horseshoe",
        "bayes.single_step", "bayes.multi_trait", "reml.multi_trait", "random_regression",
        "maternal_effects", "social_effects", "threshold_models", "survival_models",
        "gxe_models", "dominance_epistasis", "gwas", "lr_population_accuracy",

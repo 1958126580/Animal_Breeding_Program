@@ -1,13 +1,15 @@
 # Benchmarks
 
 Measured 2026-09-25 with `python benchmarks/run_benchmarks.py --full`
-(round 1) and `--only bayes ocs upg plink` (round 2). Raw results:
-`benchmarks/results/2026-09-25-linux-x86_64.json` and
-`benchmarks/results/2026-09-25-linux-x86_64-round2.json`.
+(round 1) and `--only bayes ocs upg plink` (round 2), and 2026-09-28 with
+`--only selinv metafounders` (round 3). Raw results:
+`benchmarks/results/2026-09-25-linux-x86_64.json`,
+`benchmarks/results/2026-09-25-linux-x86_64-round2.json` and
+`benchmarks/results/2026-09-28-linux-x86_64-round3.json`.
 
 **Machine:** cloud Linux VM, Intel Xeon @ 2.10 GHz, 4 vCPUs (1 thread per
 core), 15 GiB RAM, no GPU. **Software:** Python 3.11.15, NumPy 2.4.6,
-SciPy 1.17.1, OpenBLAS 0.3.31 (scipy-openblas), ABP 0.1.0/0.2.0, native kernel
+SciPy 1.17.1, OpenBLAS 0.3.31 (scipy-openblas), ABP 0.1.0/0.2.0/0.3.0, native kernel
 built with GCC 13.3 (`-O3 -std=c++20`). **Method:** synthetic inputs from
 fixed seeds; wall-clock time of one run per case (`time.perf_counter`), with
 warm imports but no warm-up run. Peak RSS of the whole benchmark process was
@@ -86,13 +88,32 @@ reads the whole 2 GB genotype matrix). Storing genotypes as float64 costs
 8 bytes per genotype; a compact storage type is a roadmap item for large
 marker panels. The mating LP grows with the number of sire × dam pairs.
 
+## Round 3: selected inversion and metafounders
+
+Same machine type (a new VM of the same configuration), ABP 0.3.0.
+
+| Case | Size | Time | Check |
+|---|---|---:|---|
+| BLUP with **exact PEV**, sparse direct + selected inversion (previously refused above 30,000 equations) | 100,000 animals, 80,000 records, 100,500 equations; 1,274,782 factor entries | 16.9 s end to end: SuperLU factorization 15.2 s, symbolic analysis + Takahashi recurrence 2.1 s | PEV of 300 random equations equal unit-vector solves to 6.7e-16; mean reliability 0.433 |
+| AI-REML, sparse factor + selected inversion (previously dense only) | 20,000 animals, 16,000 records, 20,050 equations | 7.3 s, 6 iterations | σ²a 2.19 (simulated 2.0), σ²e 3.91 (4.0) |
+| metafounder relationships `diag(A^Γ)` and `d`, 5 metafounders, C++ `ml_general` | 100,000 animals, 20 generations | 11.9 s (Python reference 167.6 s) | identical mean diagonal (1.04826) |
+| inverse of the extended matrix | 100,005 equations | 0.03 s | — |
+
+With selected inversion in place, the cost of exact PEV is dominated by the
+sparse factorization (SuperLU, one thread), not by the inversion. A
+supernodal Cholesky factorization is the next lever for large systems. The
+metafounder trace costs the same as the ordinary Meuwissen–Luo trace on a
+deep pedigree (8.7 s in round 1); founders and animals with a metafounder
+parent need no tracing.
+
 ## Scale limits
 
 | Operation | Limit | Reason |
 |---|---|---|
 | dense solver (default choice) | ≤ 12,000 equations and within `resources.max_memory_gb` | memory 16–24 × N² bytes |
-| exact PEV, sparse path | ≤ 30,000 equations | one sparse solve per equation |
-| REML | dense only | needs selected elements of C⁻¹; sparse selected inversion is on the roadmap |
+| exact PEV, sparse path | memory of the symbolic factor (24 bytes per entry) within `resources.max_memory_gb` | selected inversion; checked before numeric work (`ABP-E500`) |
+| REML | dense ≤ 12,000 equations; above, sparse factor + selected inversion within the memory budget | factor fill |
+| metafounder Γ estimation | dense in genotyped animals (`A22`, n₂ × m dosages) | GLS base allele frequencies |
 | G and H | dense `n_g × n_g` | APY is on the roadmap |
 | fixed-effect rank check | ≤ 20,000 columns | dense X'X scan |
 | OCS | a few thousand candidates | dense candidate A and active-set QP |

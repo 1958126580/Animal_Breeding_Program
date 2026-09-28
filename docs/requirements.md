@@ -1,7 +1,7 @@
 # Requirements trace
 
 Source: the project control instruction (`01_总控指令.md`) and the full
-specification (`02_完整研发指令与技术规范.md`), 2026-09-25. Status values:
+specification (`02_完整研发指令与技术规范.md`), 2026-09-25; updated 2026-09-28 (round 3). Status values:
 **passed** (implemented, and the required checks ran and passed),
 **partial** (part implemented or verified; the gap is stated), **not_run**
 (not implemented or not executed). "Linux" means the checks ran on the Linux
@@ -15,7 +15,7 @@ build machine recorded in `docs/validation_report.md`.
 | SCI-2 | Only identifiable quantities are output; additive, non-additive and total genetic values named separately; base versioned | `analysis.task` (only `additive_ebv` accepted), `genetic_base` required, fixed-effect constraints reported as non-estimable | `tests/test_blup.py::test_invariance_to_constraint_choice_and_record_order` | passed (non-additive models not implemented) |
 | SCI-3 | Training boundary: test phenotypes never enter training; transductive candidate-genotype use declared | frequency source and `candidate_genotype_use` recorded; excluded records cannot influence results; LR validation hides post-cutoff records from the partial evaluation, including its REML | `tests/test_genomic_workflow.py::test_excluded_records_cannot_influence_results`, `tests/test_validation_lr.py::test_hidden_phenotypes_cannot_leak_into_partial_evaluation`, `::test_partial_reml_ignores_hidden_records` | passed (cutoff-based design; no k-fold or across-population designs) |
 | SCI-4 | Unknown parents are not one ancestor; A/G/H order consistent; A22⁻¹ is not (A⁻¹)₂₂; tuning and blending recorded | `abp.core.pedigree`, `abp.core.genomic` | T03, T06, `test_unknown_parents_are_distinct_base_animals`, counterexample in `test_t06_single_step_identities` | passed |
-| SCI-5 | Factorizations or iterations, no explicit inverse on large production paths; Float64 reference | `abp.solvers.mme` (explicit inverse only for dense PEV/REML traces, under a memory budget) | `tests/test_blup.py` | passed |
+| SCI-5 | Factorizations or iterations, no explicit inverse on large production paths; Float64 reference | `abp.solvers.mme` (explicit inverse only for dense PEV/REML traces of small systems, under a memory budget); large systems: sparse factorization and selected inversion of only the needed entries (`abp.solvers.selinv`) | `tests/test_blup.py`, `tests/test_selinv.py` | passed |
 | SCI-6 | Correlation not equated with accuracy; report bias, slope, PEV | PEV/SEP/reliability per animal; LR bias, dispersion and `ρ_wp` with bootstrap intervals (and the statement that `ρ_wp` is not accuracy); calibration studies report slope, bias, PEV ratio and coverage | `docs/validation/calibration_study.json`, `docs/validation/upg_study.json`, `tests/test_validation_lr.py` | passed (LR population-accuracy estimator deliberately not computed) |
 | SCI-7 | Bayesian computation records priors, chains, seeds, MCSE, ESS and diagnostics | `abp.solvers.bayes`, `abp.solvers.mcmc_diagnostics`: priors and their derivation, chain seeds, R-hat, bulk/tail ESS, MCSE for every scalar and every GEBV; results withheld (`ABP-E405`) unless the criteria pass | `tests/test_bayes.py`, `tests/test_bayes_workflow.py::test_nonconvergence_withholds_results`, ArviZ cross-check | passed |
 | SCI-8 | Decisions respect inbreeding, diversity, carriers, capacity; infeasibility reported; no automatic real-world actions | selection indices; OCS with a coancestry ceiling and capacities; mating plans with pair-relationship and recessive-risk limits; infeasible ceilings and plans reported (minimum coancestry, unmatchable parents), never relaxed; outputs are proposals, ABP triggers no real-world actions | `tests/test_selection_index.py`, `tests/test_ocs_mating.py` | passed (pedigree coancestry only; no genomic OCS) |
@@ -48,7 +48,7 @@ build machine recorded in `docs/validation_report.md`.
 |---|---|---|
 | M01 data contracts and estimands | passed | TOML spec + JSON Schema, data dictionary, error codes |
 | M02 QC | passed | pedigree, phenotype and genotype rules; PLINK 1 binary input; batch and sex-chromosome checks not implemented |
-| M03 relationships and base | passed | unknown-parent groups (random or fixed, QP transformation); no metafounders |
+| M03 relationships and base | passed | unknown-parent groups (random or fixed, QP transformation); metafounders with a valid, documented Γ (file with provenance, or estimated from genotypes) for pedigree BLUP, REML and single step (single trait) |
 | M04 LMM and BLUP | passed | dense, sparse and PCG |
 | M05 REML and reliability | passed | single-trait; dense path |
 | M06 GBLUP | passed | VanRaden G with policies; SNP-BLUP equivalence tested |

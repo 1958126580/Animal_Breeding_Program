@@ -1,6 +1,6 @@
 # ABP Python API
 
-Version 0.2.0. Every snippet below is taken from `examples/api_example.py`,
+Version 0.3.0. Every snippet below is taken from `examples/api_example.py`,
 which the test suite runs (`tests/test_examples.py::test_api_example_script_runs`).
 The mathematics behind each function is in [`methods.md`](methods.md).
 
@@ -12,10 +12,10 @@ arrays are NumPy `float64`, and sparse matrices are SciPy CSR.
 
 | Package | Role |
 |---|---|
-| `abp.core` | pedigree (`pedigree`), unknown-parent groups (`upg`), fixed-effect design (`design`), genomic relationships (`genomic`), model compiler (`model`), analysis spec (`spec`) |
+| `abp.core` | pedigree (`pedigree`), unknown-parent groups (`upg`), metafounders (`metafounders`), fixed-effect design (`design`), genomic relationships (`genomic`), model compiler (`model`), analysis spec (`spec`) |
 | `abp.io` | delimited-table reader with provenance (`tables`), PLINK 1 binary reader (`plink`) |
 | `abp.qc` | pedigree, phenotype and genotype QC with structured findings |
-| `abp.solvers` | MME assembly and solvers (`mme`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`), Bayesian marker models (`bayes`), MCMC diagnostics (`mcmc_diagnostics`) |
+| `abp.solvers` | MME assembly and solvers (`mme`), sparse selected inversion (`selinv`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`), Bayesian marker models (`bayes`), MCMC diagnostics (`mcmc_diagnostics`) |
 | `abp.decision` | selection indices (`selection_index`), optimal contributions (`ocs`), mating allocation (`mating`) |
 | `abp.workflows` | end-to-end evaluation, LR validation (`validation_lr`), mating plans (`mating_plan`), outputs, manifests, reports |
 | `abp.errors` | `ABPError` and the error-code table |
@@ -261,3 +261,53 @@ On failure `run_evaluation` raises `ABPError` after writing
 `abp.examples.sheep.write_sheep_example(out, seed)` (synthetic data). With a
 `[validation]` section the run also performs LR validation
 (`abp.workflows.validation_lr.run_lr`); results are in `out.results["validation"]`.
+
+## 13. Metafounders: `abp.core.metafounders`
+
+```python
+from abp.core.metafounders import MetafounderPedigree
+mf_groups = GroupAssignment(labels=("MF:A",), sire_group=np.array([0, 0, -1]),
+                            dam_group=np.array([0, 0, 0]))
+mfp = MetafounderPedigree(ped3, mf_groups, gamma=np.array([[0.4]]))
+mfp.diag_ext()                  # [1.2, 1.2, 1.2, 0.4]: animals, then the metafounder
+mf_term = RandomTerm("animal", Z3, mfp.ainv_ext(), list(mfp.labels), genetic=True,
+                     k_diag=mfp.diag_ext(), logdet_k=mfp.logdet_ext())
+```
+
+| Name | Returns |
+|---|---|
+| `MetafounderPedigree(ped, groups, gamma)` | validates `Γ` (symmetric, positive definite) and the assignment (every unknown parent has a metafounder, else `ABP-E205`); computes `Q`, `diag(A^Γ)` and the Mendelian factors `d` |
+| `.ainv_ext()` | sparse inverse of the extended matrix over `(animals, metafounders)` |
+| `.logdet_ext()`, `.diag_ext()` | `log|A_ext|`; `diag(A_ext)` (for reliabilities) |
+| `.a_times(x)`, `.a_submatrix(idx)`, `.ext_columns(idx)`, `.cov_mf()` | `A^Γ x` without forming `A^Γ`; dense `A^Γ[idx, idx]`; columns of `A_ext`; `A_ext[:, metafounders]` |
+| `.inbreeding()` | `F` relative to the metafounder base |
+| `estimate_gamma_gls(ped, groups, geno_index, M, missing=None, sampling_correction=True)` | `GammaEstimate` with `gamma`, `gamma_uncorrected`, base frequencies, the GLS information inverse and notes (`.to_dict()` for manifests) |
+| `read_gamma_file(path, labels)` | `Γ` from `metafounder_1, metafounder_2, gamma` |
+| `single_step_mf(mfp, geno_index, Gstar, a22=None)` | `SingleStepMF` with `h_inv`, `h_diag`, `logdet_h`, `cov_mf` (`G*` must be on the `G05` scale) |
+| `ml_general(sire, dam, c, e, fext)` | generalised Meuwissen–Luo trace `(diag A, d, kernel)` |
+
+In a workflow, `[metafounders]` (user manual §5.17) builds these objects and
+also reports EBVs against the reference metafounder (`ebv_vs_base`).
+
+## 14. Sparse selected inversion: `abp.solvers.selinv`
+
+```python
+res_sparse = blup(y, fixed.X, [animal], {"animal": 20.0, "residual": 40.0},
+                  method="sparse_direct")
+si = res_sparse.solve.factor.selected_inverse()      # computed once, cached
+si.diagonal(idx)          # C^-1[i, i] for equations idx
+si.entries(rows, cols)    # C^-1[rows[k], cols[k]] on the factor pattern
+si.trace_product(M, offset)
+```
+
+| Name | Returns |
+|---|---|
+| `SelectedInverse(lu, C, memory_budget_bytes)` | entries of `C⁻¹` on the pattern of the Cholesky factor of `C` (from a SuperLU factorization with symmetric permutation and no pivoting); `ABP-E500` if the factor exceeds the budget |
+| `.diagonal(idx)`, `.entries(rows, cols)` | entries of `C⁻¹` in the original equation order; entries outside the pattern raise `ABPError` (`UNSUPPORTED_COMBINATION`) rather than being guessed |
+| `.trace_product(M, offset)` | `Σ Mᵢⱼ C⁻¹[offset+i, offset+j]` for sparse `M` |
+| `.nnz_factor`, `.kernel` | size of the symbolic factor; `"native_cpp/native_cpp"` or `"python/python"` |
+| `SparseLU.selected_inverse()` | the cached `SelectedInverse` of a sparse factor |
+| `symbolic_cholesky(B)`, `takahashi(colptr, rowidx, lval, d)` | the two phases (compiled kernel when available; `*_python` are the references) |
+
+`pev_diagonal`, multi-trait PEV blocks and REML traces use this
+automatically on the sparse path.

@@ -1,59 +1,89 @@
-# date: 2026-09-25T14:57:29+00:00
+# date: 2026-09-28T16:08:46+00:00
 ## abp run examples/01_textbook_mrode_3_1/analysis.toml --out <tmp>/01_textbook_mrode_3_1
 status: passed
 outputs: <tmp>/01_textbook_mrode_3_1
 report: <tmp>/01_textbook_mrode_3_1/report.md
-# exit_code: 0  wall_s: .409517791
+# exit_code: 0  wall_s: .511844548
 ## abp run examples/02_sheep_wwt_reml/analysis.toml --out <tmp>/02_sheep_wwt_reml
 status: passed
 outputs: <tmp>/02_sheep_wwt_reml
 report: <tmp>/02_sheep_wwt_reml/report.md
-# exit_code: 0  wall_s: 2.753728341
+# exit_code: 0  wall_s: 69.919593883
 ## abp run examples/03_sheep_nlb_repeatability/analysis.toml --out <tmp>/03_sheep_nlb_repeatability
 status: passed
 outputs: <tmp>/03_sheep_nlb_repeatability
 report: <tmp>/03_sheep_nlb_repeatability/report.md
-# exit_code: 0  wall_s: 4.835396704
+# exit_code: 0  wall_s: 133.494769076
 ## abp run examples/04_sheep_fec_gblup/analysis.toml --out <tmp>/04_sheep_fec_gblup
 status: passed
 outputs: <tmp>/04_sheep_fec_gblup
 report: <tmp>/04_sheep_fec_gblup/report.md
-# exit_code: 0  wall_s: 1.323446834
+# exit_code: 0  wall_s: 41.496538305
 ## abp run examples/05_sheep_wwt_single_step/analysis.toml --out <tmp>/05_sheep_wwt_single_step
 status: passed
 outputs: <tmp>/05_sheep_wwt_single_step
 report: <tmp>/05_sheep_wwt_single_step/report.md
-# exit_code: 0  wall_s: 3.641327264
+# exit_code: 0  wall_s: 91.751704686
 ## abp run examples/06_sheep_multitrait_index/analysis.toml --out <tmp>/06_sheep_multitrait_index
 status: passed
 outputs: <tmp>/06_sheep_multitrait_index
 report: <tmp>/06_sheep_multitrait_index/report.md
-# exit_code: 0  wall_s: 7.954756545
+# exit_code: 0  wall_s: 31.760903131
 ## abp run examples/08_sheep_wwt_lr_validation/analysis.toml --out <tmp>/08_sheep_wwt_lr_validation
 status: passed
 outputs: <tmp>/08_sheep_wwt_lr_validation
 report: <tmp>/08_sheep_wwt_lr_validation/report.md
-# exit_code: 0  wall_s: 4.759211101
+# exit_code: 0  wall_s: 173.304486938
 ## abp run examples/10_sheep_fec_bayesc/analysis.toml --out <tmp>/10_sheep_fec_bayesc
 status: passed
 outputs: <tmp>/10_sheep_fec_bayesc
 report: <tmp>/10_sheep_fec_bayesc/report.md
-# exit_code: 0  wall_s: 27.533373126
+# exit_code: 0  wall_s: 177.937107701
 ## abp run examples/11_sheep_upg/analysis.toml --out <tmp>/11_sheep_upg
 status: passed
 outputs: <tmp>/11_sheep_upg
 report: <tmp>/11_sheep_upg/report.md
-# exit_code: 0  wall_s: 1.329717553
+# exit_code: 0  wall_s: 32.329823787
+## abp run examples/12_sheep_wwt_single_step_metafounder/analysis.toml --out <tmp>/12_sheep_wwt_single_step_metafounder
+status: passed
+outputs: <tmp>/12_sheep_wwt_single_step_metafounder
+report: <tmp>/12_sheep_wwt_single_step_metafounder/report.md
+# exit_code: 0  wall_s: 92.605881313
 ## abp run examples/11_sheep_upg/analysis_fixed.toml --out <tmp>/11_fixed
 status: passed
 outputs: <tmp>/11_fixed
 report: <tmp>/11_fixed/report.md
-# exit_code: 0  wall_s: .736800961
+# exit_code: 0  wall_s: 2.480451754
 ## abp index examples/07_selection_index/index.toml
-# exit_code: 0
+{
+  "file": "examples/07_selection_index/index.toml",
+  "weight_units": "objective units",
+  "synthetic_parameters": true,
+  "objective": {
+    "H": 1.0
+  },
+  "coefficients": {
+    "own_phenotype": 0.4285714285714286,
+    "half_sib_mean": 0.2857142857142857
+  },
+  "var_index": 1.7142857142857144,
+  "var_objective": 5.0,
+  "reliability": 0.34285714285714286,
+  "accuracy": 0.5855400437691199,
+  "selection_intensity": 1.7549833193248683,
+  "response_objective": 2.29781254405459,
+  "response_per_trait": {
+    "H": 2.29781254405459
+  },
+  "restricted_traits": [],
+  "max_abs_restriction_residual": null,
+  "assumptions": "multivariate normal; one round of truncation selection; infinite population; no Bulmer effect",
+  "warning": "parameters declared synthetic: illustration only"
+}
+# exit_code: 0  wall_s: .503827566
 ## abp mate examples/09_sheep_mating/mating.toml --out <tmp>/mating
 mating plan proposal written to: <tmp>/mating
-# exit_code: 0  wall_s: 2.833398564
+# exit_code: 0  wall_s: 5.710890130
 ## python examples/11_sheep_upg/compare.py
 | model | corr(EBV,TBV) lambs | b(TBV|EBV) lambs | bias purchased rams | bias 2024 lambs |
 |---|---:|---:|---:|---:|
@@ -66,6 +96,33 @@ mating plan proposal written to: <tmp>/mating
 | UPG:A_16_19 | 8 | +2.790 | +2.571 | +3.795 |
 | UPG:A_20_24 | 10 | +5.135 | +3.318 | +4.980 |
 | UPG:B | 9 | -1.222 | -1.625 | -0.805 |
-# exit_code: 0
+# exit_code: 0  wall_s: 72.629229487
 ## python examples/api_example.py
-# exit_code: 0
+F: {'1': 0.0, '2': 0.0, '3': 0.0, '4': 0.0, '5': 0.0, '6': 0.0, '7': 0.0, '8': 0.0}
+A[7, 8] = 0.25
+animal 1: EBV +0.098  reliability 0.058
+animal 2: EBV -0.019  reliability 0.016
+animal 3: EBV -0.041  reliability 0.087
+animal 4: EBV -0.009  reliability 0.145
+animal 5: EBV -0.186  reliability 0.144
+animal 6: EBV +0.177  reliability 0.115
+animal 7: EBV -0.249  reliability 0.116
+animal 8: EBV +0.183  reliability 0.155
+solver: dense | relative residual 1.9e-16
+REML: converged {'animal': 1.673, 'residual': 4.834} h2 = 0.257 +- 0.097
+G* policy: blend tuning b = 0.7198 | H-inverse nnz: 11594
+multi-trait EBV of a0 [0.94  0.573] reliabilities [0.637 0.511]
+index b = [0.4286 0.2857] accuracy 0.5855 response 2.298
+best animal by index: a68 reliability 0.725
+gene fractions Q (s, d, x): [1.  0.  0.5]
+K-inverse with groups: (4, 4) | diag(K) for reliabilities: [2.   1.   1.25 1.  ]
+OCS: constraint_active coancestry 0.04817 <= C_max 0.04817 | KKT stationarity 1.1e-11
+mating plan: 30 pairs, mean progeny F 0.0 | forbidden: {'relationship': 2}
+PLINK: ['a1', 'a2', 'a3'] ['snp1', 'snp2'] counted allele (A1): ['A', 'C'] dosages [[0.0, 2.0], [1.0, nan], [2.0, 1.0]]
+BayesC: converged after 1000 iterations | h2 0.396 R-hat 0.9998 | worst GEBV R-hat 1.0026 | markers with the highest inclusion probability: [34, 142, 194]
+diagnostics of iid draws: {'rhat': 1.0, 'ess_bulk': 3844.295, 'ess_tail': 3889.221}
+metafounder base: diag A = [1.2 1.2 1.2 0.4] | A[s, d] = 0.4
+EBVs incl. metafounder: [-0.2857  0.2857  0.0588 -0.    ]
+sparse PEV equals dense PEV: True | factor entries: 25 | kernel: native_cpp/native_cpp
+workflow: passed -> ['ebv_wwg.csv', 'fixed_effects_wwg.csv', 'manifest.json', 'qc_excluded_records.csv', 'qc_pedigree.json', 'qc_phenotypes.json', 'report.md', 'results.json', 'run.log']
+# exit_code: 0  wall_s: 4.296867160

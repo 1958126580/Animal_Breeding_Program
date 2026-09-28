@@ -3,7 +3,8 @@
 
 Usage:  python benchmarks/run_benchmarks.py [--full] [--only GROUP ...] [--out FILE]
 
-Groups: pedigree, blup, reml, g (round 1); bayes, ocs, upg, plink (round 2).
+Groups: pedigree, blup, reml, g (round 1); bayes, ocs, upg, plink (round 2);
+selinv, metafounders (round 3).
 
 Every case builds its own synthetic data from a fixed seed, times the step
 with ``time.perf_counter`` (wall clock, single run unless stated), and checks
@@ -213,7 +214,62 @@ def case_plink(n, m):
             "bytes": len(raw), "missing_fraction": float(np.isnan(M).mean())}
 
 
-GROUPS = ("pedigree", "blup", "reml", "g", "bayes", "ocs", "upg", "plink")
+GROUPS = ("pedigree", "blup", "reml", "g", "bayes", "ocs", "upg", "plink", "selinv", "metafounders")
+
+
+def case_selinv_pev(n_anim, n_rec, n_check=300):
+    """Exact PEV by selected inversion; spot-check against unit-vector solves."""
+    ped, y, fd, term = _animal_problem(n_anim, n_rec, 500)
+    res, t = timed(lambda: blup(y, fd.X, [term], {"animal": 1.0, "residual": 3.0},
+                                method="sparse_direct", compute_pev=True,
+                                memory_budget_bytes=8 * 2**30))
+    fac = res.solve.factor
+    si = fac.selected_inverse()
+    rng = np.random.default_rng(1)
+    a, _ = res.system.offsets["animal"]
+    idx = rng.choice(ped.n, n_check, replace=False)
+    E = np.zeros((fac.n, n_check))
+    E[a + idx, np.arange(n_check)] = 1.0
+    direct = fac.solve(E)[a + idx, np.arange(n_check)]
+    err = float(np.max(np.abs(res.terms["animal"].pev[idx] - direct)))
+    return {"case": f"blup_sparse_direct_exact_pev_{ped.n}animals", "n_animals": ped.n,
+            "n_records": n_rec, "n_equations": int(res.solve.solution.size),
+            "wall_s_total": t, "nnz_factor": si.nnz_factor, "kernel": si.kernel,
+            "max_abs_diff_vs_solves_300_equations": err,
+            "mean_reliability": float(res.terms["animal"].reliability.mean())}
+
+
+def case_reml_sparse(n_anim, n_rec):
+    out = case_reml(n_anim, n_rec)
+    out["case"] = f"reml_ai_sparse_selinv_{out['n_animals']}animals"
+    return out
+
+
+def case_metafounders(n_gen, per_gen, k):
+    from abp.core.metafounders import MetafounderPedigree
+    from abp.core.upg import GroupAssignment
+    ids, s, d = sim_pedigree(n_gen, per_gen, 100, seed=21)
+    ped = Pedigree.from_parent_ids(ids, s, d)
+    rng = np.random.default_rng(3)
+    sg = np.where(ped.sire < 0, rng.integers(0, k, ped.n), -1)
+    dg = np.where(ped.dam < 0, rng.integers(0, k, ped.n), -1)
+    W = rng.normal(size=(k, 3 * k))
+    gamma = 0.3 * np.eye(k) + 0.05 * W @ W.T / (3 * k)
+    grp = GroupAssignment(tuple(f"MF{j}" for j in range(k)), sg, dg)
+    out = {"case": f"metafounders_{ped.n}animals_{k}mf", "n_animals": ped.n}
+    for name, env in (("native", None), ("python", "1")):
+        if env:
+            os.environ["ABP_DISABLE_NATIVE"] = env
+        try:
+            mfp, t = timed(lambda: MetafounderPedigree(ped, grp, gamma))
+            _, t_inv = timed(mfp.ainv_ext)
+        finally:
+            os.environ.pop("ABP_DISABLE_NATIVE", None)
+        out[f"{name}_diag_s"] = t
+        out[f"{name}_inverse_s"] = t_inv
+        out[f"{name}_kernel"] = mfp.kernel
+        out[f"{name}_mean_diag"] = float(mfp.adiag.mean())
+    return out
 
 
 def main():
@@ -239,6 +295,9 @@ def main():
         ("ocs", lambda: case_ocs(300, 1200, 1200)),
         ("upg", lambda: case_upg(10, 10000, 50)),
         ("plink", lambda: case_plink(5000, 50000)),
+        ("selinv", lambda: case_selinv_pev(100000, 80000)),
+        ("selinv", lambda: case_reml_sparse(20000, 16000)),
+        ("metafounders", lambda: case_metafounders(20, 5000, 5)),
     ]
     cases = [c for grp, c in cases if grp in args.only]
     for c in cases:
