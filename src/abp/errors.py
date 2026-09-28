@@ -199,6 +199,10 @@ class ABPError(Exception):
         self.details = details
         super().__init__(f"[{spec.code} {spec.name}] {message}")
 
+    def __reduce__(self):
+        # picklable (e.g. raised in a multiprocessing worker): rebuild from name, message, details
+        return (_rebuild_error, (self.spec.name, self.message, self.details))
+
     @property
     def code(self) -> str:
         return self.spec.code
@@ -256,3 +260,7 @@ if __name__ == "__main__":  # pragma: no cover - documentation generator
         print(f"wrote {sys.argv[1]}")
     else:
         print(markdown_table())
+
+
+def _rebuild_error(name: str, message: str, details: dict) -> ABPError:
+    return ABPError(name, message, **details)

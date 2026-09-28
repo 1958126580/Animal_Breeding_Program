@@ -310,6 +310,10 @@ class MetafounderPedigree:
         sign, ld = np.linalg.slogdet(self.gamma)
         return float(ld + np.sum(np.log(self.d)))
 
+    def cov_mf(self) -> np.ndarray:
+        """``A_ext[:, metafounders]`` ((n + k) x k): ``Q Gamma`` for animals, ``Gamma`` below."""
+        return np.vstack([self.Q @ self.gamma, self.gamma])
+
     def diag_ext(self) -> np.ndarray:
         """``diag(A_ext)``: animals then metafounders (``Gamma_pp``)."""
         return np.concatenate([self.adiag, np.diag(self.gamma)])
@@ -483,6 +487,7 @@ class SingleStepMF:
     h_diag: np.ndarray
     logdet_h: float
     a22: np.ndarray
+    cov_mf: np.ndarray         # H[:, metafounders], (n + k) x k
 
 
 def single_step_mf(mfp: MetafounderPedigree, geno_index: np.ndarray, Gstar: np.ndarray,
@@ -518,7 +523,10 @@ def single_step_mf(mfp: MetafounderPedigree, geno_index: np.ndarray, Gstar: np.n
     h_inv.sum_duplicates()
     h_inv.sort_indices()
     Bm = cols @ a22_inv
-    h_diag = mfp.diag_ext() + np.einsum("ij,ij->i", Bm @ (Gstar - a22), Bm)
+    BmD = Bm @ (Gstar - a22)
+    h_diag = mfp.diag_ext() + np.einsum("ij,ij->i", BmD, Bm)
     h_diag[geno_index] = np.diag(Gstar)
+    # H[:, p] = A[:, p] + b' (G* - A22) b_p: needed for contrasts with a metafounder
+    cov_mf = mfp.cov_mf() + BmD @ Bm[n:].T
     logdet_h = mfp.logdet_ext() + logdet_g - logdet_a22
-    return SingleStepMF(h_inv, h_diag, logdet_h, a22)
+    return SingleStepMF(h_inv, h_diag, logdet_h, a22, cov_mf)

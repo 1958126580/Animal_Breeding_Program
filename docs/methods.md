@@ -1,6 +1,6 @@
 # ABP Methods Reference
 
-Version 0.2.0 · 2026-09-25
+Version 0.3.0 · 2026-09-28
 
 This document states, for every implemented method, the model, its
 assumptions, the equations as implemented, the matrix dimensions and data
@@ -18,7 +18,9 @@ Contents: [1 Estimands](#1-estimands) · [2 Pedigree](#2-pedigree-relationships)
 [13 LR validation](#13-forward-in-time-validation-lr-method) ·
 [14 OCS and mating](#14-optimal-contributions-and-mating-allocation) ·
 [15 PLINK input](#15-plink-1-binary-input) ·
-[16 Bayesian marker models](#16-bayesian-marker-models-and-mcmc-diagnostics)
+[16 Bayesian marker models](#16-bayesian-marker-models-and-mcmc-diagnostics) ·
+[17 Metafounders](#17-metafounders) ·
+[18 Selected inversion](#18-sparse-selected-inversion-exact-pev-at-scale)
 
 ---
 
@@ -363,9 +365,10 @@ information units: `b` scales inversely and `r` is unchanged.
   analytical cases is `|x − ref| ≤ 1e−10 + 1e−8 |ref|` (spec proposal).
 * Dense memory is estimated before allocation (`16 N²` or `24 N²` bytes) and
   compared with `resources.max_memory_gb`.
-* Exact PEV on the sparse path is limited to 30,000 equations. Beyond that,
-  `pev = "none"` is required, because approximate reliabilities are not yet
-  implemented.
+* Exact PEV on the sparse path uses selected inversion (§18). Its limit is
+  the memory of the symbolic factor (24 bytes per entry, checked against
+  `resources.max_memory_gb` before any numeric work), not a number of
+  equations.
 * Covariance matrices must be symmetric positive definite (Cholesky test).
   Variances must be finite and > 0; a zero variance means the term should be
   removed from the model.
@@ -658,7 +661,176 @@ against `n(1 − φ)/(1 + φ)`), `test_nonmixing_chains_are_flagged`,
 `test_example10_converges_and_writes_outputs`,
 `test_nonconvergence_withholds_results`.
 
-## 17. References (additions)
+## 17. Metafounders
+
+Code: `abp/core/metafounders.py` (`MetafounderPedigree`, `ml_general`,
+`estimate_gamma_gls`, `single_step_mf`, `read_gamma_file`);
+`abp/workflows/metafounder_inputs.py` (assignment, provenance, contrast with
+the base); C++ kernel `ml_general` in `abp/_native.cpp`. Registry id
+`ped.metafounders`.
+
+**Why.** Ordinary `A` treats unknown parents as unrelated, non-inbred base
+animals. Genomic relationships built with allele frequency 0.5 (`G05`) refer
+to an older, related base. Single step that mixes the two bases (finding F6)
+biases genotyped animals; tuning `G` to `A22` (`match_a22`) moves `G` to the
+pedigree base only on average. Metafounders move the pedigree to the genomic
+base instead (Legarra et al. 2015; Christensen 2012 for one metafounder).
+
+**Model.** `k` metafounders (base populations) with relationship matrix
+`Γ` (`k × k`, symmetric positive definite). Every unknown parent is assigned
+to one metafounder (a pedigree code with the declared prefix, or the declared
+default). Breeding values of animals and metafounders satisfy
+`uᵢ = (u_s + u_d)/2 + mᵢ`, where a parent may be a metafounder, and
+`u_MF ~ N(0, σ² Γ)`. The extended relationship matrix over (animals,
+metafounders) is defined recursively:
+
+    A[p, p'] = Γ[p, p'],   A[i, j] = (A[j, sᵢ] + A[j, dᵢ])/2,   A[i, i] = 1 + A[sᵢ, dᵢ]/2.
+
+A plain unknown parent would be a metafounder with `γ = 0`, whose inverse does
+not exist; ABP therefore refuses unassigned unknown parents (`ABP-E205`).
+
+**Computation (derived and tested here).** With `T` the animal-only
+transmission matrix and `Q` the gene fractions from each metafounder (the same
+recursion as for genetic groups, §12):
+
+    A^Γ = T D T' + Q Γ Q',     dᵢ = 1 − (A_ss + A_dd)/4,
+
+where `A_pp := Γ_pp` for a metafounder parent. A founder whose parents both
+come from metafounder `p` has `dᵢ = 1 − γ_pp/2` and `Aᵢᵢ = 1 + γ_pp/2`; two
+such founders have relationship `γ_pp`. `diag(A^Γ)` uses a generalised
+Meuwissen–Luo trace (`ml_general`): `Aᵢᵢ = 1 + A_sd/2` directly when a parent
+is a metafounder (with `A_{s,p} = (QΓ)_{s,p}`), and
+`Aᵢᵢ = Σⱼ Tᵢⱼ² dⱼ + qᵢ'Γqᵢ` otherwise. With `c = e = fext = 0` the trace is the
+ordinary algorithm, which is tested. The inverse of the extended matrix is
+Henderson's rules with metafounders acting as parents (contributions
+`dᵢ⁻¹ [1, −½, −½] ⊗ [1, −½, −½]`) plus `Γ⁻¹` on the metafounder block, and
+`log|A_ext| = log|Γ| + Σ log dᵢ`. `dᵢ ≤ 10⁻⁸` means that `Γ` is inconsistent
+with the pedigree and is refused. Products `A^Γ x` use Colleau's two
+triangular solves plus `QΓQ'x`.
+
+**Γ.** Either from a file (`metafounder_1, metafounder_2, gamma`; every pair
+exactly once; a non-empty `gamma_provenance` is required and written to the
+manifest with the file's SHA-256), or estimated from the genotypes
+(`gamma_source = "genotypes_gls"`):
+
+1. base allele frequencies by generalized least squares (Gengler et al.
+   2007; Garcia-Baccino et al. 2017): `E[M] = 2 Q₂ P` for genotyped animals,
+   `Cov` of one marker's dosages ≈ `2p(1−p) A₂₂` (ordinary `A`), so
+   `P̂ = C Q₂'A₂₂⁻¹ M / 2` with `C = (Q₂'A₂₂⁻¹Q₂)⁻¹`; missing dosages are
+   replaced by `2Q₂P̂` and the estimate is iterated to a fixed point
+   (tolerance 1e−10); estimates outside [0, 1] are clipped and counted;
+2. `Γ_raw = 8 (P̂ − ½)(P̂ − ½)'/m`, which is on the scale of `G05`;
+3. sampling correction (default on, derived here):
+   `E[Γ_raw] = Γ + 4 E[p(1−p)] C` under the covariance above, so
+   `Γ = Γ_raw − 4 s̄ C` with `s̄` the mean of `p̂(1−p̂)` over metafounders and
+   markers (a pooled approximation).
+
+A metafounder without genotyped descendants (or collinear gene fractions:
+smallest eigenvalue of `Q₂'A₂₂⁻¹Q₂` ≤ 10⁻¹⁰ × largest) stops with `ABP-E300`;
+a non-positive-definite result stops with `ABP-E302`. Neither is repaired.
+
+**Single step.** `G` must be `G05` (`frequency_source = "fixed_0.5"`) and is
+not tuned (`tuning = "none"`); a blend uses `A₂₂^Γ`. Then
+
+    H⁻¹ = A_ext⁻¹ + embed(G*⁻¹ − (A₂₂^Γ)⁻¹),   log|H| = log|A_ext| + log|G*| − log|A₂₂^Γ|,
+
+over (animals, metafounders), with `diag(H)` for non-genotyped equations
+from `Hᵢᵢ = Aᵢᵢ + bᵢ'(G* − A₂₂)bᵢ`, `bᵢ = A₂₂⁻¹A[2, i]` (metafounder rows use
+`A[p, 2] = (Γ Q₂')_p`).
+
+**Outputs and the base contrast.** Animal solutions `uᵢ` include the genetic
+level of the base population, which is shared by all its descendants; its
+uncertainty (prior variance `γσ²`) enters every animal's PEV but not the
+ranking. The estimable quantity used for decisions is the contrast with the
+reference metafounder `r` (spec `metafounders.reference`, default the default
+metafounder or the only one):
+
+    cᵢ = uᵢ − u_r,   PEV(cᵢ) = C^{ii} + C^{rr} − 2C^{ir},
+    Var(cᵢ) = σ²(Aᵢᵢ − 2(QΓ)ᵢᵣ + Γ_rr),   reliability = 1 − PEV(cᵢ)/Var(cᵢ).
+
+`C^{ir}` needs one extra solve per analysis. `Var(cᵢ) = σ²(1 − γ/2)` for a
+founder of `r`, i.e. the variance within the base population. The EBV file
+has `ebv`, `pev`, `reliability` (absolute scale) and `ebv_vs_base`,
+`pev_vs_base`, `reliability_vs_base`; the `inbreeding` column is relative to
+the metafounder base (founders have `F = γ/2`). Metafounder solutions are in
+`metafounder_solutions_<trait>.csv`.
+
+**Scale of σ².** σ² under metafounders refers to the metafounder base; the
+equivalent within-population variance is `σ²(1 − γ/2)` (Legarra et al. 2015).
+REML under metafounders estimates σ² on that scale; a variance estimated
+without metafounders must not be reused unchanged.
+
+**Tests.** `test_extended_matrix_inverse_and_logdet_match_tabular_reference`
+(native and Python kernels): `A_ext`, its inverse and log-determinant equal
+an independent implementation of the recursive definition
+(`tests/reference/dense_reference.py::tabular_a_metafounders`) to 1e−11;
+a mutation of the `dᵢ` formula makes it fail.
+`test_zero_inputs_reduce_to_ordinary_meuwissen_luo`,
+`test_native_and_python_kernels_agree_on_a_random_pedigree` (4,000 animals,
+3 metafounders; Colleau product against the sparse inverse),
+`test_blup_with_metafounders_equals_v_form_model` (solutions, PEV,
+reliability to 1e−9), `test_reml_loglik_and_score_under_metafounders_match_v_form`
+(1e−10), `test_single_step_with_metafounders_matches_dense_h`,
+`test_gamma_estimation_recovers_simulated_base_and_correction_reduces_bias`
+(gene drop from two correlated base populations, 4 seeds; error < 0.03, the
+correction reduces the diagonal bias), `test_g05_is_on_the_metafounder_scale`,
+`test_invalid_inputs_are_refused`, and the workflow tests in
+`tests/test_metafounder_workflow.py` (including the base contrast against the
+V-form PEV matrix). Simulation evidence: §7.1 of the validation report.
+
+## 18. Sparse selected inversion (exact PEV at scale)
+
+Code: `abp/solvers/selinv.py` (`SelectedInverse`, `symbolic_cholesky`,
+`takahashi`), C++ kernels `symbolic_cholesky` and `takahashi` in
+`abp/_native.cpp`; used by `abp/solvers/mme.py` (`SparseLU.selected_inverse`,
+`pev_diagonal`), `abp/solvers/multitrait.py` (PEV blocks) and
+`abp/solvers/reml.py` (traces). Registry id `num.selected_inversion`.
+
+**Factor.** SuperLU with the minimum-degree ordering of `C + C'`, symmetric
+mode and no pivoting gives `B = C[q][:, q] = L U` with `q = argsort(perm_c)`
+(verified numerically); for a symmetric positive-definite `C`, `U = D L'`
+with `D = diag(U)`, which is checked (relative deviation ≤ 1e−8) before use.
+
+**Pattern.** SuperLU stores only numerically non-zero entries, so exact
+cancellations can remove an entry that the recurrence below needs. ABP
+therefore computes the symbolic Cholesky pattern of `B` from the elimination
+tree (column `j` = rows `> j` of `B[:, j]` ∪ the patterns of its children
+minus `j`; the parent of `j` is the smallest row; Liu 1990), embeds SuperLU's
+values into it and verifies that every stored SuperLU entry lies inside it.
+A symbolic Cholesky pattern is closed under the recurrence.
+
+**Recurrence** (Takahashi, Fagan & Chin 1973; Erisman & Tinney 1975). For
+`Z = B⁻¹` and columns `j = n−1, …, 0` with strictly lower pattern `S_j`:
+
+    Z_ij = − Σ_{k ∈ S_j} L_kj Z_ik    (i ∈ S_j),     Z_jj = 1/d_j − Σ_{k ∈ S_j} L_kj Z_kj.
+
+The C++ kernel finds `Z_ik` by a merge walk over the sorted patterns of
+columns `j` and `k` (`S_j ∩ {> k} ⊆ S_k`), so the cost is of the order of the
+factorization. The result holds every entry of `C⁻¹` on the pattern of
+`L + L'`, which contains the pattern of `C`: diagonal PEV, per-animal
+multi-trait blocks whenever the traits are coupled, `tr(K⁻¹C^{kk})` and
+`tr(C⁻¹W'W)` for REML. A request outside the pattern is refused
+(`ABP-E303`); for multi-trait blocks of uncoupled traits (zero genetic and
+residual covariances) ABP falls back to solves for unit vectors.
+
+**Where it is used.** `solver.method = "auto"` with `pev = "exact"` above the
+dense limit selects sparse direct with selected inversion (previously refused
+above 30,000 equations). REML uses the dense path up to 12,000 equations
+within the memory budget, otherwise sparse factorization with selected
+inversion; the choice is recorded as `trace_method` in the REML output.
+
+**Tests.** `test_selected_inverse_equals_dense_inverse_on_pattern` (every
+stored entry against `numpy.linalg.inv`, 1e−15),
+`test_native_kernels_equal_python_reference`,
+`test_symbolic_pattern_closes_over_numeric_cancellation` (a 4 × 4 matrix whose
+numeric factor has an exact zero that SuperLU drops),
+`test_entries_outside_the_pattern_are_refused`, `test_memory_guard`,
+`test_sparse_pev_and_reliability_equal_dense_path`,
+`test_sparse_reml_traces_equal_dense_path` (log-likelihood, score, EM update
+and AI matrix), `test_multitrait_pev_blocks_sparse_equal_dense` (coupled and
+uncoupled traits). Scale: `benchmarks/run_benchmarks.py --only selinv`.
+
+## 19. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.
@@ -668,3 +840,10 @@ against `n(1 − φ)/(1 + φ)`), `test_nonmixing_chains_are_flagged`,
 * Quaas RL (1988) J Dairy Sci 71:1338–1345.
 * Vehtari A, Gelman A, Simpson D, Carpenter B, Bürkner P-C (2021) Bayesian Analysis 16:667–718.
 * Westell RA, Quaas RL, Van Vleck LD (1988) J Dairy Sci 71:1310–1318.
+* Christensen OF (2012) Genet Sel Evol 44:37.
+* Erisman AM, Tinney WF (1975) Commun ACM 18:177–179.
+* Garcia-Baccino CA, Legarra A, Christensen OF, et al. (2017) Genet Sel Evol 49:34.
+* Gengler N, Mayeres P, Szydlowski M (2007) Animal 1:21–28.
+* Legarra A, Christensen OF, Vitezica ZG, Aguilar I, Misztal I (2015) Genetics 200:455–468.
+* Liu JWH (1990) SIAM J Matrix Anal Appl 11:134–172.
+* Takahashi K, Fagan J, Chin M-S (1973) Proc 8th PICA Conference, Minneapolis, 63–71.

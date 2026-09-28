@@ -200,6 +200,10 @@ def test_single_step_with_metafounders_matches_dense_h():
     H = A + A2 @ Ai22 @ (G - A22) @ Ai22 @ A2.T
     np.testing.assert_allclose(ss.h_inv.toarray(), np.linalg.inv(H), atol=1e-9)
     np.testing.assert_allclose(ss.h_diag, np.diag(H), atol=1e-11)
+    # covariances with the metafounders (used by the base contrast) come from H, not A
+    np.testing.assert_allclose(ss.cov_mf, H[:, ped.n:], atol=1e-11)
+    assert np.max(np.abs(ss.cov_mf - mfp.cov_mf())) > 1e-3
+    np.testing.assert_allclose(mfp.cov_mf(), A[:, ped.n:], atol=1e-13)
     assert ss.logdet_h == pytest.approx(np.linalg.slogdet(H)[1], abs=1e-10)
 
 

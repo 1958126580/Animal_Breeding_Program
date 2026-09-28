@@ -95,6 +95,7 @@ def metafounder_structure(spec: AnalysisSpec, ped_data: PedigreeData, relationsh
                  "inbreeding_mf_base": mfp.inbreeding(),
                  "mean_inbreeding_mf_base": float(np.mean(mfp.inbreeding()))})
     if relationship == "pedigree":
+        meta["cov_with_metafounders"] = mfp.cov_mf()
         return GeneticStructure("pedigree_mf", mfp.labels, mfp.ainv_ext(), mfp.diag_ext(),
                                 mfp.logdet_ext(), meta)
     gcfg = spec["genomic"]
@@ -114,6 +115,7 @@ def metafounder_structure(spec: AnalysisSpec, ped_data: PedigreeData, relationsh
                  "single_step": "H^-1 = A_Gamma^-1 + embed(G*^-1 - A22_Gamma^-1) over "
                                 "(animals, metafounders)"})
     ss = single_step_mf(mfp, g_index, Gs, a22=A22)
+    meta["cov_with_metafounders"] = ss.cov_mf
     return GeneticStructure("single_step_mf", mfp.labels, ss.h_inv, ss.h_diag, ss.logdet_h, meta)
 
 
@@ -141,8 +143,10 @@ def base_contrast(res, term: str, structure: GeneticStructure, sigma2: float,
 
     * ``PEV(c_i) = C^ii + C^rr - 2 C^ir`` (``C^{..}`` blocks of the MME
       inverse; one extra solve per reference);
-    * prior ``Var(c_i) = sigma^2 (A_ii - 2 (Q Gamma)_ir + Gamma_rr)``, which is
-      ``sigma^2 (1 - gamma/2)`` for a founder of ``r``;
+    * prior ``Var(c_i) = sigma^2 (K_ii - 2 K_ir + K_rr)`` with ``K`` the prior
+      relationship matrix (``A^Gamma``, or ``H`` in single step, where
+      ``K_ir`` differs from ``(Q Gamma)_ir``); ``sigma^2 (1 - gamma/2)`` for a
+      pedigree founder of ``r``;
     * reliability ``1 - PEV(c_i) / Var(c_i)`` (range-checked like BLUP).
     """
     m = structure.meta
@@ -160,9 +164,8 @@ def base_contrast(res, term: str, structure: GeneticStructure, sigma2: float,
     e[a + n + r] = 1.0
     col = res.solve.factor.solve(e)[a:a + n]
     pev = tr.pev[:n] + tr.pev[n + r] - 2.0 * col
-    gamma = np.asarray(m["gamma"])
-    prior = sigma2 * (np.asarray(structure.k_diag)[:n] - 2.0 * (m["group_fractions"] @ gamma)[:, r]
-                      + gamma[r, r])
+    kcol = m["cov_with_metafounders"][:, r]            # K[:, r] over (animals, metafounders)
+    prior = sigma2 * (np.asarray(structure.k_diag)[:n] - 2.0 * kcol[:n] + kcol[n + r])
     rel_raw = 1.0 - pev / prior
     bad = (rel_raw < -RELIABILITY_ROUNDING_BAND) | (rel_raw > 1 + RELIABILITY_ROUNDING_BAND)
     if np.any(bad):
