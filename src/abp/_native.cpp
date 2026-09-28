@@ -17,6 +17,8 @@
 //   * sire/dam hold internal indices, -1 for an unknown parent;
 //   * parents must precede offspring (index < own index) - checked;
 //   * returns n little-endian float64 values (the inbreeding coefficients).
+// ml_general(sire, dam, c, e, fext) -> bytes (2n float64: diag(A), then d)
+//   * metafounder generalisation, see abp/core/metafounders.py.
 // The GIL is released while computing.  Memory: O(n) doubles/ints plus a
 // hash map with one entry per distinct (sire, dam) pair.
 
@@ -223,10 +225,107 @@ PyObject* py_bayes_sweep(PyObject*, PyObject* args) {
     Py_RETURN_NONE;
 }
 
+// ---------------------------------------------------------------------------
+// Generalised Meuwissen-Luo trace for metafounders (reference:
+// abp/core/metafounders.py::ml_general_python; same algorithm).
+//   d_i  = 1 - (A_s + A_d)/4 - c_i       (A_p = diag of an animal parent, else 0)
+//   A_ii = 1 + fext_i                    (a parent is not an animal)
+//   A_ii = sum_j T_ij^2 d_j + e_i        (both parents are animals)
+// With c = e = fext = 0 this is the ordinary algorithm (A_ii = 1 + F_i).
+// Output: 2n doubles, diag(A) followed by d.
+std::string ml_general_kernel(const int64_t* sire, const int64_t* dam, const double* c,
+                              const double* e, const double* fext, int64_t n, double* out) {
+    for (int64_t i = 0; i < n; ++i) {
+        if (sire[i] >= i || dam[i] >= i || sire[i] < -1 || dam[i] < -1) {
+            return "parents must precede offspring (animal index " + std::to_string(i) + ")";
+        }
+    }
+    double* adiag = out;
+    double* d = out + n;
+    std::vector<double> coef(static_cast<size_t>(n), 0.0);
+    std::priority_queue<int64_t> heap;
+    std::unordered_map<uint64_t, double> family;
+    family.reserve(static_cast<size_t>(n / 4 + 16));
+    for (int64_t i = 0; i < n; ++i) {
+        const int64_t s = sire[i], m = dam[i];
+        const double as = s < 0 ? 0.0 : adiag[s];
+        const double am = m < 0 ? 0.0 : adiag[m];
+        d[i] = 1.0 - 0.25 * (as + am) - c[i];
+        if (s < 0 || m < 0) {
+            adiag[i] = 1.0 + fext[i];
+            continue;
+        }
+        const uint64_t lo = static_cast<uint64_t>(std::min(s, m));
+        const uint64_t hi = static_cast<uint64_t>(std::max(s, m));
+        const uint64_t key = lo * static_cast<uint64_t>(n) + hi;
+        auto it = family.find(key);
+        if (it != family.end()) {
+            adiag[i] = it->second;
+            continue;
+        }
+        double acc = 0.0;
+        coef[static_cast<size_t>(i)] = 1.0;
+        heap.push(i);
+        while (!heap.empty()) {
+            const int64_t j = heap.top();
+            heap.pop();
+            const double lj = coef[static_cast<size_t>(j)];
+            coef[static_cast<size_t>(j)] = 0.0;
+            acc += lj * lj * d[j];
+            const double half = 0.5 * lj;
+            const int64_t par[2] = {sire[j], dam[j]};
+            for (int64_t p : par) {
+                if (p >= 0) {
+                    if (coef[static_cast<size_t>(p)] == 0.0) heap.push(p);
+                    coef[static_cast<size_t>(p)] += half;
+                }
+            }
+        }
+        adiag[i] = acc + e[i];
+        family.emplace(key, adiag[i]);
+    }
+    return std::string();
+}
+
+PyObject* py_ml_general(PyObject*, PyObject* args) {
+    Py_buffer sb, db, cb, eb, fb;
+    if (!PyArg_ParseTuple(args, "y*y*y*y*y*", &sb, &db, &cb, &eb, &fb)) return nullptr;
+    PyObject* result = nullptr;
+    const Py_ssize_t len = sb.len;
+    if (db.len != len || cb.len != len || eb.len != len || fb.len != len || len % 8 != 0) {
+        PyErr_SetString(PyExc_ValueError,
+                        "ml_general: sire, dam (int64) and c, e, fext (float64) must have equal length");
+    } else {
+        const int64_t n = static_cast<int64_t>(len / 8);
+        result = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(2 * n * 8));
+        if (result != nullptr) {
+            double* out = reinterpret_cast<double*>(PyBytes_AS_STRING(result));
+            std::string err;
+            Py_BEGIN_ALLOW_THREADS
+            err = ml_general_kernel(static_cast<const int64_t*>(sb.buf),
+                                    static_cast<const int64_t*>(db.buf),
+                                    static_cast<const double*>(cb.buf),
+                                    static_cast<const double*>(eb.buf),
+                                    static_cast<const double*>(fb.buf), n, out);
+            Py_END_ALLOW_THREADS
+            if (!err.empty()) {
+                Py_DECREF(result);
+                result = nullptr;
+                PyErr_SetString(PyExc_ValueError, err.c_str());
+            }
+        }
+    }
+    for (Py_buffer* b : {&sb, &db, &cb, &eb, &fb}) PyBuffer_Release(b);
+    return result;
+}
+
 PyMethodDef methods[] = {
     {"inbreeding_ml", py_inbreeding_ml, METH_VARARGS,
      "inbreeding_ml(sire, dam) -> bytes of float64 inbreeding coefficients "
      "(Meuwissen & Luo 1992). Parents must precede offspring; -1 = unknown."},
+    {"ml_general", py_ml_general, METH_VARARGS,
+     "ml_general(sire, dam, c, e, fext) -> bytes of 2n float64 (diag(A), then d); "
+     "generalised Meuwissen-Luo trace for metafounders (see abp/core/metafounders.py)."},
     {"bayes_sweep", py_bayes_sweep, METH_VARARGS,
      "bayes_sweep(Wt, wtw, e, beta, delta, var_j, log_pi, comp_var, sigma_e2, method, z, u): "
      "one in-place Gibbs sweep over markers (see abp/solvers/bayes.py)."},

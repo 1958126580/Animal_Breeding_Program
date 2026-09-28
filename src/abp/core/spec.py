@@ -211,6 +211,24 @@ SCHEMA = Section({
         "variance_ratio": Field("float", check=_positive,
                                 doc="sigma_g^2 / sigma_a^2 for random groups (required)."),
     }),
+    "metafounders": Section({
+        "prefix": Field("str", required=True,
+                        check=lambda x: None if x.strip() == x and x else "non-empty, no spaces",
+                        doc="Parent codes starting with this prefix name metafounders "
+                            "(e.g. 'MF:' -> 'MF:TEXEL')."),
+        "default": Field("str", doc="Metafounder for unknown parents without a code (must "
+                                    "start with the prefix). Without it such parents are refused."),
+        "gamma_source": Field("str", required=True, choices=("file", "genotypes_gls"),
+                              doc="'file': Gamma from gamma_file with stated provenance; "
+                                  "'genotypes_gls': estimated from genotypes (GLS base "
+                                  "allele frequencies, needs genotypes)."),
+        "gamma_file": Field("str", doc="CSV with metafounder_1, metafounder_2, gamma."),
+        "gamma_provenance": Field("str", doc="Where the Gamma values in gamma_file come from "
+                                             "(required with gamma_source = 'file')."),
+        "sampling_correction": Field("bool", default=True,
+                                     doc="Subtract the expected sampling inflation of the "
+                                         "GLS Gamma estimate."),
+    }),
     "bayes": Section({
         "method": Field("str", required=True,
                         choices=("BRR", "BayesA", "BayesB", "BayesC", "BayesCpi", "BayesR"),
@@ -525,6 +543,47 @@ def validate_spec_dict(raw: dict) -> dict:
                                "unknown-parent groups is not implemented; use random groups")
         if u["prefix"] in d["data"]["unknown_parent_values"]:
             raise _err("upg.prefix", "must differ from every data.unknown_parent_values code")
+    if raw.get("metafounders") is None:
+        d["metafounders"] = None
+    else:
+        mfc = d["metafounders"]
+        if d["upg"] is not None:
+            raise ABPError("UNSUPPORTED_COMBINATION", "declare either [upg] or [metafounders], "
+                           "not both")
+        if rel not in ("pedigree", "single_step"):
+            raise ABPError("UNSUPPORTED_COMBINATION", "metafounders need relationship = "
+                           "'pedigree' or 'single_step'")
+        if d["variances"]["mode"] == "bayes":
+            raise ABPError("UNSUPPORTED_COMBINATION", "metafounders are implemented for "
+                           "BLUP/REML (variances.mode = 'known' or 'reml') only")
+        if len(m["traits"]) > 1:
+            raise ABPError("UNSUPPORTED_COMBINATION", "metafounders are implemented for "
+                           "single-trait models only in this version")
+        if d["validation"] is not None:
+            raise ABPError("UNSUPPORTED_COMBINATION", "LR validation with metafounders is not "
+                           "implemented in this version")
+        if mfc["prefix"] in d["data"]["unknown_parent_values"]:
+            raise _err("metafounders.prefix", "must differ from every data.unknown_parent_values code")
+        if mfc["default"] is not None and not mfc["default"].startswith(mfc["prefix"]):
+            raise _err("metafounders.default", "must start with metafounders.prefix")
+        if mfc["gamma_source"] == "file":
+            if mfc["gamma_file"] is None or not (mfc["gamma_provenance"] or "").strip():
+                raise _err("metafounders.gamma_file", "gamma_source = 'file' needs gamma_file "
+                           "and a non-empty gamma_provenance")
+        else:
+            if mfc["gamma_file"] is not None:
+                raise _err("metafounders.gamma_file", "only used with gamma_source = 'file'")
+            if d["data"]["genotypes"] is None and d["data"]["plink"] is None:
+                raise _err("metafounders.gamma_source", "'genotypes_gls' needs genotypes "
+                           "(data.genotypes or data.plink)")
+        if rel == "single_step" or mfc["gamma_source"] == "genotypes_gls":
+            g = d["genomic"]
+            if g["frequency_source"] != "fixed_0.5":
+                raise _err("genomic.frequency_source", "must be 'fixed_0.5' with metafounders: "
+                           "Gamma and G then refer to the same base (G05)")
+            if g["tuning"] != "none":
+                raise _err("genomic.tuning", "must be 'none' with metafounders (the base is "
+                           "aligned by Gamma, not by rescaling G)")
     idx = raw.get("index")
     if idx is None:
         d["index"] = None
@@ -533,6 +592,15 @@ def validate_spec_dict(raw: dict) -> dict:
         if unknown:
             raise _err("index.weights", f"weights for traits not in the model: {sorted(unknown)}")
     return d
+
+
+def parent_code_prefix(d: dict) -> str | None:
+    """Prefix of pedigree parent codes that name groups or metafounders (None if unused)."""
+    if d.get("upg") is not None:
+        return d["upg"]["prefix"]
+    if d.get("metafounders") is not None:
+        return d["metafounders"]["prefix"]
+    return None
 
 
 def load_spec(path: str | Path) -> AnalysisSpec:

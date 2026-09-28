@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 
 from ..core.model import GeneticStructure, SingleTraitModel, build_single_trait, pedigree_structure
-from ..core.spec import AnalysisSpec, load_spec
+from ..core.spec import AnalysisSpec, load_spec, parent_code_prefix
 from ..errors import ABPError
 from ..io.tables import read_table, write_csv
 from ..qc.pedigree import PedigreeColumns, PedigreeData, load_pedigree, mean_inbreeding_by_generation
@@ -89,6 +89,11 @@ def _heritability(vc: dict[str, float], genetic: str) -> float:
 def _structure(spec: AnalysisSpec, ped: PedigreeData | None, manifest: dict,
                records: RecordSet) -> GeneticStructure:
     rel = next(r for r in spec["model"]["random"] if r["kind"] == "additive")["relationship"]
+    if spec["metafounders"] is not None:
+        from .metafounder_inputs import metafounder_structure
+        used = records.used_mask(list(spec["model"]["traits"]))
+        with_records = {a for a, u in zip(records.animal, used) if u}
+        return metafounder_structure(spec, ped, rel, manifest, with_records)
     if rel == "pedigree" and spec["upg"] is not None:
         from ..core.upg import upg_structure
         u = spec["upg"]
@@ -216,8 +221,8 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
         pc = data["pedigree_columns"]
         ped_ids = set(ped_table.column(pc["id"])) | (
             (set(ped_table.column(pc["sire"])) | set(ped_table.column(pc["dam"]))) - unknown_parent)
-        if d["upg"] is not None:
-            ped_ids = {a for a in ped_ids if not a.startswith(d["upg"]["prefix"])}
+        if parent_code_prefix(d) is not None:
+            ped_ids = {a for a in ped_ids if not a.startswith(parent_code_prefix(d))}
     log.info("read %d phenotype rows%s", phe_table.n_rows,
              f" and {ped_table.n_rows} pedigree rows" if ped_table else "")
 
@@ -229,7 +234,7 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
         ped_data = load_pedigree(ped_table, PedigreeColumns(pc["id"], pc["sire"], pc["dam"],
                                                             pc["sex"], pc["birth_date"]),
                                  unknown_parent, missing, extra_founders=to_add,
-                                 group_prefix=d["upg"]["prefix"] if d["upg"] else None)
+                                 group_prefix=parent_code_prefix(d))
         ped_data.qc.stats["inbreeding_by_generation"] = mean_inbreeding_by_generation(
             ped_data.pedigree)
         atomic_write_json(stage.path("qc_pedigree.json"), ped_data.qc.to_dict())
@@ -392,6 +397,16 @@ def _limitations(d: dict, structure: GeneticStructure) -> list[str]:
                        "estimation error, and reliabilities are not defined (not reported).")
         lim.append("Unknown parents without a group code, and all groups, carry no "
                    "relationships or inbreeding among themselves (no metafounders).")
+    elif structure.kind in ("pedigree_mf", "single_step_mf"):
+        m = structure.meta
+        lim.append(f"Genetic base: {m['n_groups']} metafounder(s) {m['metafounders']} with "
+                   f"relationships Gamma = {np.round(np.array(m['gamma']), 4).tolist()} "
+                   f"({m['gamma_provenance']}). EBVs, variances and reliabilities refer to this "
+                   "base and are not directly comparable with an evaluation that treats unknown "
+                   "parents as unrelated; variance components should be estimated under the "
+                   "same model.")
+        lim.append("Gamma is treated as known: its estimation error is not propagated into "
+                   "EBVs, PEV or reliabilities.")
     else:
         lim.append("No unknown-parent groups or metafounders: all unknown parents are treated "
                    "as unrelated, non-inbred base animals.")
@@ -447,13 +462,20 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
     log.info("%s: solved %d equations with %s (%s); relative residual %.2e; %.2f s", trait,
              s.solution.size, s.method, s.selection_reason, s.rel_residual, s.wall_seconds)
     groups = None
-    if upg is not None:
+    mf_info = None
+    if upg is not None or structure.kind in ("pedigree_mf", "single_step_mf"):
         res.terms[model.genetic_term], groups = _split_upg(res.terms[model.genetic_term],
                                                            structure)
     files = _write_single_trait_outputs(stage, model, res, ped_data)
     if upg is not None:
         files["upg_solutions"] = _write_upg(stage, trait, groups, structure)
         upg["file"] = files["upg_solutions"]
+    elif groups is not None:
+        files["metafounder_solutions"] = _write_metafounders(stage, trait, groups, structure)
+        m = structure.meta
+        mf_info = {"metafounders": m["metafounders"], "gamma": m["gamma"],
+                   "gamma_source": m["gamma_source"], "gamma_provenance": m["gamma_provenance"],
+                   "file": files["metafounder_solutions"]}
     gen = res.terms[model.genetic_term]
     top_n = d["output"]["top_n"]
     order = np.argsort(-gen.solution, kind="stable")[:top_n]
@@ -481,6 +503,7 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
         "fixed_effects": fixed_rows,
         "n_fixed_constrained": len(model.fixed.constrained_labels),
         "upg": upg,
+        "metafounders": mf_info,
         "top": top,
         "reliability_summary": None if gen.reliability is None else {
             "mean": float(gen.reliability.mean()), "min": float(gen.reliability.min()),
@@ -548,6 +571,25 @@ def _write_upg(stage: OutputStage, trait: str, groups, structure: GeneticStructu
     return name
 
 
+def _write_metafounders(stage: OutputStage, trait: str, groups,
+                        structure: GeneticStructure) -> str:
+    """Metafounder solutions (genetic level of each base population) and their PEV."""
+    Q = structure.meta["group_fractions"]
+    gamma = np.array(structure.meta["gamma"])
+    name = f"metafounder_solutions_{trait}.csv"
+    rows = []
+    for k, g in enumerate(groups.labels):
+        pev = None if groups.pev is None else float(groups.pev[k])
+        rows.append([g, float(gamma[k, k]), float(groups.solution[k]), pev,
+                     None if pev is None else float(np.sqrt(pev)),
+                     None if groups.reliability is None else float(groups.reliability[k]),
+                     int(np.count_nonzero(Q[:, k] > 0)), float(Q[:, k].sum())])
+    write_csv(stage.path(name), ["metafounder", "gamma_self", "solution", "pev", "sep",
+                                 "reliability", "n_animals_with_contribution",
+                                 "sum_gene_fraction"], rows)
+    return name
+
+
 def _fingerprint(spec: AnalysisSpec, manifest: dict, trait: str) -> str:
     return mf.sha256_array([spec.sha256, trait] + [i["sha256"] for i in manifest["inputs"]])
 
@@ -572,6 +614,8 @@ def _write_single_trait_outputs(stage: OutputStage, model: SingleTraitModel, res
     files = {}
     ped = ped_data.pedigree if ped_data else None
     F = ped.inbreeding() if ped is not None else None
+    if "inbreeding_mf_base" in model.structure.meta:      # F relative to the metafounder base
+        F = model.structure.meta["inbreeding_mf_base"]
     name = f"ebv_{trait}.csv"
     rows = []
     for k, a in enumerate(gen.labels):

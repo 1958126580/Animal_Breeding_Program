@@ -558,6 +558,45 @@
         "prefix"
       ]
     },
+    "metafounders": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prefix": {
+          "type": "string",
+          "description": "Parent codes starting with this prefix name metafounders (e.g. 'MF:' -> 'MF:TEXEL')."
+        },
+        "default": {
+          "type": "string",
+          "description": "Metafounder for unknown parents without a code (must start with the prefix). Without it such parents are refused."
+        },
+        "gamma_source": {
+          "type": "string",
+          "enum": [
+            "file",
+            "genotypes_gls"
+          ],
+          "description": "'file': Gamma from gamma_file with stated provenance; 'genotypes_gls': estimated from genotypes (GLS base allele frequencies, needs genotypes)."
+        },
+        "gamma_file": {
+          "type": "string",
+          "description": "CSV with metafounder_1, metafounder_2, gamma."
+        },
+        "gamma_provenance": {
+          "type": "string",
+          "description": "Where the Gamma values in gamma_file come from (required with gamma_source = 'file')."
+        },
+        "sampling_correction": {
+          "type": "boolean",
+          "default": true,
+          "description": "Subtract the expected sampling inflation of the GLS Gamma estimate."
+        }
+      },
+      "required": [
+        "prefix",
+        "gamma_source"
+      ]
+    },
     "bayes": {
       "type": "object",
       "additionalProperties": false,

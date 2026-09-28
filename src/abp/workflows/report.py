@@ -129,6 +129,13 @@ def render_report(results: dict, manifest: dict) -> str:
                  "individual fixed-effect solutions are not estimable functions and should not "
                  "be interpreted on their own).")
         L.append("")
+        if t.get("metafounders"):
+            mfi = t["metafounders"]
+            L.append(f"Genetic base: metafounders {', '.join(mfi['metafounders'])} "
+                     f"(Gamma from {mfi['gamma_source']}: {mfi['gamma_provenance']}). EBVs above "
+                     "are relative to these base populations; metafounder solutions are in "
+                     f"`{mfi['file']}`.")
+            L.append("")
         if t.get("upg"):
             u = t["upg"]
             kind = (f"random, sigma_g^2/sigma_a^2 = {_f(u['variance_ratio'])} (declared)"
