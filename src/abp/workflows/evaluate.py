@@ -463,10 +463,15 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
              s.solution.size, s.method, s.selection_reason, s.rel_residual, s.wall_seconds)
     groups = None
     mf_info = None
+    contrast = None
+    if structure.kind in ("pedigree_mf", "single_step_mf"):
+        from .metafounder_inputs import base_contrast
+        contrast = base_contrast(res, model.genetic_term, structure,
+                                 vc_active[model.genetic_term], d["metafounders"])
     if upg is not None or structure.kind in ("pedigree_mf", "single_step_mf"):
         res.terms[model.genetic_term], groups = _split_upg(res.terms[model.genetic_term],
                                                            structure)
-    files = _write_single_trait_outputs(stage, model, res, ped_data)
+    files = _write_single_trait_outputs(stage, model, res, ped_data, contrast)
     if upg is not None:
         files["upg_solutions"] = _write_upg(stage, trait, groups, structure)
         upg["file"] = files["upg_solutions"]
@@ -474,6 +479,8 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
         files["metafounder_solutions"] = _write_metafounders(stage, trait, groups, structure)
         m = structure.meta
         mf_info = {"metafounders": m["metafounders"], "gamma": m["gamma"],
+                   "reference": contrast["reference"],
+                   "reliability_vs_base_summary": contrast["summary"],
                    "gamma_source": m["gamma_source"], "gamma_provenance": m["gamma_provenance"],
                    "file": files["metafounder_solutions"]}
     gen = res.terms[model.genetic_term]
@@ -608,7 +615,7 @@ def _fixed_rows(model: SingleTraitModel, res: BLUPResult) -> list[dict]:
 
 
 def _write_single_trait_outputs(stage: OutputStage, model: SingleTraitModel, res: BLUPResult,
-                                ped_data: PedigreeData | None) -> dict:
+                                ped_data: PedigreeData | None, contrast: dict | None = None) -> dict:
     trait = model.trait
     gen = res.terms[model.genetic_term]
     files = {}
@@ -632,8 +639,16 @@ def _write_single_trait_outputs(stage: OutputStage, model: SingleTraitModel, res
         rows.append([a, s, dm, sx, g_i, f_i, model.n_records_per_animal.get(a, 0),
                      float(gen.solution[k]), pev, None if pev is None else float(np.sqrt(pev)),
                      rel, None if rel is None else float(np.sqrt(rel))])
-    write_csv(stage.path(name), ["animal", "sire", "dam", "sex", "generation", "inbreeding",
-                                 "n_records", "ebv", "pev", "sep", "reliability", "accuracy"], rows)
+        if contrast is not None:
+            rows[-1] += [float(contrast["ebv"][k]),
+                         None if contrast["pev"] is None else float(contrast["pev"][k]),
+                         None if contrast["reliability"] is None
+                         else float(contrast["reliability"][k])]
+    header = ["animal", "sire", "dam", "sex", "generation", "inbreeding",
+              "n_records", "ebv", "pev", "sep", "reliability", "accuracy"]
+    if contrast is not None:
+        header += ["ebv_vs_base", "pev_vs_base", "reliability_vs_base"]
+    write_csv(stage.path(name), header, rows)
     files["ebv"] = name
     name = f"fixed_effects_{trait}.csv"
     write_csv(stage.path(name), ["term", "level", "solution", "status"],

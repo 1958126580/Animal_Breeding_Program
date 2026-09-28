@@ -133,8 +133,17 @@ def render_report(results: dict, manifest: dict) -> str:
             mfi = t["metafounders"]
             L.append(f"Genetic base: metafounders {', '.join(mfi['metafounders'])} "
                      f"(Gamma from {mfi['gamma_source']}: {mfi['gamma_provenance']}). EBVs above "
-                     "are relative to these base populations; metafounder solutions are in "
-                     f"`{mfi['file']}`.")
+                     "include the genetic level of the base populations; metafounder solutions "
+                     f"are in `{mfi['file']}`.")
+            L.append("")
+            rs = mfi.get("reliability_vs_base_summary")
+            L.append(f"The columns `ebv_vs_base`, `pev_vs_base` and `reliability_vs_base` of the "
+                     f"EBV file express each animal against the level of the reference "
+                     f"metafounder {mfi['reference']} (u_i - u_ref). This contrast has the same "
+                     "ranking and removes the uncertainty about the absolute level of the base, "
+                     "which is common to all descendants"
+                     + (f"; its reliability averages {_f(rs['mean'])} (min {_f(rs['min'])}, "
+                        f"max {_f(rs['max'])})." if rs else "."))
             L.append("")
         if t.get("upg"):
             u = t["upg"]

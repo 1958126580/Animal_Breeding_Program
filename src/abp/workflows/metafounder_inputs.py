@@ -19,6 +19,7 @@ from ..core.spec import AnalysisSpec
 from ..core.upg import GroupAssignment
 from ..errors import ABPError
 from ..qc.pedigree import PedigreeData
+from ..solvers.blup import RELIABILITY_ROUNDING_BAND
 
 
 def assign_metafounders(ped_data: PedigreeData, default: str | None) -> GroupAssignment:
@@ -114,3 +115,65 @@ def metafounder_structure(spec: AnalysisSpec, ped_data: PedigreeData, relationsh
                                 "(animals, metafounders)"})
     ss = single_step_mf(mfp, g_index, Gs, a22=A22)
     return GeneticStructure("single_step_mf", mfp.labels, ss.h_inv, ss.h_diag, ss.logdet_h, meta)
+
+
+def reference_metafounder(cfg: dict, labels: list[str]) -> str:
+    """The metafounder whose genetic level defines the reported base."""
+    ref = cfg["reference"] or cfg["default"] or (labels[0] if len(labels) == 1 else None)
+    if ref is None:
+        raise ABPError("SPEC_INVALID", "several metafounders are used; declare "
+                       "metafounders.reference (the base population EBVs are expressed against)",
+                       metafounders=labels)
+    if ref not in labels:
+        raise ABPError("SPEC_INVALID", f"metafounders.reference {ref!r} is not used in the "
+                       f"pedigree (metafounders: {labels})")
+    return ref
+
+
+def base_contrast(res, term: str, structure: GeneticStructure, sigma2: float,
+                  cfg: dict) -> dict:
+    """EBVs relative to the reference metafounder, with their PEV and reliability.
+
+    Under metafounders ``u_i`` includes the unknown genetic level of the base
+    population, a shift common to its descendants.  The estimable quantity a
+    breeder uses is the contrast ``c_i = u_i - u_r`` with the reference
+    metafounder ``r``:
+
+    * ``PEV(c_i) = C^ii + C^rr - 2 C^ir`` (``C^{..}`` blocks of the MME
+      inverse; one extra solve per reference);
+    * prior ``Var(c_i) = sigma^2 (A_ii - 2 (Q Gamma)_ir + Gamma_rr)``, which is
+      ``sigma^2 (1 - gamma/2)`` for a founder of ``r``;
+    * reliability ``1 - PEV(c_i) / Var(c_i)`` (range-checked like BLUP).
+    """
+    m = structure.meta
+    n = m["n_animals"]
+    labels = list(m["metafounders"])
+    ref = reference_metafounder(cfg, labels)
+    r = labels.index(ref)
+    tr = res.terms[term]
+    ebv = tr.solution[:n] - tr.solution[n + r]
+    out = {"reference": ref, "ebv": ebv, "pev": None, "reliability": None, "summary": None}
+    if tr.pev is None or res.solve.factor is None:
+        return out
+    a, _ = res.system.offsets[term]
+    e = np.zeros(res.system.n_equations)
+    e[a + n + r] = 1.0
+    col = res.solve.factor.solve(e)[a:a + n]
+    pev = tr.pev[:n] + tr.pev[n + r] - 2.0 * col
+    gamma = np.asarray(m["gamma"])
+    prior = sigma2 * (np.asarray(structure.k_diag)[:n] - 2.0 * (m["group_fractions"] @ gamma)[:, r]
+                      + gamma[r, r])
+    rel_raw = 1.0 - pev / prior
+    bad = (rel_raw < -RELIABILITY_ROUNDING_BAND) | (rel_raw > 1 + RELIABILITY_ROUNDING_BAND)
+    if np.any(bad):
+        k = int(np.flatnonzero(bad)[0])
+        raise ABPError("RELIABILITY_OUT_OF_RANGE",
+                       f"reliability relative to {ref} is {rel_raw[k]:.6g} for "
+                       f"{tr.labels[k]!r}, outside [0, 1]", value=float(rel_raw[k]),
+                       n_bad=int(bad.sum()))
+    rel = np.clip(rel_raw, 0.0, 1.0)
+    out.update(pev=pev, reliability=rel,
+               summary={"mean": float(rel.mean()), "min": float(rel.min()),
+                        "max": float(rel.max()),
+                        "n_rounding_clamped": int(np.sum(rel != rel_raw))})
+    return out

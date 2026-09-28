@@ -136,6 +136,16 @@ def test_pedigree_metafounder_run_matches_v_form_reference(tmp_path):
         assert float(ebv[lab]["ebv"]) == pytest.approx(u[k], abs=1e-9)
         assert float(ebv[lab]["pev"]) == pytest.approx(pev[k, k], abs=1e-9)
         assert float(ebv[lab]["inbreeding"]) == pytest.approx(A[k, k] - 1, abs=1e-12)
+    # contrast with the reference metafounder (default MF:Y): EBV, PEV and reliability
+    r = labels.index("MF:Y")
+    for k, lab in enumerate(labels[:len(PED)]):
+        row = ebv[lab]
+        assert float(row["ebv_vs_base"]) == pytest.approx(u[k] - u[r], abs=1e-9)
+        pc = pev[k, k] + pev[r, r] - 2 * pev[k, r]
+        assert float(row["pev_vs_base"]) == pytest.approx(pc, abs=1e-9)
+        prior = 2.0 * (A[k, k] - 2 * A[k, r] + A[r, r])
+        assert float(row["reliability_vs_base"]) == pytest.approx(1 - pc / prior, abs=1e-9)
+    assert out.results["traits"]["y"]["metafounders"]["reference"] == "MF:Y"
     mf = {r["metafounder"]: r for r in _read(out.out_dir / "metafounder_solutions_y.csv")}
     for lab in ("MF:X", "MF:Y"):
         k = labels.index(lab)
@@ -143,6 +153,7 @@ def test_pedigree_metafounder_run_matches_v_form_reference(tmp_path):
         assert float(mf[lab]["gamma_self"]) == pytest.approx(A[k, k])
     report = (out.out_dir / "report.md").read_text(encoding="utf-8")
     assert "metafounders MF:X, MF:Y" in report and "values for a unit test" in report
+    assert "ebv_vs_base" in report
 
 
 def test_unassigned_unknown_parent_is_refused(tmp_path):
@@ -174,3 +185,11 @@ def test_example12_single_step_on_metafounder_base(tmp_path):
     assert t["metafounders"]["file"] == "metafounder_solutions_wwt.csv"
     rel_ = [float(r["reliability"]) for r in _read(out.out_dir / "ebv_wwt.csv")]
     assert 0 <= min(rel_) and max(rel_) <= 1
+
+
+def test_several_metafounders_need_a_reference(tmp_path):
+    spec = _write_case(tmp_path, default=None)
+    (tmp_path / "p.csv").write_text("id,sire,dam\n" + "\n".join(
+        ",".join(r) for r in PED).replace("0", "MF:Y") + "\n", encoding="utf-8")
+    with pytest.raises(ABPError, match="metafounders.reference"):
+        run_evaluation(spec, tmp_path / "o", console=False)

@@ -570,6 +570,10 @@
           "type": "string",
           "description": "Metafounder for unknown parents without a code (must start with the prefix). Without it such parents are refused."
         },
+        "reference": {
+          "type": "string",
+          "description": "Metafounder whose level defines the reported base (ebv_vs_base). Defaults to 'default', or to the only metafounder."
+        },
         "gamma_source": {
           "type": "string",
           "enum": [

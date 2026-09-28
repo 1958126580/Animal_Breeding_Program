@@ -218,6 +218,9 @@ SCHEMA = Section({
                             "(e.g. 'MF:' -> 'MF:TEXEL')."),
         "default": Field("str", doc="Metafounder for unknown parents without a code (must "
                                     "start with the prefix). Without it such parents are refused."),
+        "reference": Field("str", doc="Metafounder whose level defines the reported base "
+                                      "(ebv_vs_base). Defaults to 'default', or to the only "
+                                      "metafounder."),
         "gamma_source": Field("str", required=True, choices=("file", "genotypes_gls"),
                               doc="'file': Gamma from gamma_file with stated provenance; "
                                   "'genotypes_gls': estimated from genotypes (GLS base "
@@ -566,6 +569,8 @@ def validate_spec_dict(raw: dict) -> dict:
             raise _err("metafounders.prefix", "must differ from every data.unknown_parent_values code")
         if mfc["default"] is not None and not mfc["default"].startswith(mfc["prefix"]):
             raise _err("metafounders.default", "must start with metafounders.prefix")
+        if mfc["reference"] is not None and not mfc["reference"].startswith(mfc["prefix"]):
+            raise _err("metafounders.reference", "must start with metafounders.prefix")
         if mfc["gamma_source"] == "file":
             if mfc["gamma_file"] is None or not (mfc["gamma_provenance"] or "").strip():
                 raise _err("metafounders.gamma_file", "gamma_source = 'file' needs gamma_file "
