@@ -79,8 +79,10 @@ C++20 kernels (including `ml_general`, `symbolic_cholesky`, `takahashi`) with
 MSVC, passed the self-test and reported **211 passed** in 145.9 s, the same
 count as Linux; the launcher run into `%RUNNER_TEMP%\结果 输出` passed and the
 repeat returned exit status 2. That commit predates the T12/T13 self-test
-checks and the documentation of this round; the final commit of the round
-triggers a further run.
+checks and the documentation of this round. The final round-3 commit 5bb3db1
+(ABP 0.3.0, self-test T01–T13) ran as
+[36451049420](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36451049420):
+7 of 7 jobs succeeded; Windows / Python 3.13 **211 passed** in 138.3 s.
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer
