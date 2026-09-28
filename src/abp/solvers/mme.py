@@ -198,7 +198,10 @@ class SparseLU:
 
     kind = "sparse_direct"
 
-    def __init__(self, C: sp.csr_matrix):
+    def __init__(self, C: sp.csr_matrix, memory_budget_bytes: int = 4 * 2**30):
+        self.C = C
+        self.memory_budget_bytes = memory_budget_bytes
+        self._selinv = None
         try:
             self.lu = splu(C.tocsc(), permc_spec="MMD_AT_PLUS_A", diag_pivot_thresh=0.0,
                            options={"SymmetricMode": True})
@@ -222,6 +225,13 @@ class SparseLU:
             raise ABPError("FACTORIZATION_FAILED",
                            "unexpected row pivoting in SuperLU; log-determinant unavailable")
         return float(np.sum(np.log(self._diagU)))
+
+    def selected_inverse(self):
+        """Entries of ``C^{-1}`` on the factor pattern (Takahashi; computed once, cached)."""
+        if self._selinv is None:
+            from .selinv import SelectedInverse
+            self._selinv = SelectedInverse(self.lu, self.C, self.memory_budget_bytes)
+        return self._selinv
 
     def inverse_block(self, idx: np.ndarray, batch: int = 512) -> np.ndarray:
         """``C^{-1}[idx, idx]`` by solving for unit vectors in batches."""
@@ -315,9 +325,6 @@ def dense_bytes(n_eq: int, with_inverse: bool) -> int:
     return 8 * n_eq * n_eq * (3 if with_inverse else 2)
 
 
-EXACT_PEV_LIMIT = 30000  #: max equations for exact PEV by selected solves (sparse path)
-
-
 def choose_method(n_eq: int, need_inverse: bool, memory_budget_bytes: int,
                   requested: str = "auto") -> tuple[str, str]:
     """Pick a solver and explain why (the reason is written to the manifest).
@@ -325,8 +332,9 @@ def choose_method(n_eq: int, need_inverse: bool, memory_budget_bytes: int,
     Rules (measured in docs/benchmarks.md): small systems -> dense LAPACK
     (exact PEV, fastest below ~12k equations); large systems without PEV ->
     Jacobi-PCG (with automatic fallback to sparse direct if it does not
-    converge); large systems with exact PEV -> sparse direct, refused above
-    ``EXACT_PEV_LIMIT`` equations.
+    converge); large systems with exact PEV -> sparse direct with selected
+    inversion (Takahashi, :mod:`abp.solvers.selinv`), bounded by the memory
+    budget of the factor rather than by a fixed number of equations.
     """
     if requested not in SOLVER_METHODS:
         raise ABPError("SPEC_INVALID", f"solver.method must be one of {SOLVER_METHODS}",
@@ -337,26 +345,16 @@ def choose_method(n_eq: int, need_inverse: bool, memory_budget_bytes: int,
             raise ABPError("RESOURCE_MEMORY",
                            f"dense solver needs ~{need / 2**30:.2f} GiB, budget is "
                            f"{memory_budget_bytes / 2**30:.2f} GiB", n_equations=n_eq)
-        if requested == "sparse_direct" and need_inverse and n_eq > EXACT_PEV_LIMIT:
-            raise _pev_too_large(n_eq)
         return requested, "requested explicitly in spec"
     if n_eq <= 12000 and need <= memory_budget_bytes:
         return "dense", (f"auto: {n_eq} equations <= 12000 and dense memory "
                          f"{need / 2**30:.2f} GiB within budget")
     if need_inverse:
-        if n_eq > EXACT_PEV_LIMIT:
-            raise _pev_too_large(n_eq)
         return "sparse_direct", (f"auto: {n_eq} equations too large for dense path; "
-                                 "PEV requested -> sparse direct with selected solves")
+                                 "PEV requested -> sparse direct with selected inversion "
+                                 "(Takahashi)")
     return "pcg", (f"auto: {n_eq} equations, no PEV -> Jacobi-PCG "
                    "(fallback: sparse direct if not converged)")
-
-
-def _pev_too_large(n_eq: int) -> ABPError:
-    return ABPError("UNSUPPORTED_COMBINATION",
-                    f"exact PEV for {n_eq} equations exceeds this version's limit of {EXACT_PEV_LIMIT}; "
-                    "set solver.pev = \"none\" (EBVs without reliabilities) - approximate "
-                    "reliabilities are on the roadmap", n_equations=n_eq, limit=EXACT_PEV_LIMIT)
 
 
 def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: bool = False,
@@ -374,7 +372,7 @@ def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: b
         factor = DenseCholesky(system.C.toarray())
         s = factor.solve(system.rhs)
     elif chosen == "sparse_direct":
-        factor = SparseLU(system.C)
+        factor = SparseLU(system.C, memory_budget_bytes)
         s = factor.solve(system.rhs)
     else:
         if need_inverse:
@@ -388,7 +386,7 @@ def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: b
                 reason += (f"; PCG did not converge in {info.iterations} iterations "
                            f"(rel. residual {info.rel_residual:.2e}) -> fell back to sparse direct")
                 chosen = "sparse_direct"
-                factor = SparseLU(system.C)
+                factor = SparseLU(system.C, memory_budget_bytes)
                 s = factor.solve(system.rhs)
             else:
                 raise ABPError("SOLVER_NOT_CONVERGED",
@@ -418,12 +416,5 @@ def pev_diagonal(result: SolveResult, idx: np.ndarray) -> np.ndarray:
     if isinstance(result.factor, DenseCholesky):
         return result.factor.inverse_diagonal(np.asarray(idx))
     if isinstance(result.factor, SparseLU):
-        idx = np.asarray(idx, dtype=np.int64)
-        out = np.empty(idx.size)
-        for start in range(0, idx.size, 512):
-            cols = idx[start:start + 512]
-            E = np.zeros((result.factor.n, cols.size))
-            E[cols, np.arange(cols.size)] = 1.0
-            out[start:start + cols.size] = result.factor.solve(E)[cols, np.arange(cols.size)]
-        return out
+        return result.factor.selected_inverse().diagonal(np.asarray(idx, dtype=np.int64))
     raise ABPError("UNSUPPORTED_COMBINATION", "PEV requires a direct solver")

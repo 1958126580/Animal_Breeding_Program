@@ -17,6 +17,7 @@
 //   * sire/dam hold internal indices, -1 for an unknown parent;
 //   * parents must precede offspring (index < own index) - checked;
 //   * returns n little-endian float64 values (the inbreeding coefficients).
+// symbolic_cholesky / takahashi: sparse selected inversion, see abp/solvers/selinv.py.
 // ml_general(sire, dam, c, e, fext) -> bytes (2n float64: diag(A), then d)
 //   * metafounder generalisation, see abp/core/metafounders.py.
 // The GIL is released while computing.  Memory: O(n) doubles/ints plus a
@@ -319,6 +320,159 @@ PyObject* py_ml_general(PyObject*, PyObject* args) {
     return result;
 }
 
+// ---------------------------------------------------------------------------
+// Sparse selected inversion (reference: abp/solvers/selinv.py, same algorithms).
+// symbolic_cholesky: strictly lower pattern of the Cholesky factor of a
+//   symmetric CSC matrix (union of the column's rows > j and the children's
+//   patterns in the elimination tree).
+// takahashi: Z = B^-1 on that pattern from B = L D L' (L unit lower).
+std::string symbolic_kernel(const int64_t* indptr, const int64_t* indices, int64_t n,
+                            std::vector<int64_t>& colptr, std::vector<int64_t>& rowidx) {
+    std::vector<std::vector<int64_t>> pats(static_cast<size_t>(n));
+    std::vector<std::vector<int64_t>> children(static_cast<size_t>(n));
+    std::vector<int64_t> mark(static_cast<size_t>(n), -1);
+    for (int64_t j = 0; j < n; ++j) {
+        std::vector<int64_t>& pj = pats[static_cast<size_t>(j)];
+        mark[static_cast<size_t>(j)] = j;
+        for (int64_t p = indptr[j]; p < indptr[j + 1]; ++p) {
+            const int64_t i = indices[p];
+            if (i < 0 || i >= n) return "symbolic_cholesky: row index out of range";
+            if (i > j && mark[static_cast<size_t>(i)] != j) {
+                mark[static_cast<size_t>(i)] = j;
+                pj.push_back(i);
+            }
+        }
+        for (int64_t c : children[static_cast<size_t>(j)]) {
+            for (int64_t i : pats[static_cast<size_t>(c)]) {
+                if (i > j && mark[static_cast<size_t>(i)] != j) {
+                    mark[static_cast<size_t>(i)] = j;
+                    pj.push_back(i);
+                }
+            }
+        }
+        std::sort(pj.begin(), pj.end());
+        if (!pj.empty()) children[static_cast<size_t>(pj.front())].push_back(j);
+    }
+    colptr.assign(static_cast<size_t>(n) + 1, 0);
+    for (int64_t j = 0; j < n; ++j)
+        colptr[static_cast<size_t>(j) + 1] = colptr[static_cast<size_t>(j)] +
+                                             static_cast<int64_t>(pats[static_cast<size_t>(j)].size());
+    rowidx.resize(static_cast<size_t>(colptr.back()));
+    for (int64_t j = 0; j < n; ++j) {
+        std::copy(pats[static_cast<size_t>(j)].begin(), pats[static_cast<size_t>(j)].end(),
+                  rowidx.begin() + colptr[static_cast<size_t>(j)]);
+        std::vector<int64_t>().swap(pats[static_cast<size_t>(j)]);
+    }
+    return std::string();
+}
+
+std::string takahashi_kernel(const int64_t* colptr, const int64_t* rowidx, const double* lval,
+                             const double* d, int64_t n, double* zdiag, double* zval) {
+    std::vector<double> acc(static_cast<size_t>(n), 0.0);
+    for (int64_t j = n - 1; j >= 0; --j) {
+        const int64_t lo = colptr[j], hi = colptr[j + 1];
+        if (!(d[j] > 0.0)) return "takahashi: non-positive pivot";
+        for (int64_t t = lo; t < hi; ++t) {
+            const int64_t k = rowidx[t];
+            const double lkj = lval[t];
+            acc[static_cast<size_t>(k)] -= lkj * zdiag[k];
+            // rows i of column j after k are a subset of column k's rows: merge walk
+            int64_t q = colptr[k];
+            const int64_t qend = colptr[k + 1];
+            for (int64_t u = t + 1; u < hi; ++u) {
+                const int64_t i = rowidx[u];
+                while (q < qend && rowidx[q] < i) ++q;
+                if (q == qend || rowidx[q] != i) return "takahashi: pattern not closed";
+                const double z = zval[q];
+                acc[static_cast<size_t>(i)] -= lkj * z;
+                acc[static_cast<size_t>(k)] -= lval[u] * z;
+            }
+        }
+        double s = 0.0;
+        for (int64_t t = lo; t < hi; ++t) {
+            const size_t i = static_cast<size_t>(rowidx[t]);
+            zval[t] = acc[i];
+            s += lval[t] * acc[i];
+            acc[i] = 0.0;
+        }
+        zdiag[j] = 1.0 / d[j] - s;
+    }
+    return std::string();
+}
+
+PyObject* py_symbolic_cholesky(PyObject*, PyObject* args) {
+    Py_buffer pb, ib;
+    long long n_ll;
+    if (!PyArg_ParseTuple(args, "y*y*L", &pb, &ib, &n_ll)) return nullptr;
+    const int64_t n = static_cast<int64_t>(n_ll);
+    std::vector<int64_t> colptr, rowidx;
+    std::string err;
+    if (pb.len != (n + 1) * 8 || ib.len % 8 != 0) {
+        err = "symbolic_cholesky: indptr must hold n + 1 int64 values";
+    } else {
+        Py_BEGIN_ALLOW_THREADS
+        err = symbolic_kernel(static_cast<const int64_t*>(pb.buf),
+                              static_cast<const int64_t*>(ib.buf), n, colptr, rowidx);
+        Py_END_ALLOW_THREADS
+    }
+    PyBuffer_Release(&pb);
+    PyBuffer_Release(&ib);
+    if (!err.empty()) {
+        PyErr_SetString(PyExc_ValueError, err.c_str());
+        return nullptr;
+    }
+    PyObject* a = PyBytes_FromStringAndSize(reinterpret_cast<const char*>(colptr.data()),
+                                            static_cast<Py_ssize_t>(colptr.size() * 8));
+    PyObject* b = PyBytes_FromStringAndSize(reinterpret_cast<const char*>(rowidx.data()),
+                                            static_cast<Py_ssize_t>(rowidx.size() * 8));
+    if (a == nullptr || b == nullptr) {
+        Py_XDECREF(a);
+        Py_XDECREF(b);
+        return nullptr;
+    }
+    return Py_BuildValue("(NN)", a, b);
+}
+
+PyObject* py_takahashi(PyObject*, PyObject* args) {
+    Py_buffer cb, rb, lb, db;
+    if (!PyArg_ParseTuple(args, "y*y*y*y*", &cb, &rb, &lb, &db)) return nullptr;
+    const int64_t n = static_cast<int64_t>(db.len / 8);
+    const int64_t nnz = static_cast<int64_t>(rb.len / 8);
+    PyObject* zd = nullptr;
+    PyObject* zv = nullptr;
+    std::string err;
+    if (cb.len != (n + 1) * 8 || lb.len != rb.len) {
+        err = "takahashi: buffer sizes do not match (colptr n+1, rowidx = lval)";
+    } else {
+        zd = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(n * 8));
+        zv = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(nnz * 8));
+        if (zd == nullptr || zv == nullptr) {
+            err = "takahashi: out of memory";
+        } else {
+            const int64_t* colptr = static_cast<const int64_t*>(cb.buf);
+            if (colptr[n] != nnz) {
+                err = "takahashi: colptr[n] != number of entries";
+            } else {
+                double* zdp = reinterpret_cast<double*>(PyBytes_AS_STRING(zd));
+                double* zvp = reinterpret_cast<double*>(PyBytes_AS_STRING(zv));
+                Py_BEGIN_ALLOW_THREADS
+                err = takahashi_kernel(colptr, static_cast<const int64_t*>(rb.buf),
+                                       static_cast<const double*>(lb.buf),
+                                       static_cast<const double*>(db.buf), n, zdp, zvp);
+                Py_END_ALLOW_THREADS
+            }
+        }
+    }
+    for (Py_buffer* b : {&cb, &rb, &lb, &db}) PyBuffer_Release(b);
+    if (!err.empty()) {
+        Py_XDECREF(zd);
+        Py_XDECREF(zv);
+        PyErr_SetString(PyExc_ValueError, err.c_str());
+        return nullptr;
+    }
+    return Py_BuildValue("(NN)", zd, zv);
+}
+
 PyMethodDef methods[] = {
     {"inbreeding_ml", py_inbreeding_ml, METH_VARARGS,
      "inbreeding_ml(sire, dam) -> bytes of float64 inbreeding coefficients "
@@ -326,6 +480,12 @@ PyMethodDef methods[] = {
     {"ml_general", py_ml_general, METH_VARARGS,
      "ml_general(sire, dam, c, e, fext) -> bytes of 2n float64 (diag(A), then d); "
      "generalised Meuwissen-Luo trace for metafounders (see abp/core/metafounders.py)."},
+    {"symbolic_cholesky", py_symbolic_cholesky, METH_VARARGS,
+     "symbolic_cholesky(indptr, indices, n) -> (colptr, rowidx) bytes of int64: strictly lower "
+     "Cholesky pattern of a symmetric CSC matrix (see abp/solvers/selinv.py)."},
+    {"takahashi", py_takahashi, METH_VARARGS,
+     "takahashi(colptr, rowidx, lval, d) -> (zdiag, zval) bytes of float64: selected inverse "
+     "of L D L' on the closed pattern (see abp/solvers/selinv.py)."},
     {"bayes_sweep", py_bayes_sweep, METH_VARARGS,
      "bayes_sweep(Wt, wtw, e, beta, delta, var_j, log_pi, comp_var, sigma_e2, method, z, u): "
      "one in-place Gibbs sweep over markers (see abp/solvers/bayes.py)."},

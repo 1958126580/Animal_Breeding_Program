@@ -43,9 +43,11 @@ sub-model is re-fitted, and the zero is accepted only if the score at zero is
 non-positive (the Kuhn-Tucker condition for a maximum on the boundary).
 Non-convergence within the budget is an error; results are not issued.
 
-Scale limit: this implementation uses the dense path (explicit ``C^{-1}``
-for the traces) and is refused when the dense memory estimate exceeds the
-configured budget.  Standard errors come from ``AI^{-1}`` (asymptotic,
+Trace computation: small systems (<= ``DENSE_REML_MAX`` equations and within
+the memory budget) use the dense path (explicit ``C^{-1}``); larger systems
+use a sparse factorization and selected inversion (Takahashi equations,
+:mod:`abp.solvers.selinv`), which gives the exact entries of ``C^{-1}`` on the
+pattern of ``C`` needed by both traces.  The path is recorded in the fit.  Standard errors come from ``AI^{-1}`` (asymptotic,
 conditional on the model) and are withheld at a boundary.
 """
 
@@ -63,9 +65,10 @@ import scipy.sparse as sp
 
 from ..errors import ABPError
 from .blup import RandomTerm, build_system
-from .mme import DenseCholesky, dense_bytes
+from .mme import DenseCholesky, SparseLU, dense_bytes
 
 BOUNDARY_REL = 1e-6
+DENSE_REML_MAX = 12000   #: largest system for the dense REML path (same rule as BLUP 'auto')
 
 
 @dataclass
@@ -94,6 +97,7 @@ class REMLFit:
     start: dict[str, float]
     start_source: str
     history: list[dict] = field(default_factory=list)
+    trace_method: str = "dense_inverse"
 
     def to_dict(self) -> dict:
         return {"status": self.status, "variances": self.variances, "loglik": self.loglik,
@@ -102,6 +106,7 @@ class REMLFit:
                 "heritability": self.heritability, "heritability_se": self.heritability_se,
                 "ai_condition_number": self.ai_condition_number, "start": self.start,
                 "start_source": self.start_source, "history": self.history,
+                "trace_method": self.trace_method,
                 "note": ("REML estimates; standard errors are asymptotic (inverse average "
                          "information) and not valid for components on the boundary.")}
 
@@ -122,11 +127,9 @@ class REMLEvaluator:
                                f"REML needs log|K| for term {t.name!r}")
         n_eq = self.rx + sum(t.q for t in self.terms)
         need = dense_bytes(n_eq, True)
-        if need > memory_budget_bytes:
-            raise ABPError("RESOURCE_MEMORY",
-                           f"REML (dense path) for {n_eq} equations needs ~{need / 2**30:.2f} GiB; "
-                           f"budget is {memory_budget_bytes / 2**30:.2f} GiB",
-                           n_equations=n_eq)
+        self.budget = memory_budget_bytes
+        self.trace_method = ("dense_inverse" if n_eq <= DENSE_REML_MAX and need <= memory_budget_bytes
+                             else "sparse_selected_inversion")
         if self.n - self.rx <= 0:
             raise ABPError("MODEL_NOT_IDENTIFIABLE",
                            "no residual degrees of freedom (records <= fixed-effect rank)")
@@ -139,14 +142,16 @@ class REMLEvaluator:
         names = self.names()
         vc = dict(zip(names, map(float, theta)))
         system = build_system(self.y, self.X, self.terms, vc)
-        fac = DenseCholesky(system.C.toarray())
+        dense = self.trace_method == "dense_inverse"
+        fac = DenseCholesky(system.C.toarray()) if dense else SparseLU(system.C, self.budget)
         s = fac.solve(system.rhs)
         W = system.W
         th0 = vc["residual"]
         e = self.y - W @ s
         ypy = self.yy / th0 - float(s @ system.rhs)
         m2ll = self.n * math.log(th0) + fac.logdet() + ypy
-        Cinv = fac.inverse()
+        Cinv = fac.inverse() if dense else None
+        si = None if dense else fac.selected_inverse()
         score = np.empty(len(names))
         em = np.empty(len(names))
         sum_adj = 0.0
@@ -158,11 +163,12 @@ class REMLEvaluator:
             Kinv = t.k_inv
             Kinv_u = Kinv @ u
             quad = float(u @ Kinv_u)
-            Ckk = Cinv[a:b, a:b]
-            if sp.issparse(Kinv):
-                tr = float(Kinv.multiply(Ckk).sum())
+            if si is not None:                       # entries of C^-1 on the pattern of K^-1
+                tr = si.trace_product(Kinv if sp.issparse(Kinv) else sp.coo_matrix(Kinv), a)
+            elif sp.issparse(Kinv):
+                tr = float(Kinv.multiply(Cinv[a:b, a:b]).sum())
             else:
-                tr = float(np.sum(Kinv * Ckk))
+                tr = float(np.sum(Kinv * Cinv[a:b, a:b]))
             score[k] = 0.5 * (quad / thk**2 - t.q / thk + tr / thk**2)
             em[k] = (quad + tr) / t.q
             sum_adj += t.q - tr / thk
@@ -170,7 +176,10 @@ class REMLEvaluator:
         ee = float(e @ e)
         score[-1] = 0.5 * (ee / th0**2 - trP)
         WtW = (W.T @ W).tocoo()
-        tr_cww = float(np.sum(Cinv[WtW.row, WtW.col] * WtW.data))
+        if si is not None:
+            tr_cww = float(np.dot(WtW.data, si.entries(WtW.row, WtW.col)))
+        else:
+            tr_cww = float(np.sum(Cinv[WtW.row, WtW.col] * WtW.data))
         em[-1] = (ee + tr_cww) / self.n
         ai = np.zeros((len(names), len(names)))
         if with_ai:
@@ -413,4 +422,4 @@ def reml_fit(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm], cfg: 
         cond = None  # singular AI matrix: components not separately identifiable
     status = "converged_boundary" if boundary else "converged"
     return REMLFit(variances, point.loglik, it0, status, boundary, [t.name for t in active], se,
-                   h2, h2_se, cond, start, source, history)
+                   h2, h2_se, cond, start, source, history, ev.trace_method)

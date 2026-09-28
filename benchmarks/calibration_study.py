@@ -51,7 +51,11 @@ import tempfile
 import time
 from pathlib import Path
 
-import numpy as np
+# One BLAS thread per worker process; must be set before NumPy is imported.
+for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+    os.environ.setdefault(_var, "1")
+
+import numpy as np  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -228,6 +232,4 @@ def main():
 
 
 if __name__ == "__main__":
-    for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
-        os.environ.setdefault(var, "1")      # one BLAS thread per worker process
     main()

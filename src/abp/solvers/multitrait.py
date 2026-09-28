@@ -155,6 +155,16 @@ def _pev_blocks(res: SolveResult, a0: int, q: int, t: int) -> np.ndarray:
     if isinstance(res.factor, DenseCholesky):
         return res.factor.inverse_diagonal_blocks(a0, q, t)
     if isinstance(res.factor, SparseLU):
+        # Blocks of one animal are on the factor pattern whenever the traits are coupled
+        # (non-zero genetic covariances); otherwise fall back to solves for unit vectors.
+        si = res.factor.selected_inverse()
+        ii, jj = np.meshgrid(np.arange(t), np.arange(t), indexing="ij")
+        base = a0 + np.arange(q)[:, None, None] * t
+        try:
+            vals = si.entries((base + ii).ravel(), (base + jj).ravel())
+            return vals.reshape(q, t, t)
+        except ABPError:
+            pass
         n = res.factor.n
         batch = max(t, (512 // t) * t)
         idx = np.arange(a0, a0 + q * t)
