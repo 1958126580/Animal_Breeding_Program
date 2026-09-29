@@ -124,6 +124,26 @@ The first version of the minimum-degree ordering took 83 s on the
 > 10√n aside and eliminating them last (as AMD does) reduced it to about
 2 s at the same fill.
 
+## Round 5: matrix-free single step
+
+`python benchmarks/ssmf_benchmark.py` (results `benchmarks/results/ssmf.json`,
+`.log`): 50,000 animals (10 generations), 6,000 genotyped (last generations),
+5,000 random SNPs, 45,000 records, 50,400 equations, G* = 0.95 G + 0.05 A22,
+PCG to a relative residual of 10⁻¹⁰. Each mode ran alone in its own process
+(peak resident memory of that process).
+
+| Mode | Build H⁻¹ / operator | PCG solve | Iterations | Peak memory | Check |
+|---|---:|---:|---:|---:|---|
+| explicit (dense G*⁻¹, A22, A22⁻¹, n × n₂ block) | 188.1 s | 9.6 s | 143 | 10.9 GB | reference |
+| explicit with APY (2,000 core) | 157.4 s | 7.7 s | 112 | 10.9 GB | reference for APY |
+| matrix-free, dense G*⁻¹ | 62.7 s | 2.0 s | 145 | 3.6 GB | max \|ΔEBV\| 3.4e-10 vs explicit |
+| matrix-free, APY operator (2,000 core) | 19.1 s | 1.4 s | 118 | 1.7 GB | max \|ΔEBV\| 6.4e-10 vs explicit APY |
+
+The explicit build is dominated by the dense `n × n₂` block used for
+`diag(H)` (reliabilities), which the matrix-free path does not compute. A
+first measurement in which another job shared the CPU gave the same memory
+figures (build 179 / 229 / 58 / 20 s); the table is the undisturbed rerun.
+
 ## Scale limits
 
 | Operation | Limit | Reason |
@@ -132,7 +152,7 @@ The first version of the minimum-degree ordering took 83 s on the
 | exact PEV, sparse path | memory of the symbolic factor (24 bytes per entry) within `resources.max_memory_gb` | LDL' or SuperLU + selected inversion; checked before numeric work (`ABP-E500`) |
 | REML | dense ≤ 12,000 equations; above, sparse factor + selected inversion within the memory budget | factor fill |
 | metafounder Γ estimation | dense in genotyped animals (`A22`, n₂ × m dosages) | GLS base allele frequencies |
-| G and H | dense `n_g × n_g` storage | APY reduces the inversion to `O(c³ + n c²)`; matrix-free single step is on the roadmap |
+| G and H (explicit) | dense `n_g × n_g` and `n × n_g` storage | APY reduces the inversion to `O(c³ + n c²)`; `single_step_mode = "matrix_free"` avoids the dense blocks (solutions only; memory `O(nnz(A⁻¹) + c² + c n_g + n_g m)` with APY) |
 | fixed-effect rank check | ≤ 20,000 columns | dense X'X scan |
 | OCS | a few thousand candidates | dense candidate A and active-set QP |
 | mating LP | ~10⁵ sire × dam pairs in seconds | LP size = number of pairs |

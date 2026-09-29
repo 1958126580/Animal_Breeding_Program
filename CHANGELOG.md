@@ -4,6 +4,26 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.5.0] - 2026-09-29
+
+Fifth development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- PEV and reliability including the uncertainty of REML variance estimates (Kackar–Harville, first order): `pev_incl_vc_uncertainty` and `reliability_incl_vc_uncertainty` columns for single-trait REML runs; `REMLFit.cov`, `REMLFit.cov_names`; `abp.solvers.vc_uncertainty`.
+- Laplace-approximate REML for the liability variances of categorical (threshold) traits (`variances.mode = "reml"` with `type = "categorical"`); warm-started Newton evaluations; documented bias in sparse data.
+- Reduced-rank genetic covariance matrix for multi-trait REML (`G0 = ΛΛ'`): `reml.boundary = "reduced_rank"` (refit after a boundary stop) and `reml.rank`; BLUP and PEV in the latent-factor space (`loadings` in `assemble_multitrait` / `build_and_solve`).
+- Matrix-free single step (`genomic.single_step_mode = "matrix_free"`): `H⁻¹` applied as an operator inside PCG, `A22⁻¹` as the Schur complement of sparse blocks of `A⁻¹`, APY inverse as an operator built from genotypes (`abp.core.ssop`); solutions only.
+- Self-test T15; benchmark `benchmarks/ssmf_benchmark.py`; calibration-study scenarios `single_step_apy150_true`, `single_step_apy300_true` and the Kackar–Harville metrics; threshold-study scenario `threshold_laplace`; API sections 19–22; methods §23–26.
+- Evidence: F9 repeated with 200 replicates (resolved as sampling variation).
+
+### Changed
+- **[results]** Single-trait REML runs write two additional EBV-file columns (existing columns unchanged).
+- The spec rule "categorical traits need known variances" now also accepts `mode = "reml"` (Laplace); `reml.start.residual` must then be 1.
+- Report: reduced-rank fits are explained; likelihood evaluations are counted as such.
+
+### Fixed
+- None in released code this round (test-construction corrections are listed in the validation report).
+
 ## [0.4.0] - 2026-09-29
 
 Fourth development round. Evidence and gaps: `docs/validation_report.md`.

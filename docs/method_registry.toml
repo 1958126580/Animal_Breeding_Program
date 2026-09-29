@@ -587,7 +587,9 @@ tests = ["tests/test_apy.py::test_apy_inverse_equals_inverse_of_implied_g_and_lo
          "tests/test_apy.py::test_singular_g_is_handled_when_core_is_full_rank",
          "tests/test_apy.py::test_single_step_with_apy_matches_explicit_h",
          "tests/test_apy.py::test_workflow_example05_with_apy"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+# G4: benchmarks/calibration_study.py APY scenarios (50 replicates, docs/validation/calibration_apy.json):
+# 300 of 476 genotyped as core: realized accuracy -0.0013 +- 0.0006 vs exact G^-1; 150 core: -0.0103 +- 0.0018.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_50_replicates_vs_exact_g", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["random core selection only (no eigenvalue-based core size rule)", "explicit single step stores A22^-1 and G_APY^-1 densely (memory n2^2); gen.ssgblup_matrix_free avoids this for solutions without PEV"]

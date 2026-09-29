@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-09-29, ABP 0.4.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-09-29, ABP 0.5.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -30,6 +30,12 @@ method in `docs/method_registry.toml`):
   threshold (probit) model for categorical traits; ABP's sparse LDL' with
   minimum-degree ordering (default sparse factor; SuperLU kept as
   reference); APY; metafounders for multi-trait models and LR validation;
+* **round 5**: PEV/reliability including REML uncertainty (Kackar–Harville,
+  single-trait); Laplace-approximate REML for threshold-model liability
+  variances (biased in sparse data, F11); reduced-rank G0 = ΛΛ′ for
+  multi-trait REML at the boundary (`reml.boundary`, `reml.rank`);
+  matrix-free single step (`genomic.single_step_mode = "matrix_free"`,
+  `abp/core/ssop.py`); self-test T15; F9 resolved; APY calibration study;
 * single-trait BLUP (animal, repeatability), dense/sparse/PCG solvers, PEV,
   reliability; **exact PEV at any size whose factor fits in memory by sparse
   selected inversion** (round 3; Takahashi equations on the symbolic Cholesky
@@ -44,9 +50,16 @@ method in `docs/method_registry.toml`):
 * optimal contribution selection and mating plans (`abp mate`, proposals
   only);
 * workflow with atomic outputs, manifests and reports; CLI; launchers;
-  synthetic sheep generator; 14 examples; documentation; self-test T01–T14.
+  synthetic sheep generator; 14 examples; documentation; self-test T01–T15.
 
 ## 2. Commands that were run (Linux) and their results
+
+Round 5: full test suite with the native kernel (259 passed) and with
+`ABP_DISABLE_NATIVE=1`, `abp selftest` (T01–T15), all examples and the API
+example, F9 study (2 × 200 replicates), Kackar–Harville calibration (50),
+APY calibration (50), threshold study with Laplace REML (30), matrix-free
+benchmark (50,000 animals / 6,000 genotyped); CI runs 36522550336,
+36523269114, 36524938324 green on 7 jobs (validation report §3, §3a, §7.9).
 
 Round 4: full test suite with both kernels, `abp selftest` (T01–T14), all
 examples incl. 13 and 14, the F6 factor study (4 × 50 replicates), the
@@ -68,8 +81,8 @@ on 7 jobs (run 36447242937: 211 passed on Windows and Linux).
 Windows performance measurements (functional tests only, in CI), CUDA (no
 implementation), real-data validation and comparison software (no data or
 licenses), LR population accuracy (erratum not verifiable), posterior SBC,
-an APY calibration study, liability-variance estimation for the threshold
-model.
+Kackar–Harville PEV for multi-trait REML, a calibration study of the
+reduced-rank fit, matrix-free single step beyond 50,000 animals.
 
 ## 4. Open scientific and engineering risks
 
@@ -78,11 +91,14 @@ See `docs/validation_report.md` §8. The most important:
 * **F6 (resolved; cause of the remainder known)**: metafounder single step is
   unbiased; its residual 8% PEV over-confidence comes from marker density
   (calibrated with 10,000 SNPs). Single step with `match_a22` remains biased.
-* **F9 (new observation)**: pedigree BLUP bias 0.135 ± 0.044 kg under random
-  selection in one factor design; unexplained, repeat with more replicates.
-* **F10**: multi-trait REML stops at boundary optima (diagnosed, by design).
-* PEV with REML-estimated variances is 7-13% optimistic (single- and
-  multi-trait): estimation error is not propagated.
+* **F9 resolved**: 200 replicates, bias 0.049 ± 0.024 kg (sampling variation).
+* **F10 addressed (opt-in)**: reduced-rank G0; default still stops with
+  ABP-E300; singular R0 still stops.
+* **F11 (new)**: Laplace REML of liability variances biased (−23% genetic
+  variance, 6/30 at the bound); known liability variances recommended.
+* **F12 resolved for single-trait**: Kackar–Harville PEV calibrates pedigree
+  REML (MSE/PEV 1.017); multi-trait REML PEV is still ~9–13% optimistic.
+* Matrix-free single step gives no reliabilities (no diag(C⁻¹) on that path).
 * **F7**: genetic groups defined by long periods leave bias when the level
   drifts within a period.
 * **F8**: BayesCπ π₀ mixing can be slow; ABP withholds such results.
@@ -109,17 +125,23 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 4 completed all six tasks listed here in round 3. Next:
+Round 5 completed tasks 1–5 listed here in round 4 (task 4 partly:
+estimation exists but is biased; multi-trait threshold models not started).
+Next:
 
-1. F9: repeat the random-selection design with 200 replicates and check the
-   founder-mean centring of the TBVs.
-2. Propagate variance-estimation uncertainty into reliabilities (or report
-   it), since REML-based PEV is 7-13% optimistic in every study.
-3. Matrix-free single step (A22⁻¹ and G⁻¹/APY applied as operators in PCG) so
-   that memory no longer grows with n₂²; an APY calibration study.
-4. Threshold model: liability-variance estimation (Laplace or MCMC) and
-   multi-trait threshold/linear models.
-5. Boundary handling for multi-trait REML (reduced-rank G0).
+1. Threshold model: an unbiased liability-variance estimator (Gibbs sampling
+   with data augmentation, reusing the MCMC diagnostics) and compare it with
+   the Laplace estimate in `benchmarks/threshold_study.py` (F11).
+2. Kackar–Harville PEV for multi-trait REML (covariance of vech(G0, R0) from
+   the AI matrix; derivatives by central differences as in
+   `abp/solvers/vc_uncertainty.py`).
+3. Approximate reliabilities on the matrix-free single-step path (e.g.
+   Misztal–Wiggans style or block-sampling estimates of diag(C⁻¹)), and a
+   run beyond 100,000 animals / 20,000 genotyped with genotypes stored as
+   int8.
+4. Calibration study of reduced-rank multi-trait REML (simulate rG = 0.99 and
+   rank-deficient G0) and an analytic gradient to replace central differences.
+5. Multi-trait threshold/linear models.
 6. Real-data validation (G5) and comparison software — blocked on the gaps
    in §5.
 
@@ -130,7 +152,8 @@ Round 4 completed all six tasks listed here in round 3. Next:
 | `src/abp/` | package (see `docs/api.md` for layers) |
 | `src/abp/core/metafounders.py`, `src/abp/workflows/metafounder_inputs.py` | metafounders (round 3) |
 | `src/abp/solvers/selinv.py` | sparse selected inversion (round 3) |
-| `src/abp/solvers/cholesky.py`, `multitrait_reml.py`, `threshold.py` | sparse LDL', multi-trait REML, threshold model (round 4) |
+| `src/abp/solvers/cholesky.py`, `multitrait_reml.py`, `threshold.py` | sparse LDL', multi-trait REML, threshold model (round 4); reduced-rank REML and Laplace REML (round 5) |
+| `src/abp/solvers/vc_uncertainty.py`, `src/abp/core/ssop.py` | Kackar–Harville PEV; matrix-free single-step operators (round 5) |
 | `src/abp/_native.cpp` | C++20 kernels: inbreeding, Bayesian sweep, `ml_general`, `symbolic_cholesky`, `takahashi`, `mindegree_order`, `ldl_numeric`, `ldl_solve` |
 | `tests/` | test suite; `tests/reference/` holds the independent dense references (incl. `tabular_a_metafounders`) |
 | `examples/` | runnable examples and synthetic data (`*/truth` folders are for validation only) |

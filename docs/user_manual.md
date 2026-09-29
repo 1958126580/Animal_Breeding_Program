@@ -1676,7 +1676,8 @@ remedy: Correct the parent IDs or the sex column for the listed animals.
 | `ABP-E303` "repeated records" | Add `{ name = "pe", kind = "iid" }` to `model.random`. |
 | `ABP-E500` during selected inversion | The sparse factor does not fit in `resources.max_memory_gb`. Raise the budget if the machine has the memory, or set `solver.pev = "none"`. |
 | `ABP-E404` "not positive definite (non-positive pivot)" | The coefficient matrix is not positive definite: check that variances are > 0 and that fixed effects are not confounded. |
-| `ABP-E300` "estimated G0/R0 is (nearly) singular" | Multi-trait REML reached a boundary (a variance or correlation at its limit). Drop a trait, merge sparse classes, or give known covariances. |
+| `ABP-E300` "estimated G0/R0 is (nearly) singular" or "keeps increasing towards the boundary" | Multi-trait REML reached a boundary (a variance or correlation at its limit). For a genetic correlation at ±1 set `reml.boundary = "reduced_rank"` (§7.6); otherwise drop a trait, merge sparse classes, or give known covariances. |
+| `ABP-E300` "Laplace-approximate variance … at the search bound" | Threshold-model REML found no information on a liability variance. Give known liability variances. |
 | `ABP-E302` "APY: G_cc … is not positive definite" | The APY core is larger than the rank of G (for example more core animals than markers). Use a smaller `apy_core_size`. |
 | `ABP-E205 PEDIGREE_UNASSIGNED_BASE` | With `[metafounders]`, an unknown parent has no metafounder. Code it (`MF:…`) or set `metafounders.default`. |
 | `ABP-E302` with metafounders | Γ is not positive definite (file values, or too few genotyped descendants for an estimate), or is too large for the pedigree (Mendelian sampling variance ≤ 0). |
@@ -1699,9 +1700,9 @@ The complete list is in [`error_codes.md`](error_codes.md).
 
 What ABP does **not** do yet: maternal and social effects,
 random regression and test-day models, multi-trait threshold models,
-estimation of liability variances, survival models,
-genotype × environment models, dominance and epistasis, matrix-free
-single step for very large genotyped populations, multi-trait
+unbiased estimation of liability variances in sparse categorical data,
+survival models, genotype × environment models, dominance and epistasis,
+reliabilities or REML on the matrix-free single-step path, multi-trait
 or single-step Bayesian models, Bayesian LASSO/horseshoe priors, genomic
 OCS, VCF/BGEN/PLINK 2 readers, and GPU computation.
 
