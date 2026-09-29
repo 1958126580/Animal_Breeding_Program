@@ -193,3 +193,87 @@ def test_several_metafounders_need_a_reference(tmp_path):
         ",".join(r) for r in PED).replace("0", "MF:Y") + "\n", encoding="utf-8")
     with pytest.raises(ABPError, match="metafounders.reference"):
         run_evaluation(spec, tmp_path / "o", console=False)
+
+
+def test_multitrait_metafounder_run_matches_v_form_reference(tmp_path):
+    """Two traits on a metafounder base: EBVs, contrasts with the reference
+    metafounder and their PEV equal the V-form model with A_ext (x) G0."""
+    spec = _write_case(tmp_path)
+    recs = [("d", 11.0, 3.1), ("e", 9.5, ""), ("f", 12.0, 2.2), ("g", 10.0, 2.9),
+            ("c", 13.5, 3.5), ("b", "", 2.0), ("a", 10.5, 2.4)]
+    (tmp_path / "y.csv").write_text("id,y,z\n" + "\n".join(f"{a},{v},{w}" for a, v, w in recs)
+                                    + "\n", encoding="utf-8")
+    G0 = np.array([[2.0, 0.6], [0.6, 1.0]])
+    R0 = np.array([[3.0, 0.4], [0.4, 1.5]])
+    txt = spec.read_text(encoding="utf-8")
+    txt = txt.replace('[[traits]]\nname = "y"\nunit = "kg"\n',
+                      '[[traits]]\nname = "y"\nunit = "kg"\n[[traits]]\nname = "z"\nunit = "kg"\n')
+    txt = txt.replace('traits = ["y"]', 'traits = ["y", "z"]')
+    txt = txt.replace('values = { animal = 2.0, residual = 3.0 }',
+                      'values.animal = [[2.0, 0.6], [0.6, 1.0]]\n'
+                      'values.residual = [[3.0, 0.4], [0.4, 1.5]]')
+    txt += '[index]\nweights = { y = 1.0, z = 2.0 }\nweight_units = "u"\nsynthetic_weights = true\n'
+    spec.write_text(txt, encoding="utf-8")
+    out = run_evaluation(spec, tmp_path / "o", console=False)
+    records = [(a, s, "MF:Y" if d == "0" else d) for a, s, d in PED]
+    labels, A = tabular_a_metafounders(records, ("MF:X", "MF:Y"), GAMMA)
+    obs = [(i, j, float(v)) for i, (a, *vals) in enumerate(recs) for j, v in enumerate(vals)
+           if v != ""]
+    y = np.array([v for _, _, v in obs])
+    Z = np.zeros((len(obs), len(labels) * 2))
+    X = np.zeros((len(obs), 2))
+    for k, (i, j, _) in enumerate(obs):
+        Z[k, labels.index(recs[i][0]) * 2 + j] = 1
+        X[k, j] = 1
+    R = np.zeros((len(obs), len(obs)))
+    for k1, (i1, j1, _) in enumerate(obs):
+        for k2, (i2, j2, _) in enumerate(obs):
+            if i1 == i2:
+                R[k1, k2] = R0[j1, j2]
+    _, u, pev = blup_v_form(y, X, Z, np.kron(A, G0), R)
+    rows = {r["animal"]: r for r in _read(out.out_dir / "ebv_multitrait.csv")}
+    assert set(rows) == {a for a, _, _ in PED}            # metafounders are not listed as animals
+    r_ = labels.index("MF:Y")
+    for lab in rows:
+        i = labels.index(lab)
+        for j, tr in enumerate(["y", "z"]):
+            assert float(rows[lab][f"ebv_{tr}"]) == pytest.approx(u[2 * i + j], abs=1e-9)
+            c = u[2 * i + j] - u[2 * r_ + j]
+            assert float(rows[lab][f"ebv_vs_base_{tr}"]) == pytest.approx(c, abs=1e-9)
+            pc = pev[2 * i + j, 2 * i + j] + pev[2 * r_ + j, 2 * r_ + j] - 2 * pev[2 * i + j, 2 * r_ + j]
+            assert float(rows[lab][f"sep_vs_base_{tr}"]) == pytest.approx(np.sqrt(pc), abs=1e-9)
+            prior = G0[j, j] * (A[i, i] - 2 * A[i, r_] + A[r_, r_])
+            assert float(rows[lab][f"reliability_vs_base_{tr}"]) == pytest.approx(1 - pc / prior,
+                                                                                  abs=1e-9)
+    mfs = _read(out.out_dir / "metafounder_solutions_multitrait.csv")
+    assert {(r["metafounder"], r["trait"]) for r in mfs} == {(m, t) for m in ("MF:X", "MF:Y")
+                                                            for t in ("y", "z")}
+    # the index is built from the contrasts (ranking unchanged by the common shift)
+    idx = {r["animal"]: float(r["index"]) for r in _read(out.out_dir / "index.csv")}
+    for lab, row in rows.items():
+        assert idx[lab] == pytest.approx(float(row["ebv_vs_base_y"]) + 2 * float(row["ebv_vs_base_z"]),
+                                         abs=1e-9)
+
+
+def test_lr_validation_on_a_metafounder_base(tmp_path):
+    """Example 08 on a metafounder base (gamma from a documented file): the LR
+    focal EBVs are contrasts with the base and equal the whole evaluation."""
+    ex = ROOT / "examples" / "08_sheep_wwt_lr_validation" / "analysis.toml"
+    txt = ex.read_text(encoding="utf-8").replace("../sheep_data", str(ROOT / "examples" / "sheep_data"))
+    # known variances: the LR "whole" evaluation then equals the main evaluation exactly
+    # (with REML, LR estimates variances on the partial data only, by design)
+    txt = txt.replace('[variances]\nmode = "reml"',
+                      '[variances]\nmode = "known"\nvalues = { animal = 5.5, residual = 12.25 }')
+    txt = txt.replace("bootstrap_replicates = 1000", "bootstrap_replicates = 50")
+    (tmp_path / "g.csv").write_text("metafounder_1,metafounder_2,gamma\nMF:BASE,MF:BASE,0.5\n",
+                                    encoding="utf-8")
+    txt += ('\n[metafounders]\nprefix = "MF:"\ndefault = "MF:BASE"\ngamma_source = "file"\n'
+            'gamma_file = "g.csv"\ngamma_provenance = "test value, not an estimate"\n')
+    (tmp_path / "a.toml").write_text(txt, encoding="utf-8")
+    out = run_evaluation(tmp_path / "a.toml", tmp_path / "o", console=False)
+    lr = out.results["validation"] if "validation" in out.results else out.results["traits"]["wwt"]["validation"]
+    assert lr["n_focal"] > 100 and lr["variance_source"].startswith("known")
+    whole = {r["animal"]: float(r["ebv_vs_base"]) for r in _read(out.out_dir / "ebv_wwt.csv")}
+    focal = _read(out.out_dir / "lr_focal_wwt.csv")
+    for r in focal[:20]:
+        assert float(r["ebv_whole"]) == pytest.approx(whole[r["animal"]], abs=1e-8)

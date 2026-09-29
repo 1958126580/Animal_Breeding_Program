@@ -159,6 +159,16 @@ def _evaluate(spec: AnalysisSpec, records: RecordSet, trait: str, structure: Gen
                compute_pev=(sol["pev"] == "exact"), tol=sol["tol"], max_iter=sol["max_iter"],
                memory_budget_bytes=budget)
     g = res.terms[model.genetic_term]
+    if structure.kind in ("pedigree_mf", "single_step_mf"):
+        # metafounders: compare EBVs relative to the reference base population; a change of
+        # the estimated base level between partial and whole data is not a prediction error
+        from .metafounder_inputs import base_contrast
+        c = base_contrast(res, model.genetic_term, structure, vc[model.genetic_term],
+                          spec["metafounders"])
+        n = structure.meta["n_animals"]
+        labels = list(g.labels[:n])
+        rel = {} if c["reliability"] is None else dict(zip(labels, c["reliability"].tolist()))
+        return _Eval(dict(zip(labels, c["ebv"].tolist())), rel)
     rel = {} if g.reliability is None else dict(zip(g.labels, g.reliability.tolist()))
     return _Eval(dict(zip(g.labels, g.solution.tolist())), rel)
 

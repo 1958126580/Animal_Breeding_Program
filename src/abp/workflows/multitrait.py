@@ -98,6 +98,15 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
              s.selection_reason, s.rel_residual, s.wall_seconds)
     ped = ped_data.pedigree if ped_data else None
     sex = ped_data.sex if ped_data else {}
+    # metafounders: animals first, then metafounder equations; report animals, plus the
+    # contrast with the reference metafounder (see metafounder_inputs.base_contrast_multitrait)
+    mf = structure.kind in ("pedigree_mf", "single_step_mf")
+    contrast = None
+    n_an = len(structure.labels)
+    if mf:
+        from .metafounder_inputs import base_contrast_multitrait
+        contrast = base_contrast_multitrait(res, structure, G0, d["metafounders"])
+        n_an = structure.meta["n_animals"]
     n_rec = {tr: {} for tr in traits}
     for j, tr in enumerate(traits):
         for a, obs in zip(animals, ~np.isnan(Y[:, j])):
@@ -106,9 +115,13 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
     header = ["animal", "sire", "dam", "sex", "generation", "inbreeding"]
     for tr in traits:
         header += [f"ebv_{tr}", f"reliability_{tr}", f"sep_{tr}", f"n_records_{tr}"]
+        if mf:
+            header += [f"ebv_vs_base_{tr}", f"reliability_vs_base_{tr}", f"sep_vs_base_{tr}"]
     rows_out = []
     F = ped.inbreeding() if ped is not None else None
-    for i, a in enumerate(structure.labels):
+    if "inbreeding_mf_base" in structure.meta:
+        F = structure.meta["inbreeding_mf_base"]
+    for i, a in enumerate(structure.labels[:n_an]):
         if ped is not None and ped.contains(a):
             k = ped.index_of([a])[0]
             base = [a, ped.ids[ped.sire[k]] if ped.sire[k] >= 0 else "",
@@ -121,6 +134,11 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
                      None if res.reliability is None else float(res.reliability[i, j]),
                      None if res.pev_blocks is None else float(np.sqrt(res.pev_blocks[i, j, j])),
                      n_rec[tr].get(a, 0)]
+            if mf:
+                c = contrast
+                base += [float(c["ebv"][i, j]),
+                         None if c["reliability"] is None else float(c["reliability"][i, j]),
+                         None if c["pev"] is None else float(np.sqrt(c["pev"][i, j, j]))]
         rows_out.append(base)
     write_csv(stage.path("ebv_multitrait.csv"), header, rows_out)
     out: dict = {}
@@ -136,13 +154,13 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
             else:
                 fr.append([lab[0], lab[1], 0.0, "constrained_to_zero"])
         write_csv(stage.path(fname), ["term", "level", "solution", "status"], fr)
-        e = res.ebv[:, j]
+        e = res.ebv[:n_an, j]
         order = np.argsort(-e, kind="stable")[:top_n]
-        rel = None if res.reliability is None else res.reliability[:, j]
+        rel = None if res.reliability is None else res.reliability[:n_an, j]
         out[tr] = {
             "unit": records.units.get(tr, ""),
             "n_records": int((~np.isnan(Y[:, j])).sum()),
-            "n_animals_evaluated": len(structure.labels),
+            "n_animals_evaluated": n_an,
             "variance_source": variance_source,
             "variance_components": {add_name: float(G0[j, j]), "residual": float(R0[j, j])},
             "heritability": float(G0[j, j] / (G0[j, j] + R0[j, j])),
@@ -172,6 +190,20 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
         "residual_covariance": R0.tolist(), "residual_correlation": _corr(R0),
         "variance_source": variance_source, "reml": reml_info,
         "solver": out[traits[0]]["solver"]}
+    if mf:
+        from .metafounder_inputs import write_metafounder_solutions_multitrait
+        name = write_metafounder_solutions_multitrait(stage, res, structure, traits)
+        info = {"metafounders": structure.meta["metafounders"], "gamma": structure.meta["gamma"],
+                "gamma_source": structure.meta["gamma_source"],
+                "gamma_provenance": structure.meta["gamma_provenance"],
+                "reference": contrast["reference"],
+                "reliability_vs_base_summary": contrast["summary"], "file": name}
+        for tr in traits:
+            out[tr]["metafounders"] = info
+        # the index works on EBVs relative to the reference base, with their PEV blocks
+        state = EvalState(tuple(structure.labels[:n_an]), traits, contrast["ebv"],
+                          contrast["pev"], G0, contrast["k_factor"], True, sex)
+        return out, state
     state = EvalState(structure.labels, traits, res.ebv, res.pev_blocks, G0, structure.k_diag,
                       True, sex)
     return out, state

@@ -202,3 +202,20 @@ def test_spec_refuses_start_values_for_multitrait_reml():
     d["reml"] = {"start": {"animal": 1.0, "residual": 1.0}}
     with pytest.raises(ABPError, match="reml.start"):
         validate_spec_dict(d)
+
+
+def test_stored_zeros_in_k_inverse_are_ignored(monkeypatch):
+    """A^-1 can store exact zeros (a son mated to his own dam cancels one entry);
+    they are not in the pattern of C and must not be requested from the
+    selected inverse (regression: seed 2 of the multi-trait study)."""
+    ped, data, A = _problem(13)
+    Ki = ped.ainv().tocoo()
+    dense = ped.ainv().toarray()
+    i, j = map(int, np.argwhere(dense == 0)[0])           # a pair with no entry
+    Kz = sp.csr_matrix((np.r_[Ki.data, 0.0, 0.0], (np.r_[Ki.row, i, j], np.r_[Ki.col, j, i])),
+                       shape=Ki.shape)
+    assert (Kz.data == 0).sum() == 2                      # explicit stored zeros
+    monkeypatch.setattr(MR, "DENSE_MAX", 5)
+    th = MR._pack(np.array([[1.5, 0.4], [0.4, 1.0]]), np.array([[3.0, 0.5], [0.5, 2.0]]))
+    p = MR.MTREMLEvaluator(data, Kz, ped.logdet_a()).evaluate(th)
+    assert -2 * p.loglik == pytest.approx(_v_form_m2ll(data, A, *MR._unpack(th, 2)), abs=1e-8)

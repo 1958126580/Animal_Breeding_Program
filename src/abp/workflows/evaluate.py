@@ -528,6 +528,11 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
     n_a = len(gen.labels)
     k_diag = np.asarray(structure.k_diag)[:n_a]
     pev_idx = None if gen.pev is None or not np.all(np.isfinite(k_diag)) else gen.pev[:, None, None]
+    if contrast is not None:          # metafounders: index on EBVs relative to the base
+        pev_c = None if contrast["pev"] is None else contrast["pev"][:, None, None]
+        state = EvalState(tuple(gen.labels), [trait], contrast["ebv"][:, None], pev_c,
+                          np.array([[vc[model.genetic_term]]]), contrast["k_factor"], False, sex)
+        return out, state
     state = EvalState(tuple(gen.labels), [trait], gen.solution[:, None], pev_idx,
                       np.array([[vc[model.genetic_term]]]), k_diag, False, sex)
     return out, state

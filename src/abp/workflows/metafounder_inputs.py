@@ -156,7 +156,10 @@ def base_contrast(res, term: str, structure: GeneticStructure, sigma2: float,
     r = labels.index(ref)
     tr = res.terms[term]
     ebv = tr.solution[:n] - tr.solution[n + r]
-    out = {"reference": ref, "ebv": ebv, "pev": None, "reliability": None, "summary": None}
+    kcol = m["cov_with_metafounders"][:, r]            # K[:, r] over (animals, metafounders)
+    kfac = np.asarray(structure.k_diag)[:n] - 2.0 * kcol[:n] + kcol[n + r]
+    out = {"reference": ref, "ebv": ebv, "pev": None, "reliability": None, "summary": None,
+           "k_factor": kfac}
     if tr.pev is None or res.solve.factor is None:
         return out
     a, _ = res.system.offsets[term]
@@ -164,8 +167,7 @@ def base_contrast(res, term: str, structure: GeneticStructure, sigma2: float,
     e[a + n + r] = 1.0
     col = res.solve.factor.solve(e)[a:a + n]
     pev = tr.pev[:n] + tr.pev[n + r] - 2.0 * col
-    kcol = m["cov_with_metafounders"][:, r]            # K[:, r] over (animals, metafounders)
-    prior = sigma2 * (np.asarray(structure.k_diag)[:n] - 2.0 * kcol[:n] + kcol[n + r])
+    prior = sigma2 * kfac
     rel_raw = 1.0 - pev / prior
     bad = (rel_raw < -RELIABILITY_ROUNDING_BAND) | (rel_raw > 1 + RELIABILITY_ROUNDING_BAND)
     if np.any(bad):
@@ -180,3 +182,68 @@ def base_contrast(res, term: str, structure: GeneticStructure, sigma2: float,
                         "max": float(rel.max()),
                         "n_rounding_clamped": int(np.sum(rel != rel_raw))})
     return out
+
+
+def base_contrast_multitrait(res, structure: GeneticStructure, G0: np.ndarray,
+                             cfg: dict) -> dict:
+    """Multi-trait version of :func:`base_contrast` (``res`` from ``build_and_solve``).
+
+    For animal ``i`` and the reference metafounder ``r`` (all ``t x t`` blocks of
+    ``C^{-1}`` in animal-major order): ``PEV(c_i) = C^ii + C^rr - C^ir - C^ri``;
+    prior ``Var(c_i) = (K_ii - 2 K_ir + K_rr) G0``.  ``C^ir`` comes from ``t``
+    solves with unit vectors at the reference's equations.  Returns the contrast
+    EBVs (``n x t``), PEV blocks (``n x t x t``), the scalar prior factor
+    ``K_ii - 2 K_ir + K_rr`` (``n``) and reliabilities (``n x t``).
+    """
+    m = structure.meta
+    n = m["n_animals"]
+    labels = list(m["metafounders"])
+    ref = reference_metafounder(cfg, labels)
+    r = labels.index(ref)
+    t = G0.shape[0]
+    ebv = res.ebv[:n] - res.ebv[n + r][None, :]
+    kcol = m["cov_with_metafounders"][:, r]
+    kfac = np.asarray(structure.k_diag)[:n] - 2.0 * kcol[:n] + kcol[n + r]
+    out = {"reference": ref, "ebv": ebv, "pev": None, "k_factor": kfac, "reliability": None,
+           "summary": None}
+    if res.pev_blocks is None or res.solve.factor is None:
+        return out
+    a0 = int(sum(f.size for f in res.fixed))
+    neq = res.solve.solution.size
+    E = np.zeros((neq, t))
+    E[a0 + (n + r) * t + np.arange(t), np.arange(t)] = 1.0
+    cols = res.solve.factor.solve(E)[a0:a0 + n * t].reshape(n, t, t)     # C^{(i,j),(r,k)}
+    pev = res.pev_blocks[:n] + res.pev_blocks[n + r][None] - cols - cols.transpose(0, 2, 1)
+    prior = kfac[:, None] * np.diag(G0)[None, :]
+    rel_raw = 1.0 - np.einsum("ijj->ij", pev) / prior
+    bad = (rel_raw < -RELIABILITY_ROUNDING_BAND) | (rel_raw > 1 + RELIABILITY_ROUNDING_BAND)
+    if np.any(bad):
+        i, j = map(int, np.argwhere(bad)[0])
+        raise ABPError("RELIABILITY_OUT_OF_RANGE",
+                       f"multi-trait reliability relative to {ref} is {rel_raw[i, j]:.6g} "
+                       f"(animal index {i}, trait index {j}), outside [0, 1]",
+                       n_bad=int(bad.sum()))
+    rel = np.clip(rel_raw, 0.0, 1.0)
+    out.update(pev=pev, reliability=rel,
+               summary={"mean": rel.mean(axis=0).tolist(), "min": rel.min(axis=0).tolist(),
+                        "max": rel.max(axis=0).tolist()})
+    return out
+
+
+def write_metafounder_solutions_multitrait(stage, res, structure: GeneticStructure,
+                                           traits: list[str]) -> str:
+    """``metafounder_solutions_multitrait.csv``: level and SEP of each metafounder per trait."""
+    from ..io.tables import write_csv
+    m = structure.meta
+    n = m["n_animals"]
+    gamma = np.asarray(m["gamma"])
+    rows = []
+    for k, g in enumerate(m["metafounders"]):
+        for j, tr in enumerate(traits):
+            pev = None if res.pev_blocks is None else float(res.pev_blocks[n + k, j, j])
+            rows.append([g, tr, float(gamma[k, k]), float(res.ebv[n + k, j]), pev,
+                         None if pev is None else float(np.sqrt(pev))])
+    name = "metafounder_solutions_multitrait.csv"
+    write_csv(stage.path(name), ["metafounder", "trait", "gamma_self", "solution", "pev", "sep"],
+              rows)
+    return name

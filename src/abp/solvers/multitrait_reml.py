@@ -145,7 +145,10 @@ class MTREMLEvaluator:
             raise ABPError("UNSUPPORTED_COMBINATION", "multi-trait REML needs log|K| of the "
                            "relationship structure")
         self.data = data
-        self.k_inv = sp.csr_matrix(k_inv) if not sp.issparse(k_inv) else k_inv.tocsr()
+        self.k_inv = sp.csr_matrix(k_inv) if not sp.issparse(k_inv) else k_inv.tocsr().copy()
+        # stored zeros (exact cancellation in A^-1, e.g. a son mated to his dam) are not in the
+        # pattern of C and contribute nothing to the traces: drop them
+        self.k_inv.eliminate_zeros()
         self.logdet_k = float(logdet_k)
         self.budget = memory_budget_bytes
         Y = np.asarray(data.Y, dtype=np.float64)
@@ -193,6 +196,8 @@ class MTREMLEvaluator:
                 pw.append(np.outer(vi, vj).ravel())
                 pi.append(np.full(A.size, i))
                 pj.append(np.full(A.size, j))
+        nz = np.concatenate(pw) != 0.0
+        pi, pj, pa, pb, pw = ([np.concatenate(x)[nz]] for x in (pi, pj, pa, pb, pw))
         self.q_i = np.concatenate(pi)
         self.q_j = np.concatenate(pj)
         self.q_a = np.concatenate(pa)

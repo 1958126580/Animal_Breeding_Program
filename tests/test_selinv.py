@@ -184,3 +184,21 @@ def test_sparse_lu_selected_inverse_is_cached():
     A = _spd(50, 0.1, 1)
     f = SparseLU(A.tocsr())
     assert f.selected_inverse() is f.selected_inverse()
+
+
+def test_sparse_reml_ignores_stored_zeros_in_k_inverse(monkeypatch):
+    """Single-trait sparse REML with an explicit zero stored in K^-1 (regression)."""
+    ped, rec, X, y = _pedigree_problem(300, 3)
+    term = animal_term(ped, rec)
+    Ki = term.k_inv.tocoo()
+    i, j = 0, ped.n - 1
+    Kz = sp.csr_matrix((np.r_[Ki.data, 0.0, 0.0], (np.r_[Ki.row, i, j], np.r_[Ki.col, j, i])),
+                       shape=Ki.shape)
+    term.k_inv = Kz
+    import abp.solvers.reml as R
+    theta = np.array([1.2, 2.7])
+    dense = REMLEvaluator(y, X, [term], 2**34).evaluate(theta)
+    monkeypatch.setattr(R, "DENSE_REML_MAX", 10)
+    sparse = REMLEvaluator(y, X, [term], 2**34).evaluate(theta)
+    assert sparse.loglik == pytest.approx(dense.loglik, abs=1e-8)
+    np.testing.assert_allclose(sparse.score, dense.score, atol=1e-9)

@@ -251,6 +251,8 @@ class SelectedInverse:
     def trace_product(self, M: sp.spmatrix, offset: int = 0) -> float:
         """``sum_ij M_ij C^{-1}[offset+i, offset+j]`` for sparse symmetric ``M``."""
         Mc = sp.coo_matrix(M)
+        keep = Mc.data != 0.0         # stored zeros (e.g. exact cancellation in A^-1) add nothing
+        Mc = sp.coo_matrix((Mc.data[keep], (Mc.row[keep], Mc.col[keep])), shape=Mc.shape)
         if Mc.nnz == 0:
             return 0.0
         return float(np.dot(Mc.data, self.entries(Mc.row + offset, Mc.col + offset)))

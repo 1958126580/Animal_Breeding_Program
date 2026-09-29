@@ -559,12 +559,6 @@ def validate_spec_dict(raw: dict) -> dict:
         if d["variances"]["mode"] == "bayes":
             raise ABPError("UNSUPPORTED_COMBINATION", "metafounders are implemented for "
                            "BLUP/REML (variances.mode = 'known' or 'reml') only")
-        if len(m["traits"]) > 1:
-            raise ABPError("UNSUPPORTED_COMBINATION", "metafounders are implemented for "
-                           "single-trait models only in this version")
-        if d["validation"] is not None:
-            raise ABPError("UNSUPPORTED_COMBINATION", "LR validation with metafounders is not "
-                           "implemented in this version")
         if mfc["prefix"] in d["data"]["unknown_parent_values"]:
             raise _err("metafounders.prefix", "must differ from every data.unknown_parent_values code")
         if mfc["default"] is not None and not mfc["default"].startswith(mfc["prefix"]):
