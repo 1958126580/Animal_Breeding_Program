@@ -157,7 +157,7 @@ def _evaluate(spec: AnalysisSpec, records: RecordSet, trait: str, structure: Gen
     sol = spec["solver"]
     res = blup(model.y, model.fixed.X, active, vc, method=sol["method"],
                compute_pev=(sol["pev"] == "exact"), tol=sol["tol"], max_iter=sol["max_iter"],
-               memory_budget_bytes=budget)
+               memory_budget_bytes=budget, factorization=sol["factorization"])
     g = res.terms[model.genetic_term]
     if structure.kind in ("pedigree_mf", "single_step_mf"):
         # metafounders: compare EBVs relative to the reference base population; a change of

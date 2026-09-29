@@ -1,0 +1,42 @@
+{
+  "created_at": "2026-09-29T00:53:39+00:00",
+  "environment": {
+    "os": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "blas": {
+      "name": "scipy-openblas",
+      "version": "0.3.31.188.0"
+    },
+    "cpu_count": 4,
+    "gpu": null,
+    "native_kernel": true,
+    "dtype": "float64"
+  },
+  "groups": [
+    "ldl",
+    "apy"
+  ],
+  "cases": [
+    {
+      "case": "exact_pev_ldl_vs_superlu_100000animals",
+      "n_animals": 100000,
+      "ldl_wall_s": 3.219290593999631,
+      "ldl_nnz_factor": 1276361,
+      "superlu_wall_s": 17.705582348000007,
+      "superlu_nnz_factor": 1274782,
+      "max_abs_diff_ebv": 1.7555401576885288e-13,
+      "max_abs_diff_pev": 5.652422974122828e-14
+    },
+    {
+      "case": "g_inverse_8000genotyped_10000markers",
+      "full_inverse_s": 14.609348683000007,
+      "apy_inverse_s": 2.4035348510001313,
+      "n_core": 2000,
+      "min_m": 0.7433521495167352
+    }
+  ],
+  "peak_rss_bytes": 3570753536
+}

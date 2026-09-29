@@ -52,7 +52,7 @@ from scipy.special import ndtr
 
 from ..errors import ABPError
 from .blup import RELIABILITY_ROUNDING_BAND, RandomTerm, TermResult
-from .mme import DenseCholesky, SparseLU
+from .mme import DenseCholesky, make_sparse_factor
 
 _SQRT2PI = np.sqrt(2.0 * np.pi)
 
@@ -262,4 +262,4 @@ def _factor(M: sp.csr_matrix, budget: int):
     n = M.shape[0]
     if n <= 12000 and 16 * n * n <= budget:
         return DenseCholesky(M.toarray())
-    return SparseLU(M, budget)
+    return make_sparse_factor(M, budget)

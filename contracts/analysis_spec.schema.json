@@ -408,6 +408,16 @@
             "none"
           ],
           "default": "exact"
+        },
+        "factorization": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "ldl",
+            "superlu"
+          ],
+          "default": "auto",
+          "description": "Sparse direct factor: ABP's LDL' with minimum-degree ordering ('auto' when the compiled kernel is present) or SuperLU."
         }
       }
     },
@@ -512,6 +522,15 @@
             "match_a22"
           ],
           "default": "none"
+        },
+        "apy_core_size": {
+          "type": "integer",
+          "default": 0,
+          "description": "APY: number of core animals (0 = off, the exact G inverse). Core animals are drawn at random among the genotyped with apy_seed; the list is written to apy_core.csv."
+        },
+        "apy_seed": {
+          "type": "integer",
+          "default": 20260925
         }
       }
     },

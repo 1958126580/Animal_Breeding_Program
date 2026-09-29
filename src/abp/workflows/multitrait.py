@@ -91,7 +91,8 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
     sol = d["solver"]
     res = build_and_solve(mt_data, structure.k_inv, structure.k_diag,
                           G0, R0, method=sol["method"], compute_pev=(sol["pev"] == "exact"),
-                          tol=sol["tol"], max_iter=sol["max_iter"], memory_budget_bytes=budget)
+                          tol=sol["tol"], max_iter=sol["max_iter"], memory_budget_bytes=budget,
+                          factorization=sol["factorization"])
     s = res.solve
     log.info("multi-trait (%d traits, %d observations): solved %d equations with %s (%s); "
              "relative residual %.2e; %.2f s", t, res.n_obs, s.solution.size, s.method,

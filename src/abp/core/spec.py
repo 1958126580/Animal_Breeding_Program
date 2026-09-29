@@ -176,6 +176,9 @@ SCHEMA = Section({
         "tol": Field("float", default=1e-10, check=_positive),
         "max_iter": Field("int", default=10000, check=_positive),
         "pev": Field("str", default="exact", choices=("exact", "none")),
+        "factorization": Field("str", default="auto", choices=("auto", "ldl", "superlu"),
+                               doc="Sparse direct factor: ABP's LDL' with minimum-degree ordering "
+                                   "('auto' when the compiled kernel is present) or SuperLU."),
     }),
     "qc": Section({
         "unknown_animals": Field("str", default="error", choices=("error", "add_as_founder")),
@@ -197,6 +200,11 @@ SCHEMA = Section({
         "blend_alpha": Field("float", default=0.05, check=_unit_interval),
         "ridge": Field("float", default=0.01, check=_positive),
         "tuning": Field("str", default="none", choices=("none", "match_a22")),
+        "apy_core_size": Field("int", default=0, check=_nonneg,
+                               doc="APY: number of core animals (0 = off, the exact G inverse). "
+                                   "Core animals are drawn at random among the genotyped with "
+                                   "apy_seed; the list is written to apy_core.csv."),
+        "apy_seed": Field("int", default=20260925),
     }),
     "index": Section({
         "weights": Field("float_map", required=True, doc="Economic weight per unit of each trait."),

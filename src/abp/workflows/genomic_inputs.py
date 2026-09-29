@@ -133,9 +133,27 @@ def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship
                            "the pedigree", animals=absent[:20])
         g_index = P.index_of(geno.ids)
         A22 = P.a_submatrix(g_index)
+    n_core = int(cfg["apy_core_size"])
     Gs, rec = apply_g_policy(G, cfg["singular_policy"], cfg["tuning"], A22,
-                             cfg["blend_alpha"], cfg["ridge"])
+                             cfg["blend_alpha"], cfg["ridge"], check_pd=(n_core == 0))
     meta["g_policy"] = rec.__dict__
+    apy = None
+    if n_core:
+        from ..core.genomic import apy_inverse
+        from .manifest import sha256_array
+        n2 = len(geno.ids)
+        if n_core >= n2:
+            raise ABPError("SPEC_INVALID", f"genomic.apy_core_size ({n_core}) must be smaller "
+                           f"than the number of genotyped animals ({n2})")
+        core = np.sort(np.random.default_rng(cfg["apy_seed"]).choice(n2, n_core, replace=False))
+        apy = apy_inverse(Gs, core)
+        ids = [geno.ids[k] for k in core]
+        meta["apy"] = {**apy.record, "core_selection": f"random, seed {cfg['apy_seed']}",
+                       "core_ids_sha256": sha256_array(ids), "core_ids": ids,
+                       "note": "APY replaces G* by G_APY (a different model): core-core and "
+                               "core-noncore relationships and non-core diagonals are kept, "
+                               "non-core off-diagonals become G_nc G_cc^-1 G_cn"}
+        Gs = apy.g_apy
     if A22 is not None:
         off = ~np.eye(A22.shape[0], dtype=bool)
         meta["compatibility"] = {"mean_diag_A22": float(np.mean(np.diag(A22))),
@@ -143,9 +161,11 @@ def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship
                                  "mean_diag_Gstar": float(np.mean(np.diag(Gs))),
                                  "mean_offdiag_Gstar": float(np.mean(Gs[off]))}
     if relationship == "genomic":
-        g_inv, logdet = spd_inverse_and_logdet(Gs, "G*")
+        g_inv, logdet = ((apy.g_inv, apy.logdet) if apy is not None
+                         else spd_inverse_and_logdet(Gs, "G*"))
         return GeneticStructure("genomic", tuple(geno.ids), g_inv, np.diag(Gs).copy(), logdet,
                                 meta)
-    ss = single_step(ped.pedigree, g_index, Gs, a22=A22)
+    ss = single_step(ped.pedigree, g_index, Gs, a22=A22,
+                     g_inverse=None if apy is None else (apy.g_inv, apy.logdet))
     meta["single_step"] = "H^-1 = A^-1 + embed(G*^-1 - A22^-1); A22^-1 from A22 itself"
     return GeneticStructure("single_step", ped.pedigree.ids, ss.h_inv, ss.h_diag, ss.logdet_h, meta)

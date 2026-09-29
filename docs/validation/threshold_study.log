@@ -1,34 +1,5 @@
-multiprocessing.pool.RemoteTraceback: 
-"""
-Traceback (most recent call last):
-  File "/usr/lib/python3.11/multiprocessing/pool.py", line 125, in worker
-    result = (True, func(*args, **kwds))
-                    ^^^^^^^^^^^^^^^^^^^
-  File "/home/user/Animal_Breeding_Program/benchmarks/threshold_study.py", line 71, in _run
-    return replicate(seed, Path(tmp))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/user/Animal_Breeding_Program/benchmarks/threshold_study.py", line 56, in replicate
-    res = run_evaluation(spec, work / f"out_{name}", force=True, console=False)
-          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/user/Animal_Breeding_Program/src/abp/workflows/evaluate.py", line 151, in run_evaluation
-    results = _run(spec, stage, manifest, resume)
-              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/user/Animal_Breeding_Program/src/abp/workflows/evaluate.py", line 289, in _run
-    out, state = _run_single_trait(spec, records, traits[0], structure, ped_data, stage,
-                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/user/Animal_Breeding_Program/src/abp/workflows/evaluate.py", line 455, in _run_single_trait
-    raise ABPError("MODEL_NOT_IDENTIFIABLE",
-abp.errors.ABPError: [ABP-E300 MODEL_NOT_IDENTIFIABLE] nlb: the additive genetic variance is estimated at zero (boundary); no genetic ranking can be issued from these data
-"""
-
-The above exception was the direct cause of the following exception:
-
-Traceback (most recent call last):
-  File "/home/user/Animal_Breeding_Program/benchmarks/threshold_study.py", line 109, in <module>
-    main()
-  File "/home/user/Animal_Breeding_Program/benchmarks/threshold_study.py", line 85, in main
-    reps = list(pool.imap(_run, seeds))
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/usr/lib/python3.11/multiprocessing/pool.py", line 873, in next
-    raise value
-abp.errors.ABPError: [ABP-E300 MODEL_NOT_IDENTIFIABLE] nlb: the additive genetic variance is estimated at zero (boundary); no genetic ranking can be issued from these data
+n_replicates_both_models 27
+linear_reml {'n_withheld': 3, 'realized_accuracy': '0.447±0.011', 'model_accuracy': '0.374±0.027', 'ratio_model_to_realized': '0.827±0.054'}
+threshold_true {'n_withheld': 0, 'realized_accuracy': '0.451±0.011', 'model_accuracy': '0.443±0.001', 'ratio_model_to_realized': '1.001±0.031'}
+paired_difference_realized_accuracy_threshold_minus_linear 0.0036±0.0008
+wrote /home/user/Animal_Breeding_Program/docs/validation/threshold_study.json

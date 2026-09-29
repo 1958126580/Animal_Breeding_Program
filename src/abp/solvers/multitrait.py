@@ -148,12 +148,14 @@ def assemble_multitrait(data: MTData, k_inv, G0: np.ndarray, R0: np.ndarray) -> 
 
 def build_and_solve(data: MTData, k_inv, k_diag: np.ndarray, G0: np.ndarray, R0: np.ndarray,
                     method: str = "auto", compute_pev: bool = True, tol: float = 1e-10,
-                    max_iter: int = 10000, memory_budget_bytes: int = 4 * 2**30) -> MTResult:
+                    max_iter: int = 10000, memory_budget_bytes: int = 4 * 2**30,
+                    factorization: str = "auto") -> MTResult:
     mts = assemble_multitrait(data, k_inv, G0, R0)
     system, p_off, q, t, n_obs = mts.system, mts.p_off, mts.q, mts.t, mts.rec_idx.size
     G0 = check_covariance(G0, "genetic covariance matrix G0")
     res = solve_system(system, method=method, need_inverse=compute_pev, tol=tol,
-                       max_iter=max_iter, memory_budget_bytes=memory_budget_bytes)
+                       max_iter=max_iter, memory_budget_bytes=memory_budget_bytes,
+                       factorization=factorization)
     a0, _ = system.offsets["animal"]
     ebv = res.solution[a0:a0 + q * t].reshape(q, t)
     pev = rel = None
@@ -175,7 +177,7 @@ def _pev_blocks(res: SolveResult, a0: int, q: int, t: int) -> np.ndarray:
     out = np.empty((q, t, t))
     if isinstance(res.factor, DenseCholesky):
         return res.factor.inverse_diagonal_blocks(a0, q, t)
-    if isinstance(res.factor, SparseLU):
+    if hasattr(res.factor, "selected_inverse"):          # SparseLU or SparseLDL
         # Blocks of one animal are on the factor pattern whenever the traits are coupled
         # (non-zero genetic covariances); otherwise fall back to solves for unit vectors.
         si = res.factor.selected_inverse()

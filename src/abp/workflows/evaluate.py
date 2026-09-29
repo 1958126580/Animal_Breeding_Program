@@ -463,7 +463,7 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
     model.terms = active_terms
     res = blup(model.y, model.fixed.X, active_terms, vc_active, method=sol["method"],
                compute_pev=(sol["pev"] == "exact"), tol=sol["tol"], max_iter=sol["max_iter"],
-               memory_budget_bytes=budget)
+               memory_budget_bytes=budget, factorization=sol["factorization"])
     s = res.solve
     log.info("%s: solved %d equations with %s (%s); relative residual %.2e; %.2f s", trait,
              s.solution.size, s.method, s.selection_reason, s.rel_residual, s.wall_seconds)

@@ -106,14 +106,15 @@ def build_system(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm],
 def blup(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm],
          variances: dict[str, float], method: str = "auto", compute_pev: bool = True,
          tol: float = 1e-10, max_iter: int = 10000,
-         memory_budget_bytes: int = 4 * 2**30) -> BLUPResult:
+         memory_budget_bytes: int = 4 * 2**30, factorization: str = "auto") -> BLUPResult:
     """Solve the MME and derive PEV and reliabilities."""
     y = np.asarray(y, dtype=np.float64)
     if not np.all(np.isfinite(y)):
         raise ABPError("SCHEMA_TYPE", "response contains non-finite values")
     system = build_system(y, X, terms, variances)
     result = solve_system(system, method=method, need_inverse=compute_pev, tol=tol,
-                          max_iter=max_iter, memory_budget_bytes=memory_budget_bytes)
+                          max_iter=max_iter, memory_budget_bytes=memory_budget_bytes,
+                          factorization=factorization)
     s = result.solution
     out: dict[str, TermResult] = {}
     for t in terms:

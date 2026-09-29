@@ -1,0 +1,493 @@
+{
+  "study": "linear vs threshold model, number of lambs born",
+  "replicates": 30,
+  "seeds": "1..30",
+  "specs": {
+    "linear_reml": "examples/03_sheep_nlb_repeatability/analysis.toml",
+    "threshold_true": "examples/14_sheep_nlb_threshold/analysis.toml"
+  },
+  "wall_seconds": 97.54777264595032,
+  "summary": {
+    "n_replicates_both_models": 27,
+    "linear_reml": {
+      "n_withheld": 3,
+      "realized_accuracy": {
+        "mean": 0.4474162821685149,
+        "mc_se": 0.010768149826269783
+      },
+      "model_accuracy": {
+        "mean": 0.3738912347959129,
+        "mc_se": 0.026622330442335137
+      },
+      "ratio_model_to_realized": {
+        "mean": 0.8266747332192586,
+        "mc_se": 0.05380124633522264
+      }
+    },
+    "threshold_true": {
+      "n_withheld": 0,
+      "realized_accuracy": {
+        "mean": 0.4510392777861202,
+        "mc_se": 0.010696177500614766
+      },
+      "model_accuracy": {
+        "mean": 0.4428944756886369,
+        "mc_se": 0.0011204988524821345
+      },
+      "ratio_model_to_realized": {
+        "mean": 1.0007139200823498,
+        "mc_se": 0.03147737871154848
+      }
+    },
+    "paired_difference_realized_accuracy_threshold_minus_linear": {
+      "mean": 0.003622995617605176,
+      "mc_se": 0.0008083353243853094
+    }
+  },
+  "replicate_results": [
+    {
+      "seed": 1,
+      "linear_reml": {
+        "n": 460,
+        "realized_accuracy": 0.47538191046795536,
+        "model_accuracy": 0.3560808170918597,
+        "ratio_model_to_realized": 0.749041579519384
+      },
+      "threshold_true": {
+        "n": 460,
+        "realized_accuracy": 0.4778704627601435,
+        "model_accuracy": 0.4432720448602985,
+        "ratio_model_to_realized": 0.9275987519713874
+      }
+    },
+    {
+      "seed": 2,
+      "linear_reml": {
+        "n": 485,
+        "realized_accuracy": 0.4484004225528105,
+        "model_accuracy": 0.5295807096478906,
+        "ratio_model_to_realized": 1.1810441806296894
+      },
+      "threshold_true": {
+        "n": 485,
+        "realized_accuracy": 0.45386331119312595,
+        "model_accuracy": 0.4492945059600256,
+        "ratio_model_to_realized": 0.9899335215682233
+      }
+    },
+    {
+      "seed": 3,
+      "linear_reml": {
+        "n": 447,
+        "realized_accuracy": 0.5024754031420667,
+        "model_accuracy": 0.4991385317243889,
+        "ratio_model_to_realized": 0.9933591348017996
+      },
+      "threshold_true": {
+        "n": 447,
+        "realized_accuracy": 0.5093885213168825,
+        "model_accuracy": 0.4389161658344936,
+        "ratio_model_to_realized": 0.8616530358787784
+      }
+    },
+    {
+      "seed": 4,
+      "linear_reml": {
+        "n": 456,
+        "realized_accuracy": 0.5380381900778843,
+        "model_accuracy": 0.3831152336841342,
+        "ratio_model_to_realized": 0.7120595540414629
+      },
+      "threshold_true": {
+        "n": 456,
+        "realized_accuracy": 0.5394086696073704,
+        "model_accuracy": 0.44290827961623264,
+        "ratio_model_to_realized": 0.8210996681581344
+      }
+    },
+    {
+      "seed": 5,
+      "linear_reml": {
+        "n": 475,
+        "realized_accuracy": 0.5180904399942087,
+        "model_accuracy": 0.5364404895719757,
+        "ratio_model_to_realized": 1.035418622235091
+      },
+      "threshold_true": {
+        "n": 475,
+        "realized_accuracy": 0.5240031433172248,
+        "model_accuracy": 0.44254397447391325,
+        "ratio_model_to_realized": 0.8445445034401308
+      }
+    },
+    {
+      "seed": 6,
+      "linear_reml": {
+        "n": 429,
+        "realized_accuracy": 0.4430729823093504,
+        "model_accuracy": 0.5002043456384109,
+        "ratio_model_to_realized": 1.1289434599042463
+      },
+      "threshold_true": {
+        "n": 429,
+        "realized_accuracy": 0.4433168951810419,
+        "model_accuracy": 0.43723475583380156,
+        "ratio_model_to_realized": 0.9862803799869696
+      }
+    },
+    {
+      "seed": 7,
+      "linear_reml": {
+        "n": 451,
+        "realized_accuracy": 0.5129037299397605,
+        "model_accuracy": 0.22592281947872817,
+        "ratio_model_to_realized": 0.44047802012526277
+      },
+      "threshold_true": {
+        "n": 451,
+        "realized_accuracy": 0.519200382042861,
+        "model_accuracy": 0.4410726310794595,
+        "ratio_model_to_realized": 0.8495229324446993
+      }
+    },
+    {
+      "seed": 8,
+      "linear_reml": {
+        "withheld": "ABP-E300",
+        "message": "nlb: the additive genetic variance is estimated at zero (boundary); no genetic ranking can be issued from these data"
+      },
+      "threshold_true": {
+        "n": 488,
+        "realized_accuracy": 0.4455673975950724,
+        "model_accuracy": 0.4450202133928523,
+        "ratio_model_to_realized": 0.9987719384201503
+      }
+    },
+    {
+      "seed": 9,
+      "linear_reml": {
+        "n": 459,
+        "realized_accuracy": 0.4831002406969591,
+        "model_accuracy": 0.3722009988430573,
+        "ratio_model_to_realized": 0.7704425862137645
+      },
+      "threshold_true": {
+        "n": 459,
+        "realized_accuracy": 0.48207332597062946,
+        "model_accuracy": 0.43893716114182213,
+        "ratio_model_to_realized": 0.910519494639213
+      }
+    },
+    {
+      "seed": 10,
+      "linear_reml": {
+        "n": 510,
+        "realized_accuracy": 0.4395531356802629,
+        "model_accuracy": 0.3199035431334771,
+        "ratio_model_to_realized": 0.7277926538696777
+      },
+      "threshold_true": {
+        "n": 510,
+        "realized_accuracy": 0.45167458931178683,
+        "model_accuracy": 0.4468935079962609,
+        "ratio_model_to_realized": 0.9894147657878853
+      }
+    },
+    {
+      "seed": 11,
+      "linear_reml": {
+        "n": 466,
+        "realized_accuracy": 0.3715090549542712,
+        "model_accuracy": 0.16474725681208238,
+        "ratio_model_to_realized": 0.4434542162972609
+      },
+      "threshold_true": {
+        "n": 466,
+        "realized_accuracy": 0.3772670865575109,
+        "model_accuracy": 0.4460021460354671,
+        "ratio_model_to_realized": 1.1821920382855295
+      }
+    },
+    {
+      "seed": 12,
+      "linear_reml": {
+        "n": 424,
+        "realized_accuracy": 0.5209792102813906,
+        "model_accuracy": 0.5047192666970355,
+        "ratio_model_to_realized": 0.968789649829649
+      },
+      "threshold_true": {
+        "n": 424,
+        "realized_accuracy": 0.5244632529257973,
+        "model_accuracy": 0.4255617960849509,
+        "ratio_model_to_realized": 0.8114234766895303
+      }
+    },
+    {
+      "seed": 13,
+      "linear_reml": {
+        "n": 503,
+        "realized_accuracy": 0.43770773782428046,
+        "model_accuracy": 0.4480596445452227,
+        "ratio_model_to_realized": 1.0236502712344053
+      },
+      "threshold_true": {
+        "n": 503,
+        "realized_accuracy": 0.4362994929198764,
+        "model_accuracy": 0.44846888921086214,
+        "ratio_model_to_realized": 1.0278922998730613
+      }
+    },
+    {
+      "seed": 14,
+      "linear_reml": {
+        "withheld": "ABP-E300",
+        "message": "nlb: the additive genetic variance is estimated at zero (boundary); no genetic ranking can be issued from these data"
+      },
+      "threshold_true": {
+        "n": 456,
+        "realized_accuracy": 0.5068949585279524,
+        "model_accuracy": 0.43932871871886653,
+        "ratio_model_to_realized": 0.8667056385699682
+      }
+    },
+    {
+      "seed": 15,
+      "linear_reml": {
+        "n": 478,
+        "realized_accuracy": 0.44160513008970864,
+        "model_accuracy": 0.34855012915173095,
+        "ratio_model_to_realized": 0.7892800726316873
+      },
+      "threshold_true": {
+        "n": 478,
+        "realized_accuracy": 0.4450105910011297,
+        "model_accuracy": 0.44825058336557255,
+        "ratio_model_to_realized": 1.0072807084369697
+      }
+    },
+    {
+      "seed": 16,
+      "linear_reml": {
+        "n": 467,
+        "realized_accuracy": 0.45800957972587286,
+        "model_accuracy": 0.38393855696253776,
+        "ratio_model_to_realized": 0.8382762587462298
+      },
+      "threshold_true": {
+        "n": 467,
+        "realized_accuracy": 0.4616534391865447,
+        "model_accuracy": 0.44465507614386973,
+        "ratio_model_to_realized": 0.9631793860939779
+      }
+    },
+    {
+      "seed": 17,
+      "linear_reml": {
+        "n": 466,
+        "realized_accuracy": 0.4587723841091634,
+        "model_accuracy": 0.5415478968409033,
+        "ratio_model_to_realized": 1.180428281210675
+      },
+      "threshold_true": {
+        "n": 466,
+        "realized_accuracy": 0.4645356712862272,
+        "model_accuracy": 0.4413032739152189,
+        "ratio_model_to_realized": 0.949987915230102
+      }
+    },
+    {
+      "seed": 18,
+      "linear_reml": {
+        "withheld": "ABP-E300",
+        "message": "nlb: the additive genetic variance is estimated at zero (boundary); no genetic ranking can be issued from these data"
+      },
+      "threshold_true": {
+        "n": 465,
+        "realized_accuracy": 0.4032864026514033,
+        "model_accuracy": 0.44414977622004537,
+        "ratio_model_to_realized": 1.1013259393324102
+      }
+    },
+    {
+      "seed": 19,
+      "linear_reml": {
+        "n": 454,
+        "realized_accuracy": 0.4859734013295522,
+        "model_accuracy": 0.3338917405055132,
+        "ratio_model_to_realized": 0.6870576447024347
+      },
+      "threshold_true": {
+        "n": 454,
+        "realized_accuracy": 0.4766066102440506,
+        "model_accuracy": 0.4423632318693644,
+        "ratio_model_to_realized": 0.9281516923209445
+      }
+    },
+    {
+      "seed": 20,
+      "linear_reml": {
+        "n": 494,
+        "realized_accuracy": 0.46834322027683534,
+        "model_accuracy": 0.2158793939406388,
+        "ratio_model_to_realized": 0.46094271165713374
+      },
+      "threshold_true": {
+        "n": 494,
+        "realized_accuracy": 0.4731691522908962,
+        "model_accuracy": 0.4439066331136739,
+        "ratio_model_to_realized": 0.9381563252051728
+      }
+    },
+    {
+      "seed": 21,
+      "linear_reml": {
+        "n": 448,
+        "realized_accuracy": 0.44204565103894183,
+        "model_accuracy": 0.42104872166086943,
+        "ratio_model_to_realized": 0.9525005407728292
+      },
+      "threshold_true": {
+        "n": 448,
+        "realized_accuracy": 0.445039212311888,
+        "model_accuracy": 0.44047265696140186,
+        "ratio_model_to_realized": 0.9897389820398886
+      }
+    },
+    {
+      "seed": 22,
+      "linear_reml": {
+        "n": 506,
+        "realized_accuracy": 0.39120306616626616,
+        "model_accuracy": 0.35627408240013364,
+        "ratio_model_to_realized": 0.9107139314923282
+      },
+      "threshold_true": {
+        "n": 506,
+        "realized_accuracy": 0.396214247203835,
+        "model_accuracy": 0.45373109553744445,
+        "ratio_model_to_realized": 1.145166027570986
+      }
+    },
+    {
+      "seed": 23,
+      "linear_reml": {
+        "n": 465,
+        "realized_accuracy": 0.2671709783910762,
+        "model_accuracy": 0.10789977621632592,
+        "ratio_model_to_realized": 0.40386039256998096
+      },
+      "threshold_true": {
+        "n": 465,
+        "realized_accuracy": 0.26814967972196263,
+        "model_accuracy": 0.4474618482676064,
+        "ratio_model_to_realized": 1.66870178152578
+      }
+    },
+    {
+      "seed": 24,
+      "linear_reml": {
+        "n": 448,
+        "realized_accuracy": 0.3768088155650419,
+        "model_accuracy": 0.32298087813311044,
+        "ratio_model_to_realized": 0.857147881874223
+      },
+      "threshold_true": {
+        "n": 448,
+        "realized_accuracy": 0.3819091150001533,
+        "model_accuracy": 0.43287253882234444,
+        "ratio_model_to_realized": 1.1334438530543338
+      }
+    },
+    {
+      "seed": 25,
+      "linear_reml": {
+        "n": 472,
+        "realized_accuracy": 0.4234901730774747,
+        "model_accuracy": 0.4272206597681771,
+        "ratio_model_to_realized": 1.0088089096934485
+      },
+      "threshold_true": {
+        "n": 472,
+        "realized_accuracy": 0.4273968415432023,
+        "model_accuracy": 0.44238281313746347,
+        "ratio_model_to_realized": 1.0350633653261248
+      }
+    },
+    {
+      "seed": 26,
+      "linear_reml": {
+        "n": 469,
+        "realized_accuracy": 0.455444375864285,
+        "model_accuracy": 0.5257314287812664,
+        "ratio_model_to_realized": 1.1543263165421673
+      },
+      "threshold_true": {
+        "n": 469,
+        "realized_accuracy": 0.46005715093855065,
+        "model_accuracy": 0.43544044084490086,
+        "ratio_model_to_realized": 0.9464920607289119
+      }
+    },
+    {
+      "seed": 27,
+      "linear_reml": {
+        "n": 497,
+        "realized_accuracy": 0.46994565798633897,
+        "model_accuracy": 0.5883859055081385,
+        "ratio_model_to_realized": 1.2520296666412492
+      },
+      "threshold_true": {
+        "n": 497,
+        "realized_accuracy": 0.4685807258411857,
+        "model_accuracy": 0.4490154875977496,
+        "ratio_model_to_realized": 0.9582457468597049
+      }
+    },
+    {
+      "seed": 28,
+      "linear_reml": {
+        "n": 433,
+        "realized_accuracy": 0.39812170045123313,
+        "model_accuracy": 0.2192921998836283,
+        "ratio_model_to_realized": 0.5508169980060906
+      },
+      "threshold_true": {
+        "n": 433,
+        "realized_accuracy": 0.4105522095372557,
+        "model_accuracy": 0.44083899587701314,
+        "ratio_model_to_realized": 1.0737708521259561
+      }
+    },
+    {
+      "seed": 29,
+      "linear_reml": {
+        "n": 490,
+        "realized_accuracy": 0.43369995126089717,
+        "model_accuracy": 0.06410276822553022,
+        "ratio_model_to_realized": 0.14780441648463197
+      },
+      "threshold_true": {
+        "n": 490,
+        "realized_accuracy": 0.4381755196600287,
+        "model_accuracy": 0.44623325771844746,
+        "ratio_model_to_realized": 1.018389293095768
+      }
+    },
+    {
+      "seed": 30,
+      "linear_reml": {
+        "n": 464,
+        "realized_accuracy": 0.4183930752960171,
+        "model_accuracy": 0.3982055446428809,
+        "ratio_model_to_realized": 0.9517498451931755
+      },
+      "threshold_true": {
+        "n": 464,
+        "realized_accuracy": 0.42218120135408377,
+        "model_accuracy": 0.44811705229353643,
+        "ratio_model_to_realized": 1.0614329838852778
+      }
+    }
+  ]
+}

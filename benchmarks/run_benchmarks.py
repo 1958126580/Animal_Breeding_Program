@@ -4,7 +4,7 @@
 Usage:  python benchmarks/run_benchmarks.py [--full] [--only GROUP ...] [--out FILE]
 
 Groups: pedigree, blup, reml, g (round 1); bayes, ocs, upg, plink (round 2);
-selinv, metafounders (round 3).
+selinv, metafounders (round 3); ldl, apy (round 4).
 
 Every case builds its own synthetic data from a fixed seed, times the step
 with ``time.perf_counter`` (wall clock, single run unless stated), and checks
@@ -214,7 +214,7 @@ def case_plink(n, m):
             "bytes": len(raw), "missing_fraction": float(np.isnan(M).mean())}
 
 
-GROUPS = ("pedigree", "blup", "reml", "g", "bayes", "ocs", "upg", "plink", "selinv", "metafounders")
+GROUPS = ("pedigree", "blup", "reml", "g", "bayes", "ocs", "upg", "plink", "selinv", "metafounders", "ldl", "apy")
 
 
 def case_selinv_pev(n_anim, n_rec, n_check=300):
@@ -272,6 +272,38 @@ def case_metafounders(n_gen, per_gen, k):
     return out
 
 
+def case_ldl_pev(n_anim, n_rec):
+    """Exact PEV with ABP's LDL' (minimum degree) vs SuperLU on the same system."""
+    ped, y, fd, term = _animal_problem(n_anim, n_rec, 500)
+    out = {"case": f"exact_pev_ldl_vs_superlu_{ped.n}animals", "n_animals": ped.n}
+    sols = {}
+    for fac in ("ldl", "superlu"):
+        res, t = timed(lambda: blup(y, fd.X, [term], {"animal": 1.0, "residual": 3.0},
+                                    method="sparse_direct", compute_pev=True,
+                                    memory_budget_bytes=8 * 2**30, factorization=fac))
+        out[f"{fac}_wall_s"] = t
+        out[f"{fac}_nnz_factor"] = res.solve.factor.selected_inverse().nnz_factor
+        sols[fac] = res
+    out["max_abs_diff_ebv"] = float(np.max(np.abs(sols["ldl"].terms["animal"].solution
+                                                  - sols["superlu"].terms["animal"].solution)))
+    out["max_abs_diff_pev"] = float(np.max(np.abs(sols["ldl"].terms["animal"].pev
+                                                  - sols["superlu"].terms["animal"].pev)))
+    return out
+
+
+def case_apy(n, m, n_core):
+    from abp.core.genomic import apy_inverse, spd_inverse_and_logdet
+    rng = np.random.default_rng(13)
+    p = rng.uniform(0.05, 0.95, m)
+    M = (rng.random((n, m)) < p).astype(float) + (rng.random((n, m)) < p)
+    G, _ = vanraden_g(M, p)
+    G = 0.99 * G + 0.01 * np.eye(n)
+    (_, _), t_full = timed(lambda: spd_inverse_and_logdet(G, "G"))
+    r, t_apy = timed(lambda: apy_inverse(G, np.arange(0, n, n // n_core)[:n_core]))
+    return {"case": f"g_inverse_{n}genotyped_{m}markers", "full_inverse_s": t_full,
+            "apy_inverse_s": t_apy, "n_core": n_core, "min_m": float(r.m.min())}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="include slow Python reference timings")
@@ -298,6 +330,8 @@ def main():
         ("selinv", lambda: case_selinv_pev(100000, 80000)),
         ("selinv", lambda: case_reml_sparse(20000, 16000)),
         ("metafounders", lambda: case_metafounders(20, 5000, 5)),
+        ("ldl", lambda: case_ldl_pev(100000, 80000)),
+        ("apy", lambda: case_apy(8000, 10000, 2000)),
     ]
     cases = [c for grp, c in cases if grp in args.only]
     for c in cases:

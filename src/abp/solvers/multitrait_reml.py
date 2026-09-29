@@ -59,7 +59,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from ..errors import ABPError
-from .mme import DenseCholesky, SparseLU, dense_bytes
+from .mme import DenseCholesky, dense_bytes, make_sparse_factor
 from .multitrait import MTData, assemble_multitrait, check_covariance
 
 DENSE_MAX = 2000    #: dense trace path up to this many equations (example 13, 6,390 equations:
@@ -221,7 +221,7 @@ class MTREMLEvaluator:
         mts = assemble_multitrait(self.data, self.k_inv, G0, R0)
         sysm = mts.system
         dense = self.trace_method == "dense_inverse"
-        fac = DenseCholesky(sysm.C.toarray()) if dense else SparseLU(sysm.C, self.budget)
+        fac = DenseCholesky(sysm.C.toarray()) if dense else make_sparse_factor(sysm.C, self.budget)
         s = fac.solve(sysm.rhs)
         if dense:
             Cinv = fac.inverse()

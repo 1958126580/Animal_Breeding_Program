@@ -245,6 +245,20 @@ class SparseLU:
         return 0.5 * (out + out.T)
 
 
+FACTORIZATIONS = ("auto", "ldl", "superlu")
+
+
+def make_sparse_factor(C: sp.spmatrix, memory_budget_bytes: int, factorization: str = "auto"):
+    """Sparse factor of an SPD matrix: ABP's LDL' (minimum degree; default when the compiled
+    kernel is available) or SuperLU (the independent reference path)."""
+    if factorization not in FACTORIZATIONS:
+        raise ABPError("SPEC_INVALID", f"solver.factorization must be one of {FACTORIZATIONS}")
+    from .cholesky import SparseLDL, native_ldl_available
+    if factorization == "ldl" or (factorization == "auto" and native_ldl_available()):
+        return SparseLDL(C, memory_budget_bytes)
+    return SparseLU(sp.csr_matrix(C), memory_budget_bytes)
+
+
 # --------------------------------------------------------------------------
 # Preconditioned conjugate gradients
 # --------------------------------------------------------------------------
@@ -360,7 +374,7 @@ def choose_method(n_eq: int, need_inverse: bool, memory_budget_bytes: int,
 def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: bool = False,
                  tol: float = 1e-10, max_iter: int = 10000,
                  memory_budget_bytes: int = 4 * 2**30,
-                 residual_limit: float = 1e-8) -> SolveResult:
+                 residual_limit: float = 1e-8, factorization: str = "auto") -> SolveResult:
     """Solve the MME and verify the solution against the original system."""
     t0 = time.perf_counter()
     n_eq = system.n_equations
@@ -372,7 +386,7 @@ def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: b
         factor = DenseCholesky(system.C.toarray())
         s = factor.solve(system.rhs)
     elif chosen == "sparse_direct":
-        factor = SparseLU(system.C, memory_budget_bytes)
+        factor = make_sparse_factor(system.C, memory_budget_bytes, factorization)
         s = factor.solve(system.rhs)
     else:
         if need_inverse:
@@ -386,7 +400,7 @@ def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: b
                 reason += (f"; PCG did not converge in {info.iterations} iterations "
                            f"(rel. residual {info.rel_residual:.2e}) -> fell back to sparse direct")
                 chosen = "sparse_direct"
-                factor = SparseLU(system.C, memory_budget_bytes)
+                factor = make_sparse_factor(system.C, memory_budget_bytes, factorization)
                 s = factor.solve(system.rhs)
             else:
                 raise ABPError("SOLVER_NOT_CONVERGED",
@@ -401,6 +415,9 @@ def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: b
         raise ABPError("BACKWARD_ERROR_TOO_LARGE",
                        f"relative residual {rel:.3e} of the {chosen} solution exceeds {limit:.1e}",
                        rel_residual=rel, limit=limit, method=chosen)
+    if chosen == "sparse_direct":
+        label = "SuperLU" if isinstance(factor, SparseLU) else f"ABP LDL' ({factor.kernel})"
+        reason += f" [factorization: {label}]"
     return SolveResult(s, chosen, reason, rel, iterations, time.perf_counter() - t0, factor, history)
 
 
@@ -415,6 +432,6 @@ def pev_diagonal(result: SolveResult, idx: np.ndarray) -> np.ndarray:
     """Diagonal PEV for equations ``idx`` (dense: from the cached inverse)."""
     if isinstance(result.factor, DenseCholesky):
         return result.factor.inverse_diagonal(np.asarray(idx))
-    if isinstance(result.factor, SparseLU):
+    if hasattr(result.factor, "selected_inverse"):          # SparseLU or SparseLDL
         return result.factor.selected_inverse().diagonal(np.asarray(idx, dtype=np.int64))
     raise ABPError("UNSUPPORTED_COMBINATION", "PEV requires a direct solver")

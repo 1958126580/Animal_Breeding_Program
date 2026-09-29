@@ -18,6 +18,7 @@
 //   * parents must precede offspring (index < own index) - checked;
 //   * returns n little-endian float64 values (the inbreeding coefficients).
 // symbolic_cholesky / takahashi: sparse selected inversion, see abp/solvers/selinv.py.
+// mindegree_order / ldl_numeric / ldl_solve: sparse LDL', see abp/solvers/cholesky.py.
 // ml_general(sire, dam, c, e, fext) -> bytes (2n float64: diag(A), then d)
 //   * metafounder generalisation, see abp/core/metafounders.py.
 // The GIL is released while computing.  Memory: O(n) doubles/ints plus a
@@ -27,6 +28,9 @@
 #include <Python.h>
 
 #include <algorithm>
+#include <functional>
+#include <iterator>
+#include <utility>
 #include <cmath>
 #include <cstdint>
 #include <queue>
@@ -473,6 +477,235 @@ PyObject* py_takahashi(PyObject*, PyObject* args) {
     return Py_BuildValue("(NN)", zd, zv);
 }
 
+// ---------------------------------------------------------------------------
+// Sparse LDL' with minimum-degree ordering (reference: abp/solvers/cholesky.py,
+// same algorithms).
+// mindegree_order: eliminate a node of smallest current degree (ties: smallest
+//   index), join its neighbours into a clique; lazy min-heap of (degree, node).
+// ldl_numeric: up-looking LDL' of a full symmetric CSC matrix on a given
+//   symbolic pattern (column k of the upper part scattered, elimination-tree
+//   reach processed in increasing index order).
+// ldl_solve: L z = b, z /= d, L' x = z for m right-hand sides stored row-wise.
+std::string mindegree_kernel(const int64_t* indptr, const int64_t* indices, int64_t n,
+                             std::vector<int64_t>& order) {
+    std::vector<std::vector<int64_t>> adj(static_cast<size_t>(n));
+    for (int64_t j = 0; j < n; ++j) {
+        for (int64_t p = indptr[j]; p < indptr[j + 1]; ++p) {
+            const int64_t i = indices[p];
+            if (i < 0 || i >= n) return "mindegree_order: index out of range";
+            if (i != j) {
+                adj[static_cast<size_t>(j)].push_back(i);
+                adj[static_cast<size_t>(i)].push_back(j);
+            }
+        }
+    }
+    for (auto& a : adj) {
+        std::sort(a.begin(), a.end());
+        a.erase(std::unique(a.begin(), a.end()), a.end());
+    }
+    // Dense rows (degree > max(16, 10 sqrt(n)), e.g. an intercept linked to every recorded
+    // animal) are removed from the graph and eliminated last, as in AMD; otherwise each
+    // elimination would merge into their huge adjacency lists.
+    const int64_t dense_limit = std::max<int64_t>(16, static_cast<int64_t>(10.0 * std::sqrt(static_cast<double>(n))));
+    std::vector<char> dense(static_cast<size_t>(n), 0);
+    for (int64_t v = 0; v < n; ++v)
+        if (static_cast<int64_t>(adj[static_cast<size_t>(v)].size()) > dense_limit) dense[static_cast<size_t>(v)] = 1;
+    for (int64_t v = 0; v < n; ++v) {
+        auto& a = adj[static_cast<size_t>(v)];
+        if (dense[static_cast<size_t>(v)]) { std::vector<int64_t>().swap(a); continue; }
+        a.erase(std::remove_if(a.begin(), a.end(), [&](int64_t w) { return dense[static_cast<size_t>(w)] != 0; }), a.end());
+    }
+    using Item = std::pair<int64_t, int64_t>;   // (degree, node)
+    std::priority_queue<Item, std::vector<Item>, std::greater<Item>> heap;
+    for (int64_t v = 0; v < n; ++v)
+        if (!dense[static_cast<size_t>(v)]) heap.emplace(static_cast<int64_t>(adj[static_cast<size_t>(v)].size()), v);
+    std::vector<char> done(static_cast<size_t>(n), 0);
+    order.clear();
+    order.reserve(static_cast<size_t>(n));
+    std::vector<int64_t> merged;
+    while (!heap.empty()) {
+        const auto [deg, v] = heap.top();
+        heap.pop();
+        auto& av = adj[static_cast<size_t>(v)];
+        if (done[static_cast<size_t>(v)] || deg != static_cast<int64_t>(av.size())) continue;
+        done[static_cast<size_t>(v)] = 1;
+        order.push_back(v);
+        const std::vector<int64_t> nb(av.begin(), av.end());
+        for (int64_t u : nb) {
+            auto& au = adj[static_cast<size_t>(u)];
+            merged.clear();
+            merged.reserve(au.size() + nb.size());
+            std::set_union(au.begin(), au.end(), nb.begin(), nb.end(), std::back_inserter(merged));
+            // drop v and u itself
+            merged.erase(std::remove_if(merged.begin(), merged.end(),
+                                        [&](int64_t w) { return w == v || w == u; }), merged.end());
+            au.swap(merged);
+            heap.emplace(static_cast<int64_t>(au.size()), u);
+        }
+        std::vector<int64_t>().swap(av);
+    }
+    for (int64_t v = 0; v < n; ++v)
+        if (dense[static_cast<size_t>(v)]) order.push_back(v);
+    return std::string();
+}
+
+std::string ldl_numeric_kernel(const int64_t* Bp, const int64_t* Bi, const double* Bx,
+                               const int64_t* colptr, const int64_t* rowidx, int64_t n,
+                               double* d, double* lval) {
+    std::vector<int64_t> parent(static_cast<size_t>(n), -1), fill(static_cast<size_t>(n));
+    for (int64_t j = 0; j < n; ++j) {
+        if (colptr[j + 1] > colptr[j]) parent[static_cast<size_t>(j)] = rowidx[colptr[j]];
+        fill[static_cast<size_t>(j)] = colptr[j];
+    }
+    std::vector<double> y(static_cast<size_t>(n), 0.0);
+    std::vector<int64_t> mark(static_cast<size_t>(n), -1), reach;
+    for (int64_t k = 0; k < n; ++k) {
+        reach.clear();
+        double dkk = 0.0;
+        for (int64_t p = Bp[k]; p < Bp[k + 1]; ++p) {
+            int64_t i = Bi[p];
+            if (i == k) {
+                dkk += Bx[p];
+            } else if (i < k) {
+                y[static_cast<size_t>(i)] += Bx[p];
+                while (i != -1 && i < k && mark[static_cast<size_t>(i)] != k) {
+                    mark[static_cast<size_t>(i)] = k;
+                    reach.push_back(i);
+                    i = parent[static_cast<size_t>(i)];
+                }
+            }
+        }
+        std::sort(reach.begin(), reach.end());
+        for (int64_t j : reach) {
+            const double yj = y[static_cast<size_t>(j)];
+            y[static_cast<size_t>(j)] = 0.0;
+            const int64_t end = fill[static_cast<size_t>(j)];
+            for (int64_t p = colptr[j]; p < end; ++p) y[static_cast<size_t>(rowidx[p])] -= lval[p] * yj;
+            const double lkj = yj / d[j];
+            dkk -= lkj * yj;
+            const int64_t p = fill[static_cast<size_t>(j)];
+            if (p >= colptr[j + 1] || rowidx[p] != k) return "ldl_numeric: entry outside the symbolic pattern";
+            lval[p] = lkj;
+            fill[static_cast<size_t>(j)] = p + 1;
+        }
+        if (!(dkk > 0.0)) return "coefficient matrix is not positive definite (non-positive pivot "
+                                 "at permuted index " + std::to_string(k) + ")";
+        d[k] = dkk;
+    }
+    return std::string();
+}
+
+void ldl_solve_kernel(const int64_t* colptr, const int64_t* rowidx, const double* lval,
+                      const double* d, int64_t n, int64_t m, double* x) {
+    for (int64_t r = 0; r < m; ++r) {
+        double* xr = x + r * n;
+        for (int64_t j = 0; j < n; ++j) {
+            const double xj = xr[j];
+            if (xj != 0.0)
+                for (int64_t p = colptr[j]; p < colptr[j + 1]; ++p) xr[rowidx[p]] -= lval[p] * xj;
+        }
+        for (int64_t j = 0; j < n; ++j) xr[j] /= d[j];
+        for (int64_t j = n - 1; j >= 0; --j) {
+            double s = xr[j];
+            for (int64_t p = colptr[j]; p < colptr[j + 1]; ++p) s -= lval[p] * xr[rowidx[p]];
+            xr[j] = s;
+        }
+    }
+}
+
+PyObject* py_mindegree_order(PyObject*, PyObject* args) {
+    Py_buffer pb, ib;
+    long long n_ll;
+    if (!PyArg_ParseTuple(args, "y*y*L", &pb, &ib, &n_ll)) return nullptr;
+    const int64_t n = static_cast<int64_t>(n_ll);
+    std::vector<int64_t> order;
+    std::string err;
+    if (pb.len != (n + 1) * 8) {
+        err = "mindegree_order: indptr must hold n + 1 int64 values";
+    } else {
+        Py_BEGIN_ALLOW_THREADS
+        err = mindegree_kernel(static_cast<const int64_t*>(pb.buf),
+                               static_cast<const int64_t*>(ib.buf), n, order);
+        Py_END_ALLOW_THREADS
+    }
+    PyBuffer_Release(&pb);
+    PyBuffer_Release(&ib);
+    if (!err.empty()) {
+        PyErr_SetString(PyExc_ValueError, err.c_str());
+        return nullptr;
+    }
+    return PyBytes_FromStringAndSize(reinterpret_cast<const char*>(order.data()),
+                                     static_cast<Py_ssize_t>(order.size() * 8));
+}
+
+PyObject* py_ldl_numeric(PyObject*, PyObject* args) {
+    Py_buffer bp, bi, bx, cp, ri;
+    if (!PyArg_ParseTuple(args, "y*y*y*y*y*", &bp, &bi, &bx, &cp, &ri)) return nullptr;
+    const int64_t n = static_cast<int64_t>(bp.len / 8) - 1;
+    const int64_t nnz = static_cast<int64_t>(ri.len / 8);
+    PyObject* dd = nullptr;
+    PyObject* lv = nullptr;
+    std::string err;
+    if (n < 0 || cp.len != bp.len || bi.len != bx.len) {
+        err = "ldl_numeric: buffer sizes do not match";
+    } else {
+        dd = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(n * 8));
+        lv = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(nnz * 8));
+        if (dd == nullptr || lv == nullptr) {
+            err = "ldl_numeric: out of memory";
+        } else {
+            double* dp = reinterpret_cast<double*>(PyBytes_AS_STRING(dd));
+            double* lp = reinterpret_cast<double*>(PyBytes_AS_STRING(lv));
+            Py_BEGIN_ALLOW_THREADS
+            err = ldl_numeric_kernel(static_cast<const int64_t*>(bp.buf),
+                                     static_cast<const int64_t*>(bi.buf),
+                                     static_cast<const double*>(bx.buf),
+                                     static_cast<const int64_t*>(cp.buf),
+                                     static_cast<const int64_t*>(ri.buf), n, dp, lp);
+            Py_END_ALLOW_THREADS
+        }
+    }
+    for (Py_buffer* b : {&bp, &bi, &bx, &cp, &ri}) PyBuffer_Release(b);
+    if (!err.empty()) {
+        Py_XDECREF(dd);
+        Py_XDECREF(lv);
+        PyErr_SetString(PyExc_ValueError, err.c_str());
+        return nullptr;
+    }
+    return Py_BuildValue("(NN)", dd, lv);
+}
+
+PyObject* py_ldl_solve(PyObject*, PyObject* args) {
+    Py_buffer cp, ri, lv, db, xb;
+    if (!PyArg_ParseTuple(args, "y*y*y*y*y*", &cp, &ri, &lv, &db, &xb)) return nullptr;
+    const int64_t n = static_cast<int64_t>(db.len / 8);
+    PyObject* out = nullptr;
+    std::string err;
+    if (cp.len != (n + 1) * 8 || ri.len != lv.len || n == 0 || xb.len % (n * 8) != 0) {
+        err = "ldl_solve: buffer sizes do not match";
+    } else {
+        const int64_t m = static_cast<int64_t>(xb.len / (n * 8));
+        out = PyBytes_FromStringAndSize(static_cast<const char*>(xb.buf), xb.len);
+        if (out == nullptr) {
+            err = "ldl_solve: out of memory";
+        } else {
+            double* x = reinterpret_cast<double*>(PyBytes_AS_STRING(out));
+            Py_BEGIN_ALLOW_THREADS
+            ldl_solve_kernel(static_cast<const int64_t*>(cp.buf), static_cast<const int64_t*>(ri.buf),
+                             static_cast<const double*>(lv.buf), static_cast<const double*>(db.buf),
+                             n, m, x);
+            Py_END_ALLOW_THREADS
+        }
+    }
+    for (Py_buffer* b : {&cp, &ri, &lv, &db, &xb}) PyBuffer_Release(b);
+    if (!err.empty()) {
+        Py_XDECREF(out);
+        PyErr_SetString(PyExc_ValueError, err.c_str());
+        return nullptr;
+    }
+    return out;
+}
+
 PyMethodDef methods[] = {
     {"inbreeding_ml", py_inbreeding_ml, METH_VARARGS,
      "inbreeding_ml(sire, dam) -> bytes of float64 inbreeding coefficients "
@@ -486,6 +719,15 @@ PyMethodDef methods[] = {
     {"takahashi", py_takahashi, METH_VARARGS,
      "takahashi(colptr, rowidx, lval, d) -> (zdiag, zval) bytes of float64: selected inverse "
      "of L D L' on the closed pattern (see abp/solvers/selinv.py)."},
+    {"mindegree_order", py_mindegree_order, METH_VARARGS,
+     "mindegree_order(indptr, indices, n) -> bytes of int64: minimum-degree elimination order "
+     "(see abp/solvers/cholesky.py)."},
+    {"ldl_numeric", py_ldl_numeric, METH_VARARGS,
+     "ldl_numeric(Bp, Bi, Bx, colptr, rowidx) -> (d, lval) bytes: up-looking LDL' on the "
+     "symbolic pattern (see abp/solvers/cholesky.py)."},
+    {"ldl_solve", py_ldl_solve, METH_VARARGS,
+     "ldl_solve(colptr, rowidx, lval, d, x) -> bytes: solves L D L' x = b for the right-hand "
+     "sides stored row-wise in x."},
     {"bayes_sweep", py_bayes_sweep, METH_VARARGS,
      "bayes_sweep(Wt, wtw, e, beta, delta, var_j, log_pi, comp_var, sigma_e2, method, z, u): "
      "one in-place Gibbs sweep over markers (see abp/solvers/bayes.py)."},

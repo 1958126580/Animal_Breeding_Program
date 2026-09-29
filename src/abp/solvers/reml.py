@@ -65,7 +65,7 @@ import scipy.sparse as sp
 
 from ..errors import ABPError
 from .blup import RandomTerm, build_system
-from .mme import DenseCholesky, SparseLU, dense_bytes
+from .mme import DenseCholesky, dense_bytes, make_sparse_factor
 
 BOUNDARY_REL = 1e-6
 DENSE_REML_MAX = 12000   #: largest system for the dense REML path (same rule as BLUP 'auto')
@@ -143,7 +143,7 @@ class REMLEvaluator:
         vc = dict(zip(names, map(float, theta)))
         system = build_system(self.y, self.X, self.terms, vc)
         dense = self.trace_method == "dense_inverse"
-        fac = DenseCholesky(system.C.toarray()) if dense else SparseLU(system.C, self.budget)
+        fac = DenseCholesky(system.C.toarray()) if dense else make_sparse_factor(system.C, self.budget)
         s = fac.solve(system.rhs)
         W = system.W
         th0 = vc["residual"]
