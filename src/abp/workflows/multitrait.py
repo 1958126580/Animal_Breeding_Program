@@ -75,6 +75,7 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
     mt_data = MTData(Y, X_blocks, animal_col)
     reml_info = None
     loadings = None
+    fit = None
     if d["variances"]["mode"] == "reml":
         from ..solvers.multitrait_reml import mt_reml_fit, mt_reml_fit_reduced_rank
         stop, fit = None, None
@@ -118,6 +119,21 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
                           tol=sol["tol"], max_iter=sol["max_iter"], memory_budget_bytes=budget,
                           factorization=sol["factorization"], loadings=loadings)
     s = res.solve
+    kh = None                              # Kackar-Harville PEV blocks (REML, full rank)
+    mf_kind = structure.kind in ("pedigree_mf", "single_step_mf")
+    if fit is not None and fit.cov is not None and res.pev_blocks is not None and not mf_kind:
+        from ..solvers.vc_uncertainty import kackar_harville_delta_multitrait
+        delta = kackar_harville_delta_multitrait(
+            mt_data, structure.k_inv, structure.k_diag, G0, R0, fit.cov, method=sol["method"],
+            memory_budget_bytes=budget, factorization=sol["factorization"])
+        pev_t = res.pev_blocks + delta
+        prior = np.asarray(structure.k_diag, dtype=np.float64)[:, None] * np.diag(G0)[None, :]
+        rel_t = np.clip(1.0 - np.einsum("ijj->ij", pev_t) / prior, 0.0, 1.0)
+        kh = (pev_t, rel_t)
+        log.info("multi-trait PEV including REML uncertainty (Kackar-Harville): mean relative "
+                 "increase %s", np.round(np.mean(np.einsum("ijj->ij", delta)
+                                                 / np.einsum("ijj->ij", res.pev_blocks),
+                                                 axis=0), 4).tolist())
     log.info("multi-trait (%d traits, %d observations): solved %d equations with %s (%s); "
              "relative residual %.2e; %.2f s", t, res.n_obs, s.solution.size, s.method,
              s.selection_reason, s.rel_residual, s.wall_seconds)
@@ -142,6 +158,8 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
         header += [f"ebv_{tr}", f"reliability_{tr}", f"sep_{tr}", f"n_records_{tr}"]
         if mf:
             header += [f"ebv_vs_base_{tr}", f"reliability_vs_base_{tr}", f"sep_vs_base_{tr}"]
+        if kh is not None:
+            header += [f"pev_incl_vc_uncertainty_{tr}", f"reliability_incl_vc_uncertainty_{tr}"]
     rows_out = []
     F = ped.inbreeding() if ped is not None else None
     if "inbreeding_mf_base" in structure.meta:
@@ -164,6 +182,8 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
                 base += [float(c["ebv"][i, j]),
                          None if c["reliability"] is None else float(c["reliability"][i, j]),
                          None if c["pev"] is None else float(np.sqrt(c["pev"][i, j, j]))]
+            if kh is not None:
+                base += [float(kh[0][i, j, j]), float(kh[1][i, j])]
         rows_out.append(base)
     write_csv(stage.path("ebv_multitrait.csv"), header, rows_out)
     out: dict = {}

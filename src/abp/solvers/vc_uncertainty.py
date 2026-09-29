@@ -47,3 +47,38 @@ def kackar_harville_delta(y, X, terms, variances: dict[str, float], cov: np.ndar
         grads.append((sols[0] - sols[1]) / (2.0 * h))
     Gm = np.column_stack(grads)                      # q x p
     return np.einsum("ik,kl,il->i", Gm, cov, Gm)
+
+
+def kackar_harville_delta_multitrait(data, k_inv, k_diag, G0: np.ndarray, R0: np.ndarray,
+                                    cov: np.ndarray, method: str = "auto",
+                                    memory_budget_bytes: int = 4 * 2**30,
+                                    factorization: str = "auto") -> np.ndarray:
+    """Multi-trait version: ``Delta_i = J_i Sigma J_i'`` (``t x t`` per animal) with
+    ``J_i = d u_hat_i / d theta``, ``theta = (vech G0, vech R0)`` in the order of
+    :mod:`abp.solvers.multitrait_reml` and ``Sigma`` the inverse average-information
+    matrix.  Central differences with a step ``REL_STEP * sqrt(S_jj S_kk)`` on the
+    symmetric pair ``(j, k)`` of ``S = G0`` or ``R0``."""
+    from .multitrait import build_and_solve
+    if method == "auto":            # solutions only: the sparse factor beats dense Cholesky here
+        method = "sparse_direct"
+    t = G0.shape[0]
+    pairs = [(j, k) for j in range(t) for k in range(j, t)]
+    grads = []
+    for which in ("G", "R"):
+        S0 = G0 if which == "G" else R0
+        for j, k in pairs:
+            h = REL_STEP * float(np.sqrt(S0[j, j] * S0[k, k]))
+            sols = []
+            for sign in (1.0, -1.0):
+                S = S0.copy()
+                S[j, k] += sign * h
+                if j != k:
+                    S[k, j] += sign * h
+                Gp, Rp = (S, R0) if which == "G" else (G0, S)
+                r = build_and_solve(data, k_inv, k_diag, Gp, Rp, method=method,
+                                    compute_pev=False, memory_budget_bytes=memory_budget_bytes,
+                                    factorization=factorization)
+                sols.append(r.ebv)
+            grads.append((sols[0] - sols[1]) / (2.0 * h))
+    J = np.stack(grads, axis=2)                     # q x t x n_par
+    return np.einsum("iak,kl,ibl->iab", J, cov, J)

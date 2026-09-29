@@ -236,10 +236,10 @@ def _slice_sample(logf, x0: float, w: float, rng, max_steps: int = 50) -> float:
             hi = x
 
 
-def draw_location(P: "_Problem", fac, l: np.ndarray, var: np.ndarray, rng) -> np.ndarray:
+def draw_location(P: "_Problem", fac, liab: np.ndarray, var: np.ndarray, rng) -> np.ndarray:
     """One exact draw of ``theta ~ N(C^{-1} W'l, C^{-1})`` by perturbation (``fac``
-    factorises ``C`` at ``var``)."""
-    rhs = P.Wt @ (l + rng.standard_normal(P.n))
+    factorises ``C`` at ``var``; ``liab`` are the liabilities ``l``)."""
+    rhs = P.Wt @ (liab + rng.standard_normal(P.n))
     for t, root, v in zip(P.terms, P.roots, var):
         a0, b0 = P.offs[t.name]
         rhs[a0:b0] += root(rng.standard_normal(t.q)) / math.sqrt(v)

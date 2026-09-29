@@ -61,3 +61,61 @@ def test_workflow_reports_pev_including_vc_uncertainty(tmp_path):
                           tmp_path / "p", console=False)
     with open(out2.out_dir / "ebv_wwg.csv", encoding="utf-8") as fh:
         assert "pev_incl_vc_uncertainty" not in fh.readline()
+
+
+def test_multitrait_delta_equals_v_form_derivatives():
+    from abp.solvers.vc_uncertainty import kackar_harville_delta_multitrait
+    from tests.test_multitrait_reml import _problem
+    ped, data, A = _problem(3, n_anim=40, n_rec=70)
+    G0 = np.array([[1.6, 0.4], [0.4, 1.1]])
+    R0 = np.array([[2.5, 0.6], [0.6, 2.0]])
+    rng = np.random.default_rng(1)
+    M = rng.standard_normal((6, 6))
+    cov = 0.01 * (M @ M.T + 6 * np.eye(6))
+    delta = kackar_harville_delta_multitrait(data, ped.ainv(), 1 + ped.inbreeding(), G0, R0,
+                                             cov, method="dense")
+    Y = data.Y
+    ri, ti = np.nonzero(~np.isnan(Y))
+    y = Y[ri, ti]
+    n, q, t = y.size, A.shape[0], 2
+    Z = np.zeros((n, q * t))
+    Z[np.arange(n), data.animal_col[ri] * t + ti] = 1
+    X = np.zeros((n, 6))
+    for j, Xj in enumerate(data.X_per_trait):
+        X[np.flatnonzero(ti == j), 3 * j:3 * j + 3] = Xj.toarray()
+
+    def u_hat(Gm, Rm):
+        R = np.zeros((n, n))
+        for r in np.unique(ri):
+            idx = np.flatnonzero(ri == r)
+            R[np.ix_(idx, idx)] = Rm[np.ix_(ti[idx], ti[idx])]
+        Gu = np.kron(A, Gm)
+        Vi = np.linalg.inv(Z @ Gu @ Z.T + R)
+        P = Vi - Vi @ X @ np.linalg.solve(X.T @ Vi @ X, X.T @ Vi)
+        return (Gu @ Z.T @ P @ y).reshape(q, t)
+    J = []
+    h = 1e-5
+    for which in "GR":
+        for j, k in [(0, 0), (0, 1), (1, 1)]:
+            E = np.zeros((2, 2))
+            E[j, k] = E[k, j] = h
+            if which == "G":
+                J.append((u_hat(G0 + E, R0) - u_hat(G0 - E, R0)) / (2 * h))
+            else:
+                J.append((u_hat(G0, R0 + E) - u_hat(G0, R0 - E)) / (2 * h))
+    J = np.stack(J, axis=2)
+    ref = np.einsum("iak,kl,ibl->iab", J, cov, J)
+    np.testing.assert_allclose(delta, ref, rtol=1e-4, atol=1e-10)
+
+
+def test_example13_reports_multitrait_pev_including_vc_uncertainty(tmp_path):
+    out = run_evaluation(ROOT / "examples" / "13_sheep_multitrait_reml" / "analysis.toml",
+                         tmp_path / "o", console=False)
+    with open(out.out_dir / "ebv_multitrait.csv", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    for tr in ("wwt", "fat", "fec"):
+        sep = np.array([float(r[f"sep_{tr}"]) for r in rows])
+        pev_t = np.array([float(r[f"pev_incl_vc_uncertainty_{tr}"]) for r in rows])
+        rel_t = np.array([float(r[f"reliability_incl_vc_uncertainty_{tr}"]) for r in rows])
+        assert np.all(pev_t >= sep ** 2 - 1e-9) and np.any(pev_t > sep ** 2)
+        assert np.all((rel_t >= 0) & (rel_t <= 1))

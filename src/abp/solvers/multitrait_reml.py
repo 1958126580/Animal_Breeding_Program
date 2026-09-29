@@ -140,6 +140,7 @@ class MTREMLFit:
     trace_method: str
     start: dict
     history: list = field(default_factory=list)
+    cov: np.ndarray | None = None       # inverse AI matrix of (vech G0, vech R0)
 
     def to_dict(self, traits: list[str]) -> dict:
         def corr(S):
@@ -442,15 +443,19 @@ def mt_reml_fit(data: MTData, k_inv, logdet_k: float | None, cfg: dict,
                            "multi-trait REML does not handle in this version",
                            matrix=what, eigenvalues=ev_.tolist())
     se = None
+    cov = None
     try:
         cov = np.linalg.inv(point.ai)
+        cov = 0.5 * (cov + cov.T)
         names = [f"G0[{j},{k}]" for j, k in _vech_pairs(t)] + [f"R0[{j},{k}]" for j, k in _vech_pairs(t)]
         se = {n: float(math.sqrt(cov[i, i])) if cov[i, i] > 0 else None for i, n in enumerate(names)}
+        if np.linalg.eigvalsh(cov)[0] <= 0:
+            cov = None
     except np.linalg.LinAlgError:
         pass
     return MTREMLFit(G0, R0, point.loglik, len(history), "converged", se, ev.trace_method,
                      {"source": source, "G0": _unpack(theta, t)[0].tolist(),
-                      "R0": _unpack(theta, t)[1].tolist()}, history)
+                      "R0": _unpack(theta, t)[1].tolist()}, history, cov)
 
 
 # ---------------------------------------------------------------- reduced rank

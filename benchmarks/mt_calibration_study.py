@@ -13,7 +13,9 @@ For the selection candidates (lambs of the last season) and each trait the
 script reports the dispersion slope b(TBV | EBV), bias mean(TBV - EBV),
 realized accuracy, model accuracy sqrt(mean reliability), MSE / mean PEV and
 the coverage of nominal 95% intervals, as ``benchmarks/calibration_study.py``
-does for one trait.  Means ± Monte-Carlo SE across replicates.
+does for one trait.  Means ± Monte-Carlo SE across replicates.  From round 6
+``mt_reml`` also reports ``pev_ratio_incl_vc`` and ``coverage95_incl_vc``
+with the Kackar-Harville PEV that includes the uncertainty of G0 and R0.
 
 Usage: python benchmarks/mt_calibration_study.py [--replicates 50] [--workers 4]
        [--out docs/validation/mt_calibration_study.json]
@@ -127,6 +129,10 @@ def replicate(seed: int, work: Path) -> dict:
                      "model_accuracy": float(np.sqrt(rel.mean())),
                      "pev_ratio": float(np.mean(err ** 2) / np.mean(sep ** 2)),
                      "coverage95": float(np.mean(np.abs(err) <= 1.96 * sep))}
+            if f"pev_incl_vc_uncertainty_{tr}" in rows[0]:      # round 6: Kackar-Harville PEV
+                pv = np.array([float(r[f"pev_incl_vc_uncertainty_{tr}"]) for r in rows])
+                o[tr]["pev_ratio_incl_vc"] = float(np.mean(err ** 2) / np.mean(pv))
+                o[tr]["coverage95_incl_vc"] = float(np.mean(np.abs(err) <= 1.96 * np.sqrt(pv)))
         if name == "mt_reml":
             r = res.results["traits"]["wwt"]["reml"]
             o["G0"] = r["G0"]
@@ -150,7 +156,7 @@ def summarize(reps):
         for tr in TRAITS:
             s[name][tr] = {}
             for k in reps[0][name][tr]:
-                v = np.array([r[name][tr][k] for r in reps])
+                v = np.array([r[name][tr][k] for r in reps if k in r[name][tr]])
                 s[name][tr][k] = {"mean": float(v.mean()), "mc_se": float(v.std(ddof=1) / np.sqrt(v.size))}
     G = np.array([r["mt_reml"]["G0"] for r in reps])
     R = np.array([r["mt_reml"]["R0"] for r in reps])
