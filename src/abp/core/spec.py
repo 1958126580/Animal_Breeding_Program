@@ -260,8 +260,12 @@ SCHEMA = Section({
     }),
     "bayes": Section({
         "method": Field("str", required=True,
-                        choices=("BRR", "BayesA", "BayesB", "BayesC", "BayesCpi", "BayesR"),
-                        doc="Marker prior; pi0 = probability of a zero effect."),
+                        choices=("BRR", "BayesA", "BayesB", "BayesC", "BayesCpi", "BayesR",
+                                 "threshold"),
+                        doc="Marker prior (pi0 = probability of a zero effect), or 'threshold': "
+                            "Gibbs sampler of the threshold model for a categorical trait "
+                            "(random terms from [model]; uniform priors on the liability "
+                            "variances; prior_r2, pi0, nu and nu_e are not used)."),
         "chains": Field("int", default=4, check=lambda x: None if x >= 2 else "must be >= 2"),
         "iterations": Field("int", default=6000, check=_positive),
         "burn_in": Field("int", default=1000, check=_nonneg),
@@ -556,10 +560,18 @@ def validate_spec_dict(raw: dict) -> dict:
         raise _err("bayes", "variances.mode = 'bayes' and a [bayes] section go together")
     if raw.get("bayes") is None:
         d["bayes"] = None
+    elif d["bayes"]["method"] == "threshold":
+        cat_traits = {tr["name"] for tr in d["traits"] if tr["type"] == "categorical"}
+        if t > 1 or m["traits"][0] not in cat_traits:
+            raise _err("bayes.method", "'threshold' needs a single categorical trait")
+        if d["bayes"]["burn_in"] >= d["bayes"]["iterations"]:
+            raise _err("bayes.burn_in", "must be smaller than bayes.iterations")
     else:
         if t > 1:
             raise ABPError("UNSUPPORTED_COMBINATION", "Bayesian marker models are single-trait "
                                                       "in this version")
+        if any(tr["type"] == "categorical" and tr["name"] in m["traits"] for tr in d["traits"]):
+            raise _err("bayes.method", "categorical traits use bayes.method = 'threshold'")
         if len(m["random"]) != 1 or m["random"][0]["relationship"] != "genomic":
             raise _err("model.random", "Bayesian marker models need exactly one additive term "
                                        "with relationship = 'genomic'")
@@ -611,9 +623,9 @@ def validate_spec_dict(raw: dict) -> dict:
         if len(m["traits"]) > 1:
             raise ABPError("UNSUPPORTED_COMBINATION", "categorical (threshold) traits are "
                            "implemented for single-trait models only in this version")
-        if v["mode"] == "bayes":
-            raise _err("variances.mode", "the threshold model takes known liability variances "
-                       "(mode = 'known') or Laplace-approximate REML (mode = 'reml')")
+        if v["mode"] == "bayes" and (raw.get("bayes") or {}).get("method") != "threshold":
+            raise _err("bayes.method", "categorical traits use bayes.method = 'threshold' "
+                       "(Gibbs sampler of the threshold model)")
         vals = v["values"] if v["mode"] == "known" else (d["reml"]["start"] or {})
         where = "variances.values" if v["mode"] == "known" else "reml.start"
         if "residual" in vals and abs(float(vals["residual"]) - 1.0) > 1e-12:

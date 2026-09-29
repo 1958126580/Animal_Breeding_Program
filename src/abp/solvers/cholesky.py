@@ -216,6 +216,35 @@ class SparseLDL:
     def nnz_factor(self) -> int:
         return int(self.rowidx.size)
 
+    def refactor(self, C: sp.spmatrix) -> None:
+        """Numeric refactorization of a matrix with the **same sparsity pattern**
+        (e.g. new variance ratios in a Gibbs sampler): ordering and symbolic
+        pattern are reused; only ``d`` and ``L`` are recomputed."""
+        C = sp.csr_matrix(C)
+        if C.shape != self.C.shape or C.nnz != self.C.nnz:
+            raise ValueError("refactor needs a matrix with the same pattern")
+        B = sp.csc_matrix(C)[self.q][:, self.q]
+        B.sort_indices()
+        Bp = np.ascontiguousarray(B.indptr, dtype=np.int64)
+        Bi = np.ascontiguousarray(B.indices, dtype=np.int64)
+        Bx = np.ascontiguousarray(B.data, dtype=np.float64)
+        if native_ldl_available():
+            try:
+                raw_d, raw_l = _native.ldl_numeric(Bp, Bi, Bx, self.colptr, self.rowidx)
+            except ValueError as exc:
+                raise ABPError("FACTORIZATION_FAILED", f"sparse LDL' failed: {exc}") from None
+            self.d = np.frombuffer(raw_d, dtype=np.float64).copy()
+            self.lval = np.frombuffer(raw_l, dtype=np.float64).copy()
+        else:
+            self.d, self.lval = ldl_numeric_python(Bp, Bi, Bx, self.colptr, self.rowidx, self.n)
+        self.C = C
+        self._selinv = None
+
+    def l_times(self, v: np.ndarray) -> np.ndarray:
+        """``L v`` in the permuted ordering (``L`` unit lower triangular)."""
+        L = sp.csc_matrix((self.lval, self.rowidx, self.colptr), shape=(self.n, self.n))
+        return v + L @ v
+
     def solve(self, b: np.ndarray) -> np.ndarray:
         b = np.asarray(b, dtype=np.float64)
         bp = b[self.q]

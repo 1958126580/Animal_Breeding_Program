@@ -11,7 +11,10 @@ replicates of the synthetic flock is analysed with
 * ``threshold_laplace`` the same threshold model with the liability variances
                        estimated by Laplace-approximate REML (round 5); the
                        estimates are compared with the generator's values
-                       (0.1111 for both the animal and the pe variance).
+                       (0.1111 for both the animal and the pe variance);
+* ``threshold_gibbs``  the same threshold model with the liability variances
+                       sampled by the Gibbs sampler (round 6; posterior means
+                       and medians, uniform priors).
 
 For the ewes with records the script reports the realized accuracy
 corr(EBV, TBV) against the simulated liability TBV, the model accuracy
@@ -48,7 +51,10 @@ from abp.workflows.evaluate import run_evaluation  # noqa: E402
 
 EX03 = ROOT / "examples" / "03_sheep_nlb_repeatability" / "analysis.toml"
 EX14 = ROOT / "examples" / "14_sheep_nlb_threshold" / "analysis.toml"
-SCEN = {"linear_reml": EX03, "threshold_true": EX14, "threshold_laplace": EX14}
+SCEN = {"linear_reml": EX03, "threshold_true": EX14, "threshold_laplace": EX14,
+        "threshold_gibbs": EX14}
+GIBBS = ('mode = "bayes"\n\n[bayes]\nmethod = "threshold"\niterations = 4000\nburn_in = 1000'
+         '\nthin = 2\nmax_iterations = 32000')
 TRUE_LIAB = {"animal": 0.1111, "pe": 0.1111}
 
 
@@ -57,6 +63,9 @@ def _spec_text(name: str) -> str:
     if name == "threshold_laplace":
         txt = txt.replace('mode = "known"', 'mode = "reml"')
         txt = "\n".join(ln for ln in txt.splitlines() if not ln.startswith("values = { animal"))
+    if name == "threshold_gibbs":
+        txt = "\n".join(ln for ln in txt.splitlines() if not ln.startswith("values = { animal"))
+        txt = txt.replace('mode = "known"', GIBBS)
     return txt
 
 
@@ -84,6 +93,10 @@ def replicate(seed: int, work: Path) -> dict:
         out[name] = {"n": int(e.size), "realized_accuracy": acc, "model_accuracy": macc,
                      "ratio_model_to_realized": macc / acc,
                      "variance_components": res.results["traits"]["nlb"]["variance_components"]}
+        bz = res.results["traits"]["nlb"].get("bayes")
+        if bz:
+            out[name]["posterior_median"] = {k: v["median"] for k, v in bz["variances"].items()}
+            out[name]["iterations"] = bz["iterations"]
     return out
 
 
@@ -112,7 +125,7 @@ def main():
     summary = {"n_replicates_both_models": len(both)}
     for name in SCEN:
         summary[name] = {"n_withheld": sum("withheld" in r[name] for r in reps)}
-        use = both if name != "threshold_laplace" else [r for r in reps if "withheld" not in r[name]]
+        use = both if name in ("linear_reml", "threshold_true") else [r for r in reps if "withheld" not in r[name]]
         for k in ("realized_accuracy", "model_accuracy", "ratio_model_to_realized"):
             v = np.array([r[name][k] for r in use])
             summary[name][k] = {"mean": float(v.mean()), "mc_se": float(v.std(ddof=1) / np.sqrt(v.size))}
@@ -120,12 +133,18 @@ def main():
                   for r in both])
     summary["paired_difference_realized_accuracy_threshold_minus_linear"] = {
         "mean": float(d.mean()), "mc_se": float(d.std(ddof=1) / np.sqrt(d.size))}
-    ok = [r for r in reps if "withheld" not in r["threshold_laplace"]]
-    for k, true in TRUE_LIAB.items():
-        v = np.array([r["threshold_laplace"]["variance_components"][k] for r in ok])
-        summary[f"laplace_estimate_{k}"] = {"mean": float(v.mean()),
-                                             "mc_se": float(v.std(ddof=1) / np.sqrt(v.size)),
-                                             "true": true}
+    for sc, lab in (("threshold_laplace", "laplace"), ("threshold_gibbs", "gibbs")):
+        ok = [r for r in reps if "withheld" not in r[sc]]
+        for k, true in TRUE_LIAB.items():
+            v = np.array([r[sc]["variance_components"][k] for r in ok])
+            summary[f"{lab}_estimate_{k}"] = {"mean": float(v.mean()),
+                                              "mc_se": float(v.std(ddof=1) / np.sqrt(v.size)),
+                                              "true": true}
+            if sc == "threshold_gibbs":
+                m = np.array([r[sc]["posterior_median"][k] for r in ok])
+                summary[f"gibbs_median_{k}"] = {"mean": float(m.mean()),
+                                                "mc_se": float(m.std(ddof=1) / np.sqrt(m.size)),
+                                                "true": true}
     doc = {"study": "linear vs threshold model, number of lambs born", "replicates": args.replicates,
            "seeds": f"1..{args.replicates}", "specs": {k: str(v.relative_to(ROOT)) for k, v in SCEN.items()},
            "wall_seconds": time.time() - t0, "summary": summary, "replicate_results": reps}

@@ -250,7 +250,7 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
     log.info("phenotype QC passed: %d records used, %d excluded (listed in qc_excluded_records.csv)",
              phe_qc.stats["n_records_used"], len(excluded))
 
-    if d["variances"]["mode"] == "bayes":
+    if d["variances"]["mode"] == "bayes" and d["bayes"]["method"] != "threshold":
         return _run_bayes(spec, records, phe_qc, ped_data, stage, manifest)
 
     # -- relationship structure --------------------------------------------
@@ -596,15 +596,27 @@ def _run_threshold_trait(spec: AnalysisSpec, model: SingleTraitModel,
                            "fixed at 1)")
         log.info("%s: Laplace-approximate REML on the liability scale: %s (%d evaluations)",
                  trait, {k: round(v, 5) for k, v in vc.items()}, fit.evaluations)
+    elif d["variances"]["mode"] == "bayes":
+        gibbs = _threshold_gibbs_step(spec, model, stage, manifest)
+        vc = {k: v["mean"] for k, v in gibbs.variances.items() if k != "h2_liability"}
+        vc["residual"] = 1.0
+        variance_source = ("bayes (threshold-model Gibbs sampler; posterior means, liability "
+                           "scale; residual variance fixed at 1)")
     else:
         vc = {k: float(v) for k, v in d["variances"]["values"].items()}
         variance_source = "known (liability scale; residual variance fixed at 1)"
-    res = threshold_blup(model.y, model.fixed.X, model.terms, vc,
-                         intercept=d["model"]["intercept"], compute_pev=(sol["pev"] == "exact"),
-                         memory_budget_bytes=budget)
-    log.info("%s: threshold model, %d categories, converged in %d Newton iterations "
-             "(largest last step %.1e); thresholds %s", trait, res.categories.size,
-             res.iterations, res.max_step, np.round(res.thresholds, 4).tolist())
+    if d["variances"]["mode"] == "bayes":
+        res = SimpleNamespace(terms=gibbs.terms, fixed_solution=gibbs.fixed_mean,
+                              thresholds=gibbs.thresholds_mean, categories=gibbs.categories,
+                              iterations=gibbs.iterations, n_equations=gibbs.n_equations,
+                              log_posterior=None, solver="gibbs, sparse LDL' block draws")
+    else:
+        res = threshold_blup(model.y, model.fixed.X, model.terms, vc,
+                             intercept=d["model"]["intercept"],
+                             compute_pev=(sol["pev"] == "exact"), memory_budget_bytes=budget)
+        log.info("%s: threshold model, %d categories, converged in %d Newton iterations "
+                 "(largest last step %.1e); thresholds %s", trait, res.categories.size,
+                 res.iterations, res.max_step, np.round(res.thresholds, 4).tolist())
     files = _write_single_trait_outputs(stage, model, SimpleNamespace(
         terms=res.terms, fixed_solution=res.fixed_solution), ped_data)
     name = f"thresholds_{trait}.csv"
@@ -623,14 +635,21 @@ def _run_threshold_trait(spec: AnalysisSpec, model: SingleTraitModel,
         "n_animals_evaluated": len(gen.labels),
         "variance_source": variance_source,
         "variance_components": vc,
-        "heritability": vc[model.genetic_term] / total,
+        "heritability": (gibbs.variances["h2_liability"]["mean"]
+                         if d["variances"]["mode"] == "bayes" else vc[model.genetic_term] / total),
         "reml": reml_info,
         "genetic_term": model.genetic_term,
-        "solver": {"method": f"threshold model, Newton-Raphson ({res.solver})",
-                   "selection_reason": "categorical trait", "n_equations": res.n_equations,
-                   "relative_residual": None, "iterations": res.iterations,
-                   "wall_seconds": None, "pev": ("laplace_approximation" if sol["pev"] == "exact"
-                                                 else "none")},
+        "solver": ({"method": f"threshold model, Newton-Raphson ({res.solver})",
+                    "selection_reason": "categorical trait", "n_equations": res.n_equations,
+                    "relative_residual": None, "iterations": res.iterations,
+                    "wall_seconds": None,
+                    "pev": ("laplace_approximation" if sol["pev"] == "exact" else "none")}
+                   if d["variances"]["mode"] != "bayes" else
+                   {"method": f"threshold model, {res.solver}",
+                    "selection_reason": "categorical trait, variances.mode = bayes",
+                    "n_equations": res.n_equations, "relative_residual": None,
+                    "iterations": res.iterations, "wall_seconds": gibbs.wall_seconds,
+                    "pev": "posterior_variance"}),
         "fixed_effects": _fixed_rows(model, SimpleNamespace(fixed_solution=res.fixed_solution)),
         "n_fixed_constrained": len(model.fixed.constrained_labels),
         "upg": None,
@@ -654,13 +673,80 @@ def _run_threshold_trait(spec: AnalysisSpec, model: SingleTraitModel,
                         "min": float(gen.solution.min()), "max": float(gen.solution.max())},
         "files": files,
     }
-    manifest["diagnostics"][trait] = {"solver": out["solver"], "reml": reml_info,
-                                      "threshold_model": out["threshold_model"]}
+    manifest["diagnostics"].setdefault(trait, {}).update(
+        {"solver": out["solver"], "reml": reml_info, "threshold_model": out["threshold_model"]})
+    if d["variances"]["mode"] == "bayes":
+        out["bayes"] = {"method": "threshold", "converged": gibbs.converged,
+                        "iterations": gibbs.iterations, "chains": d["bayes"]["chains"],
+                        "summaries": {k: {m: v[m] for m in ("mean", "sd", "q05", "q95", "rhat",
+                                                            "ess_bulk", "ess_tail", "mcse_mean")}
+                                      for k, v in gibbs.summaries.items()},
+                        "variances": gibbs.variances, "ebv_diagnostics": gibbs.ebv_diagnostics}
+        out["files"]["diagnostics"] = f"mcmc_diagnostics_{trait}.json"
+        out["files"]["trace"] = f"mcmc_trace_{trait}.csv"
+        out["threshold_model"]["note"] = (
+            "EBVs are posterior means and PEV posterior variances on the liability scale "
+            "(they include the uncertainty of the variances); reliabilities use the "
+            "posterior mean of the genetic variance")
     k_diag = np.asarray(structure.k_diag)[:len(gen.labels)]
     state = EvalState(tuple(gen.labels), [trait], gen.solution[:, None],
                       None if gen.pev is None else gen.pev[:, None, None],
                       np.array([[vc[model.genetic_term]]]), k_diag, False, sex)
     return out, state
+
+
+def _threshold_gibbs_step(spec: AnalysisSpec, model: SingleTraitModel, stage: OutputStage,
+                          manifest: dict):
+    """Gibbs sampler for a categorical trait: diagnostics and traces are written
+    before the convergence decision (a withheld result keeps its evidence)."""
+    from ..solvers.threshold_gibbs import ThresholdGibbsConfig, threshold_gibbs
+    d = spec.data
+    trait = model.trait
+    b = d["bayes"]
+    cfg = ThresholdGibbsConfig(chains=b["chains"], iterations=b["iterations"],
+                               burn_in=b["burn_in"], thin=b["thin"], seed=b["seed"],
+                               rhat_max=b["rhat_max"], ess_min=b["ess_min"],
+                               max_iterations=b["max_iterations"])
+    log.info("%s: threshold-model Gibbs sampler, %d chains, %d iterations (up to %d)", trait,
+             cfg.chains, cfg.iterations, cfg.max_iterations)
+    g = threshold_gibbs(model.y, model.fixed.X, model.terms, d["model"]["intercept"], cfg,
+                        genetic_term=model.genetic_term)
+    diag = {"method": "threshold model, Gibbs sampler (Sorensen et al. 1995; Cowles 1996 "
+                      "threshold step; block draws of the location effects)",
+            "converged": g.converged, "iterations": g.iterations,
+            "draws_per_chain": g.draws_per_chain, "chains": cfg.chains, "thin": cfg.thin,
+            "burn_in": cfg.burn_in, "chain_seeds": g.seeds, "master_seed": cfg.seed,
+            "wall_seconds": g.wall_seconds,
+            "criteria": {"rhat_max": cfg.rhat_max, "ess_min": cfg.ess_min},
+            "summaries": g.summaries, "ebv_diagnostics": g.ebv_diagnostics,
+            "variances": g.variances,
+            "threshold_step": {"acceptance_after_burn_in": g.acceptance,
+                               "proposal_sd": g.proposal_sd},
+            "priors": {"variances": "uniform on (0, inf) (scaled inverse chi-square, nu = -2, "
+                                    "s2 = 0)", "fixed_effects": "flat",
+                       "thresholds": "flat subject to ordering"},
+            "trace_file": f"mcmc_trace_{trait}.csv"}
+    atomic_write_json(stage.path(f"mcmc_diagnostics_{trait}.json"), diag)
+    names = list(g.traces)
+    write_csv(stage.path(f"mcmc_trace_{trait}.csv"), ["chain", "iteration"] + names,
+              [[c + 1, cfg.burn_in + (k + 1) * cfg.thin] + [float(g.traces[q][c, k])
+                                                            for q in names]
+               for c in range(cfg.chains) for k in range(g.draws_per_chain)])
+    manifest["diagnostics"].setdefault(trait, {})["mcmc"] = {
+        k: diag[k] for k in ("method", "converged", "iterations", "chains", "chain_seeds",
+                             "criteria")}
+    manifest["randomness"] = {"seed": cfg.seed, "generator": "numpy PCG64 via SeedSequence.spawn",
+                              "chain_seeds": g.seeds}
+    if not g.converged:
+        raise ABPError("MCMC_NOT_CONVERGED",
+                       f"{trait}: threshold-model Gibbs diagnostics not met after "
+                       f"{g.iterations} iterations (criteria R-hat < {cfg.rhat_max}, "
+                       f"ESS >= {cfg.ess_min})",
+                       summaries={k: {m: v[m] for m in ("rhat", "ess_bulk", "ess_tail")}
+                                  for k, v in g.summaries.items()}, ebv=g.ebv_diagnostics)
+    log.info("%s: Gibbs sampler converged after %d iterations; liability variances %s", trait,
+             g.iterations, {k: round(v["mean"], 4) for k, v in g.variances.items()})
+    return g
 
 
 def _upg_check(model: SingleTraitModel, structure: GeneticStructure) -> dict | None:
