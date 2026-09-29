@@ -87,14 +87,29 @@ class MTSystem:
     n_rec: int
 
 
-def assemble_multitrait(data: MTData, k_inv, G0: np.ndarray, R0: np.ndarray) -> MTSystem:
-    """Build the unscaled multi-trait MME for given ``G0`` and ``R0`` (no solve)."""
+def assemble_multitrait(data: MTData, k_inv, G0: np.ndarray | None, R0: np.ndarray,
+                        loadings: np.ndarray | None = None) -> MTSystem:
+    """Build the unscaled multi-trait MME for given ``G0`` and ``R0`` (no solve).
+
+    With ``loadings`` (``Lambda``, ``t x r`` of full column rank) the genetic
+    covariance is the reduced-rank ``G0 = Lambda Lambda'`` (``G0`` is then
+    ignored) and the system is set up for the latent factors
+    ``f ~ N(0, K (x) I_r)`` with ``u = (I_q (x) Lambda) f``: the animal columns
+    of ``Z`` become ``Z (I_q (x) Lambda)`` and the precision ``K^{-1} (x) I_r``
+    (factor-major within animal: equation ``offset + animal * r + factor``)."""
     Y = np.asarray(data.Y, dtype=np.float64)
     n_rec, t = Y.shape
     q = k_inv.shape[0]
-    G0 = check_covariance(G0, "genetic covariance matrix G0")
+    if loadings is None:
+        G0 = check_covariance(G0, "genetic covariance matrix G0")
+        if G0.shape != (t, t):
+            raise ABPError("SPEC_INVALID", f"covariance matrices must be {t}x{t}")
+    else:
+        loadings = np.asarray(loadings, dtype=np.float64)
+        if loadings.ndim != 2 or loadings.shape[0] != t or loadings.shape[1] > t:
+            raise ABPError("SPEC_INVALID", f"loadings must be {t} x r with r <= {t}")
     R0 = check_covariance(R0, "residual covariance matrix R0")
-    if G0.shape != (t, t) or R0.shape != (t, t):
+    if R0.shape != (t, t):
         raise ABPError("SPEC_INVALID", f"covariance matrices must be {t}x{t}")
     obs = ~np.isnan(Y)
     rec_idx, trait_idx = np.nonzero(obs)          # row-major -> record-major stacking
@@ -139,28 +154,47 @@ def assemble_multitrait(data: MTData, k_inv, G0: np.ndarray, R0: np.ndarray) -> 
         rv.append(blk.ravel())
     rinv = sp.csr_matrix((np.concatenate(rv), (np.concatenate(rr), np.concatenate(rc))),
                          shape=(n_obs, n_obs))
-    g0_inv = np.linalg.inv(G0)
     kin = sp.csr_matrix(k_inv) if not sp.issparse(k_inv) else k_inv.tocsr()
-    precision = sp.kron(kin, sp.csr_matrix(g0_inv), format="csr")
-    system = assemble(y, X, [RandomEffect("animal", Z, precision, list(range(q * t)))], rinv)
+    if loadings is None:
+        precision = sp.kron(kin, sp.csr_matrix(np.linalg.inv(G0)), format="csr")
+        nz = q * t
+    else:
+        r = loadings.shape[1]
+        Z = (Z @ sp.kron(sp.identity(q, format="csr"), sp.csr_matrix(loadings),
+                         format="csr")).tocsr()
+        precision = sp.kron(kin, sp.identity(r, format="csr"), format="csr")
+        nz = q * r
+    system = assemble(y, X, [RandomEffect("animal", Z, precision, list(range(nz)))], rinv)
     return MTSystem(system, rec_idx, trait_idx, p_off, q, t, n_rec)
 
 
-def build_and_solve(data: MTData, k_inv, k_diag: np.ndarray, G0: np.ndarray, R0: np.ndarray,
-                    method: str = "auto", compute_pev: bool = True, tol: float = 1e-10,
-                    max_iter: int = 10000, memory_budget_bytes: int = 4 * 2**30,
-                    factorization: str = "auto") -> MTResult:
-    mts = assemble_multitrait(data, k_inv, G0, R0)
+def build_and_solve(data: MTData, k_inv, k_diag: np.ndarray, G0: np.ndarray | None,
+                    R0: np.ndarray, method: str = "auto", compute_pev: bool = True,
+                    tol: float = 1e-10, max_iter: int = 10000,
+                    memory_budget_bytes: int = 4 * 2**30, factorization: str = "auto",
+                    loadings: np.ndarray | None = None) -> MTResult:
+    """Solve the multi-trait MME; with ``loadings`` the reduced-rank model
+    ``G0 = Lambda Lambda'`` is solved for the latent factors ``f`` and reported on
+    the trait scale: ``u_i = Lambda f_i``, ``PEV_i = Lambda C^{f_i f_i} Lambda'``."""
+    mts = assemble_multitrait(data, k_inv, G0, R0, loadings=loadings)
     system, p_off, q, t, n_obs = mts.system, mts.p_off, mts.q, mts.t, mts.rec_idx.size
-    G0 = check_covariance(G0, "genetic covariance matrix G0")
+    if loadings is None:
+        G0 = check_covariance(G0, "genetic covariance matrix G0")
+        Lam, r = np.eye(t), t
+    else:
+        Lam = np.asarray(loadings, dtype=np.float64)
+        r = Lam.shape[1]
+        G0 = Lam @ Lam.T
     res = solve_system(system, method=method, need_inverse=compute_pev, tol=tol,
                        max_iter=max_iter, memory_budget_bytes=memory_budget_bytes,
                        factorization=factorization)
     a0, _ = system.offsets["animal"]
-    ebv = res.solution[a0:a0 + q * t].reshape(q, t)
+    ebv = res.solution[a0:a0 + q * r].reshape(q, r) @ Lam.T
     pev = rel = None
     if compute_pev:
-        pev = _pev_blocks(res, a0, q, t)
+        pev = _pev_blocks(res, a0, q, r)
+        if loadings is not None:
+            pev = np.einsum("jk,ikl,ml->ijm", Lam, pev, Lam)
         prior = np.asarray(k_diag, dtype=np.float64)[:, None] * np.diag(G0)[None, :]
         rel_raw = 1.0 - np.einsum("ijj->ij", pev) / prior
         if np.any(rel_raw < -1e-8) or np.any(rel_raw > 1 + 1e-8):

@@ -376,6 +376,19 @@
             "type": "number"
           },
           "description": "Starting variances (default: data-based heuristic)."
+        },
+        "boundary": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "reduced_rank"
+          ],
+          "default": "stop",
+          "description": "Multi-trait REML whose optimum has a singular genetic covariance matrix: 'stop' (ABP-E300, default) or 'reduced_rank' (refit with G0 = Lambda Lambda' of rank reml.rank)."
+        },
+        "rank": {
+          "type": "integer",
+          "description": "Multi-trait REML: estimate G0 = Lambda Lambda' with this rank directly (an assumption stated by the user; below the number of traits). Not combined with boundary = 'reduced_rank', whose fallback uses rank traits - 1."
         }
       }
     },

@@ -46,8 +46,26 @@ definite or that decrease logL are halved, then replaced by EM.
 Convergence: relative parameter change < ``tol`` and Newton decrement
 ``g'AI^{-1}g < tol``.  Non-convergence raises ``REML_NOT_CONVERGED``; a
 ``G0`` or ``R0`` that becomes singular (a genetic or residual variance or
-correlation at the boundary) raises ``MODEL_NOT_IDENTIFIABLE`` - boundary
-handling is not implemented for the multi-trait case.
+correlation at the boundary) raises ``MODEL_NOT_IDENTIFIABLE``.
+
+Reduced-rank genetic covariance (method id ``reml.multi_trait_reduced_rank``)
+---------------------------------------------------------------------------
+When the optimum has a singular ``G0`` (a genetic correlation of +-1, or a
+genetic variance that is a combination of the others), ``G0 = Lambda Lambda'``
+with ``Lambda`` ``t x r`` lower trapezoidal (``Lambda_jk = 0`` for ``k > j``)
+is estimated instead (Kirkpatrick & Meyer 2004, Genetics 168:2295; Meyer &
+Kirkpatrick 2005, Genet Sel Evol 37:1).  With latent factors
+``f ~ N(0, K (x) I_r)`` and ``u = (I_q (x) Lambda) f`` the model is an ordinary
+mixed model in ``f``, and Henderson's form of the likelihood becomes
+
+    -2 logL = sum_r log|R0[o_r,o_r]| + r log|K| + log|C_f| + y'Py
+
+(``C_f`` the MME of the ``f`` model; derived here, tested against the V-form
+with a singular ``G0``).  ``(Lambda, chol R0)`` are unconstrained parameters
+(``chol R0`` with log-diagonal); ``-2 logL`` is minimised by L-BFGS with
+central-difference gradients (``2 n_par`` likelihood evaluations per
+gradient - an opt-in fallback, not a fast path).  Sampling errors are not
+reported for this parameterisation.
 """
 
 from __future__ import annotations
@@ -65,6 +83,7 @@ from .multitrait import MTData, assemble_multitrait, check_covariance
 DENSE_MAX = 2000    #: dense trace path up to this many equations (example 13, 6,390 equations:
                     #: dense 44.2 s, sparse selected inversion 7.9 s, identical logL)
 MIN_EIG_REL = 1e-8  #: smallest eigenvalue / largest of G0 or R0 accepted at convergence
+GRAD_TOL_RR = 1e-3  #: reduced rank: largest |d(-2 logL)/dx| accepted at convergence
 
 
 def _vech_pairs(t: int) -> list[tuple[int, int]]:
@@ -432,3 +451,163 @@ def mt_reml_fit(data: MTData, k_inv, logdet_k: float | None, cfg: dict,
     return MTREMLFit(G0, R0, point.loglik, len(history), "converged", se, ev.trace_method,
                      {"source": source, "G0": _unpack(theta, t)[0].tolist(),
                       "R0": _unpack(theta, t)[1].tolist()}, history)
+
+
+# ---------------------------------------------------------------- reduced rank
+def _lower_trapezoid(t: int, r: int) -> list[tuple[int, int]]:
+    return [(j, k) for j in range(t) for k in range(min(j + 1, r))]
+
+
+def _rr_unpack(x: np.ndarray, t: int, r: int) -> tuple[np.ndarray, np.ndarray]:
+    lt = _lower_trapezoid(t, r)
+    Lam = np.zeros((t, r))
+    for v, (j, k) in zip(x[:len(lt)], lt):
+        Lam[j, k] = v
+    L = np.zeros((t, t))
+    for v, (j, k) in zip(x[len(lt):], _lower_trapezoid(t, t)):
+        L[j, k] = np.exp(v) if j == k else v
+    return Lam, L @ L.T
+
+
+def _rr_pack(Lam: np.ndarray, R0: np.ndarray) -> np.ndarray:
+    t, r = Lam.shape
+    # rotate Lambda to lower-trapezoidal form (G0 = Lambda Lambda' is unchanged)
+    Qm, Rm = np.linalg.qr(Lam.T)
+    Lt = Rm.T
+    L = np.linalg.cholesky(R0)
+    return np.array([Lt[j, k] for j, k in _lower_trapezoid(t, r)]
+                    + [np.log(L[j, k]) if j == k else L[j, k] for j, k in _lower_trapezoid(t, t)])
+
+
+class ReducedRankEvaluator:
+    """``-2 logL`` of the reduced-rank model ``G0 = Lambda Lambda'`` (see module notes)."""
+
+    def __init__(self, data: MTData, k_inv, logdet_k: float | None, rank: int,
+                 memory_budget_bytes: int = 4 * 2**30):
+        if logdet_k is None:
+            raise ABPError("UNSUPPORTED_COMBINATION", "multi-trait REML needs log|K| of the "
+                           "relationship structure")
+        self.data = data
+        self.k_inv = sp.csr_matrix(k_inv) if not sp.issparse(k_inv) else k_inv.tocsr().copy()
+        self.logdet_k = float(logdet_k)
+        self.t = int(np.asarray(data.Y).shape[1])
+        if not 1 <= rank <= self.t:
+            raise ABPError("SPEC_INVALID", f"reduced rank must be between 1 and {self.t}")
+        self.r = int(rank)
+        self.budget = memory_budget_bytes
+        self.n_eval = 0
+
+    def m2ll(self, Lam: np.ndarray, R0: np.ndarray) -> tuple[float, object]:
+        self.n_eval += 1
+        mts = assemble_multitrait(self.data, self.k_inv, None, R0, loadings=Lam)
+        sysm = mts.system
+        n_eq = sysm.n_equations
+        dense = n_eq <= DENSE_MAX and dense_bytes(n_eq, False) <= self.budget
+        fac = DenseCholesky(sysm.C.toarray()) if dense else make_sparse_factor(sysm.C, self.budget)
+        s = fac.solve(sysm.rhs)
+        ypy = float(sysm.y @ (sysm.rinv @ sysm.y)) - float(s @ sysm.rhs)
+        tr = mts.trait_idx
+        starts = np.searchsorted(mts.rec_idx, np.arange(mts.n_rec))
+        ends = np.searchsorted(mts.rec_idx, np.arange(mts.n_rec), side="right")
+        cache: dict[tuple, float] = {}
+        logdet_r = 0.0
+        for a, b in zip(starts, ends):
+            if a == b:
+                continue
+            key = tuple(tr[a:b])
+            if key not in cache:
+                cache[key] = float(np.linalg.slogdet(R0[np.ix_(key, key)])[1])
+            logdet_r += cache[key]
+        return logdet_r + self.r * self.logdet_k + fac.logdet() + ypy, fac
+
+    def objective(self, x: np.ndarray) -> float:
+        Lam, R0 = _rr_unpack(x, self.t, self.r)
+        try:
+            return self.m2ll(Lam, R0)[0]
+        except (ABPError, np.linalg.LinAlgError):
+            return float("inf")
+
+
+@dataclass
+class ReducedRankFit:
+    loadings: np.ndarray
+    G0: np.ndarray
+    R0: np.ndarray
+    rank: int
+    loglik: float
+    evaluations: int
+    status: str
+    gradient_norm: float
+    start: dict
+
+    def to_dict(self, traits: list[str]) -> dict:
+        def corr(S):
+            d = np.sqrt(np.diag(S))
+            return (S / np.outer(d, d)).tolist()
+        h2 = (np.diag(self.G0) / (np.diag(self.G0) + np.diag(self.R0))).tolist()
+        return {"status": self.status,
+                "algorithm": f"reduced-rank REML, G0 = Lambda Lambda' of rank {self.rank} "
+                             "(L-BFGS, central-difference gradients)",
+                "traits": traits, "G0": self.G0.tolist(), "R0": self.R0.tolist(),
+                "loadings": self.loadings.tolist(), "rank": self.rank,
+                "genetic_correlations": corr(self.G0), "residual_correlations": corr(self.R0),
+                "heritabilities": dict(zip(traits, h2)), "loglik": self.loglik,
+                "iterations": self.evaluations, "se": None, "gradient_norm": self.gradient_norm,
+                "start": self.start, "trace_method": "none (derivative-free likelihood)",
+                "note": "REML estimates under a reduced-rank genetic covariance matrix; "
+                        "the rank is an assumption, sampling errors are not reported."}
+
+
+def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: int,
+                             cfg: dict, memory_budget_bytes: int = 4 * 2**30,
+                             start=None) -> ReducedRankFit:
+    """REML with ``G0 = Lambda Lambda'`` of rank ``rank`` (see module notes)."""
+    from scipy.optimize import minimize
+    ev = ReducedRankEvaluator(data, k_inv, logdet_k, rank, memory_budget_bytes)
+    t, r = ev.t, ev.r
+    if start is None:
+        G0s, R0s = default_start(data)
+        source = "data-based heuristic, G0 truncated to its leading eigenvectors"
+    else:
+        G0s, R0s = (np.asarray(x, dtype=np.float64) for x in start)
+        source = "user"
+    w, V = np.linalg.eigh(0.5 * (G0s + G0s.T))
+    idx = np.argsort(w)[::-1][:r]
+    Lam0 = V[:, idx] * np.sqrt(np.maximum(w[idx], 1e-6 * max(w.max(), 1e-12)))
+    x0 = _rr_pack(Lam0, check_covariance(R0s, "R0 start"))
+    tol = float(cfg["tol"])
+    h = 1e-5
+
+    def grad(x):
+        g = np.empty_like(x)
+        for i in range(x.size):
+            e = np.zeros_like(x)
+            e[i] = h * max(1.0, abs(x[i]))
+            g[i] = (ev.objective(x + e) - ev.objective(x - e)) / (2 * e[i])
+        return g
+
+    res = minimize(ev.objective, x0, jac=grad, method="L-BFGS-B",
+                   options={"maxiter": int(cfg["max_iter"]), "gtol": max(tol, 1e-6) * 10,
+                            "ftol": 1e-13})
+    x = res.x
+    gnorm = float(np.max(np.abs(grad(x))))
+    f = ev.objective(x)
+    if not np.isfinite(f) or gnorm > GRAD_TOL_RR:
+        raise ABPError("REML_NOT_CONVERGED", f"reduced-rank multi-trait REML (rank {r}) did "
+                       f"not converge (largest gradient element {gnorm:.2e}; {res.message})",
+                       gradient=gnorm)
+    Lam, R0 = _rr_unpack(x, t, r)
+    ev_r = np.linalg.eigvalsh(R0)
+    if ev_r[0] <= MIN_EIG_REL * ev_r[-1]:
+        raise ABPError("MODEL_NOT_IDENTIFIABLE", "reduced-rank multi-trait REML: the residual "
+                       "covariance matrix is (nearly) singular; reducing the rank of G0 does "
+                       "not resolve this boundary", eigenvalues=ev_r.tolist())
+    sv = np.linalg.svd(Lam, compute_uv=False)
+    if sv[-1] <= 1e-6 * sv[0]:
+        raise ABPError("MODEL_NOT_IDENTIFIABLE", f"reduced-rank multi-trait REML: rank {r} is "
+                       f"still too high (the loadings have rank < {r}); use a lower rank",
+                       singular_values=sv.tolist())
+    Lam0f, R0f = _rr_unpack(x0, t, r)
+    return ReducedRankFit(Lam, Lam @ Lam.T, R0, r, -0.5 * f, ev.n_eval, "converged", gnorm,
+                          {"source": source, "G0": (Lam0f @ Lam0f.T).tolist(),
+                           "R0": R0f.tolist()})

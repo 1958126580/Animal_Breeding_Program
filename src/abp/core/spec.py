@@ -170,6 +170,15 @@ SCHEMA = Section({
         "max_iter": Field("int", default=200, check=_positive),
         "tol": Field("float", default=1e-8, check=_positive),
         "start": Field("float_map", doc="Starting variances (default: data-based heuristic)."),
+        "boundary": Field("str", default="stop", choices=("stop", "reduced_rank"),
+                          doc="Multi-trait REML whose optimum has a singular genetic covariance "
+                              "matrix: 'stop' (ABP-E300, default) or 'reduced_rank' (refit with "
+                              "G0 = Lambda Lambda' of rank reml.rank)."),
+        "rank": Field("int", check=_positive,
+                      doc="Multi-trait REML: estimate G0 = Lambda Lambda' with this rank "
+                          "directly (an assumption stated by the user; below the number of "
+                          "traits). Not combined with boundary = 'reduced_rank', whose "
+                          "fallback uses rank traits - 1."),
     }),
     "solver": Section({
         "method": Field("str", default="auto", choices=("auto", "dense", "sparse_direct", "pcg")),
@@ -498,6 +507,19 @@ def validate_spec_dict(raw: dict) -> dict:
         start = d["reml"]["start"]
         if t == 1 and start is not None and set(start) != expected:
             raise _err("reml.start", f"must give exactly {sorted(expected)}")
+        rr = d["reml"]
+        if rr["boundary"] == "reduced_rank" and t == 1:
+            raise _err("reml.boundary", "'reduced_rank' applies to multi-trait models")
+        if rr["rank"] is not None and (t == 1 or rr["rank"] >= t):
+            raise _err("reml.rank", f"multi-trait models only, and below the number of "
+                                    f"traits ({t})")
+        if rr["rank"] is not None and rr["boundary"] == "reduced_rank":
+            raise _err("reml.rank", "give either reml.rank (reduced rank from the start) or "
+                                    "reml.boundary = 'reduced_rank' (fallback), not both")
+        if (rr["boundary"] == "reduced_rank" or rr["rank"] is not None) \
+                and raw.get("metafounders") is not None:
+            raise ABPError("UNSUPPORTED_COMBINATION", "reduced-rank multi-trait REML is not "
+                           "implemented with [metafounders] in this version")
     elif v["values"] is not None:
         raise _err("variances.values", "not used with mode = 'bayes' (variances are sampled)")
     if d["analysis"]["task"] not in IMPLEMENTED_TASKS:

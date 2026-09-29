@@ -66,7 +66,19 @@ def render_report(results: dict, manifest: dict) -> str:
         if t.get("reml"):
             r = t["reml"]
             L.append("")
-            L.append(f"REML: status **{r['status']}**, {r['iterations']} iterations, "
+            if r.get("rank") is not None:
+                L.append(f"**Reduced-rank genetic covariance matrix** (rank {r['rank']}; "
+                         f"{r['rank_source']}): G0 = Lambda Lambda' is singular by "
+                         "construction, so at least one genetic correlation or combination "
+                         "of genetic variances is fixed at the boundary. "
+                         + ("The full-rank fit stopped: " + r["full_rank_stop"]["message"]
+                            if r.get("full_rank_stop") else "")
+                         + " The rank is a model assumption; compare the log-likelihood with "
+                         "other ranks before relying on it.")
+                L.append("")
+            evals = r.get("rank") is not None or r.get("method") == "laplace_approximate_reml"
+            L.append(f"REML: status **{r['status']}**, {r['iterations']} "
+                     f"{'likelihood evaluations' if evals else 'iterations'}, "
                      f"log-likelihood {_f(r['loglik'], 6)}. "
                      + ("Approximate standard errors (from the inverse average-information "
                         "matrix; not valid at a boundary): "

@@ -74,15 +74,39 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
     animal_col = np.array([structure.index[a] for a in animals], dtype=np.int64)
     mt_data = MTData(Y, X_blocks, animal_col)
     reml_info = None
+    loadings = None
     if d["variances"]["mode"] == "reml":
-        from ..solvers.multitrait_reml import mt_reml_fit
-        fit = mt_reml_fit(mt_data, structure.k_inv, structure.logdet_k, d["reml"],
-                          memory_budget_bytes=budget)
-        G0, R0 = fit.G0, fit.R0
-        reml_info = fit.to_dict(traits)
-        log.info("multi-trait REML %s after %d iterations (%s); logL %.6f", fit.status,
-                 fit.iterations, fit.trace_method, fit.loglik)
-        variance_source = "reml (multi-trait AI-REML with EM fallback)"
+        from ..solvers.multitrait_reml import mt_reml_fit, mt_reml_fit_reduced_rank
+        stop, fit = None, None
+        if d["reml"]["rank"] is None:
+            try:
+                fit = mt_reml_fit(mt_data, structure.k_inv, structure.logdet_k, d["reml"],
+                                  memory_budget_bytes=budget)
+            except ABPError as exc:
+                if exc.code != "ABP-E300" or d["reml"]["boundary"] != "reduced_rank":
+                    raise
+                stop = {"code": exc.code, "message": exc.message}
+                log.warning("multi-trait REML: %s; refitting with a reduced-rank genetic "
+                            "covariance matrix (rank %d) as requested by reml.boundary",
+                            exc.message, t - 1)
+        if fit is None:
+            rank = d["reml"]["rank"] or t - 1
+            rr = mt_reml_fit_reduced_rank(mt_data, structure.k_inv, structure.logdet_k, rank,
+                                          d["reml"], memory_budget_bytes=budget)
+            G0, R0, loadings = rr.G0, rr.R0, rr.loadings
+            reml_info = rr.to_dict(traits)
+            reml_info["full_rank_stop"] = stop
+            reml_info["rank_source"] = ("reml.rank (stated by the user)" if stop is None else
+                                        "reml.boundary = 'reduced_rank' fallback (traits - 1)")
+            log.info("reduced-rank multi-trait REML (rank %d) %s after %d likelihood "
+                     "evaluations; logL %.6f", rank, rr.status, rr.evaluations, rr.loglik)
+            variance_source = f"reml (multi-trait, reduced-rank G0 of rank {rank})"
+        else:
+            G0, R0 = fit.G0, fit.R0
+            reml_info = fit.to_dict(traits)
+            log.info("multi-trait REML %s after %d iterations (%s); logL %.6f", fit.status,
+                     fit.iterations, fit.trace_method, fit.loglik)
+            variance_source = "reml (multi-trait AI-REML with EM fallback)"
     else:
         vals = d["variances"]["values"]
         G0 = np.array(vals[add_name], dtype=np.float64)
@@ -92,7 +116,7 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
     res = build_and_solve(mt_data, structure.k_inv, structure.k_diag,
                           G0, R0, method=sol["method"], compute_pev=(sol["pev"] == "exact"),
                           tol=sol["tol"], max_iter=sol["max_iter"], memory_budget_bytes=budget,
-                          factorization=sol["factorization"])
+                          factorization=sol["factorization"], loadings=loadings)
     s = res.solve
     log.info("multi-trait (%d traits, %d observations): solved %d equations with %s (%s); "
              "relative residual %.2e; %.2f s", t, res.n_obs, s.solution.size, s.method,

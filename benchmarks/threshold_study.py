@@ -106,12 +106,15 @@ def main():
             reps = list(pool.imap(_run, seeds))
     else:
         reps = [_run(s) for s in seeds]
-    both = [r for r in reps if all("withheld" not in r[n] for n in SCEN)]
+    # linear vs threshold (known variances): the replicates where both issued results (as in
+    # round 4); the Laplace scenario is summarised over the replicates where it issued results
+    both = [r for r in reps if all("withheld" not in r[n] for n in ("linear_reml", "threshold_true"))]
     summary = {"n_replicates_both_models": len(both)}
     for name in SCEN:
         summary[name] = {"n_withheld": sum("withheld" in r[name] for r in reps)}
+        use = both if name != "threshold_laplace" else [r for r in reps if "withheld" not in r[name]]
         for k in ("realized_accuracy", "model_accuracy", "ratio_model_to_realized"):
-            v = np.array([r[name][k] for r in both])
+            v = np.array([r[name][k] for r in use])
             summary[name][k] = {"mean": float(v.mean()), "mc_se": float(v.std(ddof=1) / np.sqrt(v.size))}
     d = np.array([r["threshold_true"]["realized_accuracy"] - r["linear_reml"]["realized_accuracy"]
                   for r in both])

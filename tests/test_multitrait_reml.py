@@ -236,3 +236,204 @@ def test_boundary_optimum_is_reported_as_not_identifiable():
                        {"tol": 1e-8, "max_iter": 60})
     assert exc.value.code == "ABP-E300" and "boundary" in exc.value.message
     assert exc.value.details["eigenvalue_ratios"]["G0"] < 0.01      # G0 nearly singular
+
+
+# ------------------------------------------------------------ reduced rank
+def _boundary_data():
+    rng = np.random.default_rng(42)
+    ped, data, A = _problem(21, n_anim=150, n_rec=150, miss=0.0)
+    y1 = data.Y[:, 0]
+    Y = np.column_stack([y1, 0.5 * y1 + rng.normal(0, 1, y1.size)])
+    Y[rng.random(y1.size) < 0.4, 1] = np.nan
+    Xs = [sp.csr_matrix(np.ones((int((~np.isnan(Y[:, j])).sum()), 1))) for j in range(2)]
+    return ped, MTData(Y, Xs, data.animal_col), A
+
+
+def test_reduced_rank_loglik_equals_v_form_with_singular_g0():
+    ped, data, A = _problem()
+    R0 = np.array([[2.8, 0.7], [0.7, 2.2]])
+    for Lam in (np.array([[1.3], [0.6]]), np.array([[1.3], [-0.2]]),
+                np.linalg.cholesky(np.array([[1.7, 0.5], [0.5, 1.2]]))):
+        ev = MR.ReducedRankEvaluator(data, ped.ainv(), ped.logdet_a(), Lam.shape[1])
+        assert ev.m2ll(Lam, R0)[0] == pytest.approx(_v_form_m2ll(data, A, Lam @ Lam.T, R0),
+                                                   abs=1e-8)
+
+
+def test_full_rank_reduced_rank_fit_equals_ai_reml():
+    ped, data, A = _problem()
+    cfg = {"tol": 1e-8, "max_iter": 200}
+    full = MR.mt_reml_fit(data, ped.ainv(), ped.logdet_a(), cfg)
+    rr = MR.mt_reml_fit_reduced_rank(data, ped.ainv(), ped.logdet_a(), 2, cfg)
+    assert rr.loglik == pytest.approx(full.loglik, abs=1e-7)
+    np.testing.assert_allclose(rr.G0, full.G0, atol=1e-4)
+    np.testing.assert_allclose(rr.R0, full.R0, atol=1e-4)
+
+
+def test_boundary_data_rank_one_fit_equals_independent_v_form_optimum():
+    """The data whose full-rank optimum is on the boundary (see the test above):
+    rank-1 REML equals Nelder-Mead on the V-form likelihood over (Lambda, chol R0)."""
+    ped, data, A = _boundary_data()
+    rr = MR.mt_reml_fit_reduced_rank(data, ped.ainv(), ped.logdet_a(), 1,
+                                     {"tol": 1e-8, "max_iter": 200})
+    assert rr.status == "converged" and np.linalg.matrix_rank(rr.G0, tol=1e-8) == 1
+
+    def f(x):
+        Lam = np.array([[x[0]], [x[1]]])
+        L = np.array([[np.exp(x[2]), 0.0], [x[3], np.exp(x[4])]])
+        return _v_form_m2ll(data, A, Lam @ Lam.T, L @ L.T)
+    x0 = np.array([1.0, 0.5, 0.5, 0.5, 0.0])
+    ref = minimize(f, x0, method="Nelder-Mead",
+                   options={"xatol": 1e-9, "fatol": 1e-11, "maxfev": 40000, "maxiter": 40000})
+    assert -2 * rr.loglik == pytest.approx(ref.fun, abs=1e-5)
+    Lr = np.array([[ref.x[0]], [ref.x[1]]])
+    np.testing.assert_allclose(rr.G0, Lr @ Lr.T, atol=2e-3)
+    # the rank-1 optimum is at least as good as any interior point tried by full-rank EM
+    ev = MR.MTREMLEvaluator(data, ped.ainv(), ped.logdet_a())
+    G0 = rr.G0 + 0.05 * np.eye(2)
+    assert ev.evaluate(MR._pack(G0, rr.R0), with_ai=False).loglik < rr.loglik
+
+
+def test_reduced_rank_blup_and_pev_equal_v_form():
+    from abp.solvers.multitrait import build_and_solve
+    ped, data, A = _problem()
+    Lam = np.array([[1.3], [0.6]])
+    G0 = Lam @ Lam.T
+    R0 = np.array([[2.8, 0.7], [0.7, 2.2]])
+    res = build_and_solve(data, ped.ainv(), 1 + ped.inbreeding(), None, R0, method="dense",
+                          loadings=Lam)
+    # V-form: u_hat = (A (x) G0) Z' P y, PEV = Var(u) - Var(u) Z' P Z Var(u)
+    Y = data.Y
+    ri, ti = np.nonzero(~np.isnan(Y))
+    y = Y[ri, ti]
+    n, q, t = y.size, A.shape[0], 2
+    Z = np.zeros((n, q * t))
+    Z[np.arange(n), data.animal_col[ri] * t + ti] = 1
+    R = np.zeros((n, n))
+    for r in np.unique(ri):
+        idx = np.flatnonzero(ri == r)
+        R[np.ix_(idx, idx)] = R0[np.ix_(ti[idx], ti[idx])]
+    X = np.zeros((n, 6))
+    for j, Xj in enumerate(data.X_per_trait):
+        X[np.flatnonzero(ti == j), 3 * j:3 * j + 3] = Xj.toarray()
+    Gu = np.kron(A, G0)
+    Vi = np.linalg.inv(Z @ Gu @ Z.T + R)
+    P = Vi - Vi @ X @ np.linalg.solve(X.T @ Vi @ X, X.T @ Vi)
+    u = (Gu @ Z.T @ P @ y).reshape(q, t)
+    pev = Gu - Gu @ Z.T @ P @ Z @ Gu
+    np.testing.assert_allclose(res.ebv, u, atol=1e-8)
+    blocks = np.array([pev[i * t:(i + 1) * t, i * t:(i + 1) * t] for i in range(q)])
+    np.testing.assert_allclose(res.pev_blocks, blocks, atol=1e-8)
+    assert np.all((res.reliability >= 0) & (res.reliability <= 1))
+
+
+def _sexed_boundary_data(seed=1, n_anim=150):
+    """Sex-consistent pedigree, one record per animal, trait 2 = 0.5 x trait 1 +
+    noise; for seed 1 full-rank REML stops at the boundary (checked in the test)."""
+    rng = np.random.default_rng(seed)
+    ids = [f"a{i}" for i in range(n_anim)]
+    male = np.arange(n_anim) % 2 == 0
+    sires, dams = [], []
+    for i in range(n_anim):
+        if i < 20:
+            sires.append(None)
+            dams.append(None)
+        else:
+            sires.append(ids[rng.choice(np.flatnonzero(male[:i]))])
+            dams.append(ids[rng.choice(np.flatnonzero(~male[:i]))])
+    A = tabular_a(ids, sires, dams)
+    u = np.linalg.cholesky(2.0 * A) @ rng.standard_normal(n_anim)
+    y1 = 10 + u + rng.normal(0, np.sqrt(3.0), n_anim)
+    Y = np.column_stack([y1, 0.5 * y1 + rng.normal(0, 1, n_anim)])
+    Y[rng.random(n_anim) < 0.4, 1] = np.nan
+    ped = Pedigree.from_parent_ids(ids, sires, dams)
+    Xs = [sp.csr_matrix(np.ones((int((~np.isnan(Y[:, j])).sum()), 1))) for j in range(2)]
+    return ids, sires, dams, ped, MTData(Y, Xs, ped.index_of(ids)), male
+
+
+def _write_boundary_case(tmp_path, reml_lines):
+    ids, sires, dams, ped, data, male = _sexed_boundary_data()
+    with open(tmp_path / "ped.csv", "w", encoding="utf-8") as fh:
+        fh.write("id,sire,dam,sex\n")
+        for a, s_, d_, m_ in zip(ids, sires, dams, male):
+            fh.write(f"{a},{s_ or '0'},{d_ or '0'},{'M' if m_ else 'F'}\n")
+    with open(tmp_path / "phe.csv", "w", encoding="utf-8") as fh:
+        fh.write("id,y1,y2\n")
+        for a, (v1, v2) in zip(ids, data.Y):
+            fh.write(f"{a},{v1:.10g},{'NA' if np.isnan(v2) else f'{v2:.10g}'}\n")
+    spec = tmp_path / "a.toml"
+    spec.write_text(f"""schema_version = "1"
+[project]
+name = "rr"
+species = "sheep"
+synthetic_data = true
+[analysis]
+task = "additive_ebv"
+target_population = "test"
+information_cutoff = "2025-12-31"
+genetic_base = "unknown parents"
+[data]
+pedigree = "{(tmp_path / 'ped.csv').as_posix()}"
+phenotypes = "{(tmp_path / 'phe.csv').as_posix()}"
+[data.pedigree_columns]
+sex = "sex"
+[[traits]]
+name = "y1"
+unit = "u"
+[[traits]]
+name = "y2"
+unit = "u"
+[model]
+traits = ["y1", "y2"]
+random = [{{ name = "animal", kind = "additive", relationship = "pedigree" }}]
+[variances]
+mode = "reml"
+[reml]
+max_iter = 60
+{reml_lines}
+""", encoding="utf-8")
+    return spec, ped, data
+
+
+def test_workflow_reduced_rank_fallback_and_direct_rank(tmp_path):
+    from abp.workflows.evaluate import run_evaluation
+    spec, ped, data = _write_boundary_case(tmp_path, "")
+    with pytest.raises(ABPError, match="boundary"):           # default: stop with ABP-E300
+        run_evaluation(spec, tmp_path / "o0", console=False)
+    spec, ped, data = _write_boundary_case(tmp_path, 'boundary = "reduced_rank"')
+    out = run_evaluation(spec, tmp_path / "o1", console=False)
+    t = out.results["traits"]["y1"]
+    r = t["reml"]
+    assert t["variance_source"] == "reml (multi-trait, reduced-rank G0 of rank 1)"
+    assert r["rank"] == 1 and r["full_rank_stop"]["code"] == "ABP-E300"
+    assert abs(abs(r["genetic_correlations"][0][1]) - 1.0) < 1e-9
+    ref = MR.mt_reml_fit_reduced_rank(data, ped.ainv(), ped.logdet_a(), 1,
+                                      {"tol": 1e-8, "max_iter": 200})
+    assert r["loglik"] == pytest.approx(ref.loglik, abs=1e-6)
+    rel = t["reliability_summary"]
+    assert 0 <= rel["min"] <= rel["max"] <= 1
+    # rank stated directly: no full-rank attempt, same optimum
+    spec, _, _ = _write_boundary_case(tmp_path, "rank = 1")
+    out2 = run_evaluation(spec, tmp_path / "o2", console=False)
+    r2 = out2.results["traits"]["y2"]["reml"]
+    assert r2["full_rank_stop"] is None and r2["loglik"] == pytest.approx(r["loglik"], abs=1e-9)
+
+
+def test_spec_rules_for_reduced_rank():
+    from abp.core.spec import validate_spec_dict
+    base = {"schema_version": "1",
+            "project": {"name": "t", "species": "sheep", "synthetic_data": True},
+            "analysis": {"task": "additive_ebv", "target_population": "x",
+                         "information_cutoff": "2024-12-31", "genetic_base": "x"},
+            "data": {"pedigree": "p.csv", "phenotypes": "y.csv"},
+            "traits": [{"name": "a", "unit": "c"}, {"name": "b", "unit": "c"}],
+            "model": {"traits": ["a", "b"], "random": [{"name": "animal", "kind": "additive",
+                                                         "relationship": "pedigree"}]},
+            "variances": {"mode": "reml"}}
+    assert validate_spec_dict(dict(base, reml={"rank": 1}))["reml"]["rank"] == 1
+    for bad in ({"rank": 2}, {"rank": 1, "boundary": "reduced_rank"}):
+        with pytest.raises(ABPError, match="rank"):
+            validate_spec_dict(dict(base, reml=bad))
+    one = dict(base, traits=[{"name": "a", "unit": "c"}],
+               model=dict(base["model"], traits=["a"]))
+    with pytest.raises(ABPError, match="multi-trait"):
+        validate_spec_dict(dict(one, reml={"boundary": "reduced_rank"}))

@@ -4,9 +4,10 @@
   "seeds": "1..30",
   "specs": {
     "linear_reml": "examples/03_sheep_nlb_repeatability/analysis.toml",
-    "threshold_true": "examples/14_sheep_nlb_threshold/analysis.toml"
+    "threshold_true": "examples/14_sheep_nlb_threshold/analysis.toml",
+    "threshold_laplace": "examples/14_sheep_nlb_threshold/analysis.toml"
   },
-  "wall_seconds": 97.54777264595032,
+  "wall_seconds": 206.54482197761536,
   "summary": {
     "n_replicates_both_models": 27,
     "linear_reml": {
@@ -39,9 +40,34 @@
         "mc_se": 0.03147737871154848
       }
     },
+    "threshold_laplace": {
+      "n_withheld": 6,
+      "realized_accuracy": {
+        "mean": 0.44254203661173425,
+        "mc_se": 0.011476051015477934
+      },
+      "model_accuracy": {
+        "mean": 0.35925910991373583,
+        "mc_se": 0.027687755723523357
+      },
+      "ratio_model_to_realized": {
+        "mean": 0.8018525713855663,
+        "mc_se": 0.057103448850435536
+      }
+    },
     "paired_difference_realized_accuracy_threshold_minus_linear": {
       "mean": 0.003622995617605176,
       "mc_se": 0.0008083353243853094
+    },
+    "laplace_estimate_animal": {
+      "mean": 0.08530540087536116,
+      "mc_se": 0.013281157876022688,
+      "true": 0.1111
+    },
+    "laplace_estimate_pe": {
+      "mean": 0.13014823404003475,
+      "mc_se": 0.012129748358387928,
+      "true": 0.1111
     }
   },
   "replicate_results": [
@@ -51,13 +77,34 @@
         "n": 460,
         "realized_accuracy": 0.47538191046795536,
         "model_accuracy": 0.3560808170918597,
-        "ratio_model_to_realized": 0.749041579519384
+        "ratio_model_to_realized": 0.749041579519384,
+        "variance_components": {
+          "animal": 0.01600405019114165,
+          "pe": 0.04370883656234142,
+          "residual": 0.31392337064266823
+        }
       },
       "threshold_true": {
         "n": 460,
         "realized_accuracy": 0.4778704627601435,
         "model_accuracy": 0.4432720448602985,
-        "ratio_model_to_realized": 0.9275987519713874
+        "ratio_model_to_realized": 0.9275987519713874,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 460,
+        "realized_accuracy": 0.4784820010952238,
+        "model_accuracy": 0.37396955695356016,
+        "ratio_model_to_realized": 0.7815749727211486,
+        "variance_components": {
+          "animal": 0.08124543590802763,
+          "pe": 0.19014792873626982,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -66,13 +113,34 @@
         "n": 485,
         "realized_accuracy": 0.4484004225528105,
         "model_accuracy": 0.5295807096478906,
-        "ratio_model_to_realized": 1.1810441806296894
+        "ratio_model_to_realized": 1.1810441806296894,
+        "variance_components": {
+          "animal": 0.03624892959333124,
+          "pe": 0.008550189913773704,
+          "residual": 0.32803887688441785
+        }
       },
       "threshold_true": {
         "n": 485,
         "realized_accuracy": 0.45386331119312595,
         "model_accuracy": 0.4492945059600256,
-        "ratio_model_to_realized": 0.9899335215682233
+        "ratio_model_to_realized": 0.9899335215682233,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 485,
+        "realized_accuracy": 0.44841760745915643,
+        "model_accuracy": 0.5426824229269811,
+        "ratio_model_to_realized": 1.210216579143607,
+        "variance_components": {
+          "animal": 0.168886038823402,
+          "pe": 0.03218970499485535,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -81,13 +149,27 @@
         "n": 447,
         "realized_accuracy": 0.5024754031420667,
         "model_accuracy": 0.4991385317243889,
-        "ratio_model_to_realized": 0.9933591348017996
+        "ratio_model_to_realized": 0.9933591348017996,
+        "variance_components": {
+          "animal": 0.029860961319230158,
+          "pe": 0.0,
+          "residual": 0.331178022667916
+        }
       },
       "threshold_true": {
         "n": 447,
         "realized_accuracy": 0.5093885213168825,
         "model_accuracy": 0.4389161658344936,
-        "ratio_model_to_realized": 0.8616530358787784
+        "ratio_model_to_realized": 0.8616530358787784,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "withheld": "ABP-E403",
+        "message": "threshold model: Laplace-approximate variance estimation did not converge in 200 evaluations"
       }
     },
     {
@@ -96,13 +178,34 @@
         "n": 456,
         "realized_accuracy": 0.5380381900778843,
         "model_accuracy": 0.3831152336841342,
-        "ratio_model_to_realized": 0.7120595540414629
+        "ratio_model_to_realized": 0.7120595540414629,
+        "variance_components": {
+          "animal": 0.015896950794936103,
+          "pe": 0.015474583341660714,
+          "residual": 0.3276685312490073
+        }
       },
       "threshold_true": {
         "n": 456,
         "realized_accuracy": 0.5394086696073704,
         "model_accuracy": 0.44290827961623264,
-        "ratio_model_to_realized": 0.8210996681581344
+        "ratio_model_to_realized": 0.8210996681581344,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 456,
+        "realized_accuracy": 0.5394541915912221,
+        "model_accuracy": 0.39182659283947635,
+        "ratio_model_to_realized": 0.7263389532366219,
+        "variance_components": {
+          "animal": 0.07375935658455123,
+          "pe": 0.07049211309267793,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -111,13 +214,27 @@
         "n": 475,
         "realized_accuracy": 0.5180904399942087,
         "model_accuracy": 0.5364404895719757,
-        "ratio_model_to_realized": 1.035418622235091
+        "ratio_model_to_realized": 1.035418622235091,
+        "variance_components": {
+          "animal": 0.03622454044626361,
+          "pe": 0.0,
+          "residual": 0.33065590565171565
+        }
       },
       "threshold_true": {
         "n": 475,
         "realized_accuracy": 0.5240031433172248,
         "model_accuracy": 0.44254397447391325,
-        "ratio_model_to_realized": 0.8445445034401308
+        "ratio_model_to_realized": 0.8445445034401308,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "withheld": "ABP-E403",
+        "message": "threshold model: Laplace-approximate variance estimation did not converge in 200 evaluations"
       }
     },
     {
@@ -126,13 +243,34 @@
         "n": 429,
         "realized_accuracy": 0.4430729823093504,
         "model_accuracy": 0.5002043456384109,
-        "ratio_model_to_realized": 1.1289434599042463
+        "ratio_model_to_realized": 1.1289434599042463,
+        "variance_components": {
+          "animal": 0.03170063372217876,
+          "pe": 0.020761273944529555,
+          "residual": 0.29303894012601417
+        }
       },
       "threshold_true": {
         "n": 429,
         "realized_accuracy": 0.4433168951810419,
         "model_accuracy": 0.43723475583380156,
-        "ratio_model_to_realized": 0.9862803799869696
+        "ratio_model_to_realized": 0.9862803799869696,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 429,
+        "realized_accuracy": 0.4435019932900881,
+        "model_accuracy": 0.5121076728522306,
+        "ratio_model_to_realized": 1.1546908031984164,
+        "variance_components": {
+          "animal": 0.17567636080069363,
+          "pe": 0.10845102333690175,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -141,13 +279,34 @@
         "n": 451,
         "realized_accuracy": 0.5129037299397605,
         "model_accuracy": 0.22592281947872817,
-        "ratio_model_to_realized": 0.44047802012526277
+        "ratio_model_to_realized": 0.44047802012526277,
+        "variance_components": {
+          "animal": 0.005693180321147474,
+          "pe": 0.044769751383316604,
+          "residual": 0.316462555729654
+        }
       },
       "threshold_true": {
         "n": 451,
         "realized_accuracy": 0.519200382042861,
         "model_accuracy": 0.4410726310794595,
-        "ratio_model_to_realized": 0.8495229324446993
+        "ratio_model_to_realized": 0.8495229324446993,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 451,
+        "realized_accuracy": 0.5159886873478596,
+        "model_accuracy": 0.2514125235223007,
+        "ratio_model_to_realized": 0.4872442549361709,
+        "variance_components": {
+          "animal": 0.03322268397063836,
+          "pe": 0.20911068707691136,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -160,7 +319,16 @@
         "n": 488,
         "realized_accuracy": 0.4455673975950724,
         "model_accuracy": 0.4450202133928523,
-        "ratio_model_to_realized": 0.9987719384201503
+        "ratio_model_to_realized": 0.9987719384201503,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "withheld": "ABP-E300",
+        "message": "threshold model: the Laplace-approximate variance of ['animal'] is at the search bound; the data carry too little information to estimate it"
       }
     },
     {
@@ -169,13 +337,34 @@
         "n": 459,
         "realized_accuracy": 0.4831002406969591,
         "model_accuracy": 0.3722009988430573,
-        "ratio_model_to_realized": 0.7704425862137645
+        "ratio_model_to_realized": 0.7704425862137645,
+        "variance_components": {
+          "animal": 0.015497569630798989,
+          "pe": 0.024879363479460997,
+          "residual": 0.30938011875723664
+        }
       },
       "threshold_true": {
         "n": 459,
         "realized_accuracy": 0.48207332597062946,
         "model_accuracy": 0.43893716114182213,
-        "ratio_model_to_realized": 0.910519494639213
+        "ratio_model_to_realized": 0.910519494639213,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 459,
+        "realized_accuracy": 0.4834544849556912,
+        "model_accuracy": 0.3758786343532532,
+        "ratio_model_to_realized": 0.7774850498857253,
+        "variance_components": {
+          "animal": 0.07506644927256989,
+          "pe": 0.12168511518617443,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -184,13 +373,34 @@
         "n": 510,
         "realized_accuracy": 0.4395531356802629,
         "model_accuracy": 0.3199035431334771,
-        "ratio_model_to_realized": 0.7277926538696777
+        "ratio_model_to_realized": 0.7277926538696777,
+        "variance_components": {
+          "animal": 0.011399707408446879,
+          "pe": 0.03131085522323439,
+          "residual": 0.33082791378499
+        }
       },
       "threshold_true": {
         "n": 510,
         "realized_accuracy": 0.45167458931178683,
         "model_accuracy": 0.4468935079962609,
-        "ratio_model_to_realized": 0.9894147657878853
+        "ratio_model_to_realized": 0.9894147657878853,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 510,
+        "realized_accuracy": 0.4402551904758114,
+        "model_accuracy": 0.3027238715579873,
+        "ratio_model_to_realized": 0.6876100000793054,
+        "variance_components": {
+          "animal": 0.044238788183065265,
+          "pe": 0.14454261321157139,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -199,13 +409,34 @@
         "n": 466,
         "realized_accuracy": 0.3715090549542712,
         "model_accuracy": 0.16474725681208238,
-        "ratio_model_to_realized": 0.4434542162972609
+        "ratio_model_to_realized": 0.4434542162972609,
+        "variance_components": {
+          "animal": 0.002763395308527202,
+          "pe": 0.03401845663162083,
+          "residual": 0.3382636072608277
+        }
       },
       "threshold_true": {
         "n": 466,
         "realized_accuracy": 0.3772670865575109,
         "model_accuracy": 0.4460021460354671,
-        "ratio_model_to_realized": 1.1821920382855295
+        "ratio_model_to_realized": 1.1821920382855295,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 466,
+        "realized_accuracy": 0.373758050438874,
+        "model_accuracy": 0.1001727522612192,
+        "ratio_model_to_realized": 0.2680149688912236,
+        "variance_components": {
+          "animal": 0.004188310691482531,
+          "pe": 0.15066252707941646,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -214,13 +445,34 @@
         "n": 424,
         "realized_accuracy": 0.5209792102813906,
         "model_accuracy": 0.5047192666970355,
-        "ratio_model_to_realized": 0.968789649829649
+        "ratio_model_to_realized": 0.968789649829649,
+        "variance_components": {
+          "animal": 0.03857343608474642,
+          "pe": 0.03456848838988736,
+          "residual": 0.2888211005796342
+        }
       },
       "threshold_true": {
         "n": 424,
         "realized_accuracy": 0.5244632529257973,
         "model_accuracy": 0.4255617960849509,
-        "ratio_model_to_realized": 0.8114234766895303
+        "ratio_model_to_realized": 0.8114234766895303,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 424,
+        "realized_accuracy": 0.52022987322704,
+        "model_accuracy": 0.5112281654234142,
+        "ratio_model_to_realized": 0.9826966726309136,
+        "variance_components": {
+          "animal": 0.2094488886618692,
+          "pe": 0.17076222389429832,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -229,13 +481,34 @@
         "n": 503,
         "realized_accuracy": 0.43770773782428046,
         "model_accuracy": 0.4480596445452227,
-        "ratio_model_to_realized": 1.0236502712344053
+        "ratio_model_to_realized": 1.0236502712344053,
+        "variance_components": {
+          "animal": 0.024274866012102044,
+          "pe": 0.023149595651221547,
+          "residual": 0.3180059387493278
+        }
       },
       "threshold_true": {
         "n": 503,
         "realized_accuracy": 0.4362994929198764,
         "model_accuracy": 0.44846888921086214,
-        "ratio_model_to_realized": 1.0278922998730613
+        "ratio_model_to_realized": 1.0278922998730613,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 503,
+        "realized_accuracy": 0.4360095746647552,
+        "model_accuracy": 0.44516429107862315,
+        "ratio_model_to_realized": 1.0209965949048412,
+        "variance_components": {
+          "animal": 0.10812074366898063,
+          "pe": 0.10772876022308636,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -248,7 +521,16 @@
         "n": 456,
         "realized_accuracy": 0.5068949585279524,
         "model_accuracy": 0.43932871871886653,
-        "ratio_model_to_realized": 0.8667056385699682
+        "ratio_model_to_realized": 0.8667056385699682,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "withheld": "ABP-E300",
+        "message": "threshold model: the Laplace-approximate variance of ['animal'] is at the search bound; the data carry too little information to estimate it"
       }
     },
     {
@@ -257,13 +539,34 @@
         "n": 478,
         "realized_accuracy": 0.44160513008970864,
         "model_accuracy": 0.34855012915173095,
-        "ratio_model_to_realized": 0.7892800726316873
+        "ratio_model_to_realized": 0.7892800726316873,
+        "variance_components": {
+          "animal": 0.01383441192635201,
+          "pe": 0.022462839332881332,
+          "residual": 0.34752480643181943
+        }
       },
       "threshold_true": {
         "n": 478,
         "realized_accuracy": 0.4450105910011297,
         "model_accuracy": 0.44825058336557255,
-        "ratio_model_to_realized": 1.0072807084369697
+        "ratio_model_to_realized": 1.0072807084369697,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 478,
+        "realized_accuracy": 0.4420301821008551,
+        "model_accuracy": 0.34178827519437005,
+        "ratio_model_to_realized": 0.7732238408923544,
+        "variance_components": {
+          "animal": 0.052986657278395966,
+          "pe": 0.09071323710016549,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -272,13 +575,34 @@
         "n": 467,
         "realized_accuracy": 0.45800957972587286,
         "model_accuracy": 0.38393855696253776,
-        "ratio_model_to_realized": 0.8382762587462298
+        "ratio_model_to_realized": 0.8382762587462298,
+        "variance_components": {
+          "animal": 0.015867937919266606,
+          "pe": 0.014913867320941911,
+          "residual": 0.32969359927346853
+        }
       },
       "threshold_true": {
         "n": 467,
         "realized_accuracy": 0.4616534391865447,
         "model_accuracy": 0.44465507614386973,
-        "ratio_model_to_realized": 0.9631793860939779
+        "ratio_model_to_realized": 0.9631793860939779,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 467,
+        "realized_accuracy": 0.45793885698226583,
+        "model_accuracy": 0.38358027919919685,
+        "ratio_model_to_realized": 0.8376233493853774,
+        "variance_components": {
+          "animal": 0.06861823115007375,
+          "pe": 0.06910915658787821,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -287,13 +611,34 @@
         "n": 466,
         "realized_accuracy": 0.4587723841091634,
         "model_accuracy": 0.5415478968409033,
-        "ratio_model_to_realized": 1.180428281210675
+        "ratio_model_to_realized": 1.180428281210675,
+        "variance_components": {
+          "animal": 0.04253367464487884,
+          "pe": 0.017064821483245587,
+          "residual": 0.3158231601196974
+        }
       },
       "threshold_true": {
         "n": 466,
         "realized_accuracy": 0.4645356712862272,
         "model_accuracy": 0.4413032739152189,
-        "ratio_model_to_realized": 0.949987915230102
+        "ratio_model_to_realized": 0.949987915230102,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 466,
+        "realized_accuracy": 0.46448219829767,
+        "model_accuracy": 0.5503671155568886,
+        "ratio_model_to_realized": 1.1849046477432015,
+        "variance_components": {
+          "animal": 0.20321482833054463,
+          "pe": 0.07082122805023942,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -306,7 +651,16 @@
         "n": 465,
         "realized_accuracy": 0.4032864026514033,
         "model_accuracy": 0.44414977622004537,
-        "ratio_model_to_realized": 1.1013259393324102
+        "ratio_model_to_realized": 1.1013259393324102,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "withheld": "ABP-E403",
+        "message": "threshold model: Laplace-approximate variance estimation did not converge in 200 evaluations"
       }
     },
     {
@@ -315,13 +669,34 @@
         "n": 454,
         "realized_accuracy": 0.4859734013295522,
         "model_accuracy": 0.3338917405055132,
-        "ratio_model_to_realized": 0.6870576447024347
+        "ratio_model_to_realized": 0.6870576447024347,
+        "variance_components": {
+          "animal": 0.014383875335568603,
+          "pe": 0.050648893789187736,
+          "residual": 0.3187788007425821
+        }
       },
       "threshold_true": {
         "n": 454,
         "realized_accuracy": 0.4766066102440506,
         "model_accuracy": 0.4423632318693644,
-        "ratio_model_to_realized": 0.9281516923209445
+        "ratio_model_to_realized": 0.9281516923209445,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 454,
+        "realized_accuracy": 0.48368411399395594,
+        "model_accuracy": 0.33596337720580943,
+        "ratio_model_to_realized": 0.6945925398120634,
+        "variance_components": {
+          "animal": 0.06782382720256945,
+          "pe": 0.24130780228114912,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -330,13 +705,34 @@
         "n": 494,
         "realized_accuracy": 0.46834322027683534,
         "model_accuracy": 0.2158793939406388,
-        "ratio_model_to_realized": 0.46094271165713374
+        "ratio_model_to_realized": 0.46094271165713374,
+        "variance_components": {
+          "animal": 0.004630129045873753,
+          "pe": 0.037502731634207476,
+          "residual": 0.30387910075300417
+        }
       },
       "threshold_true": {
         "n": 494,
         "realized_accuracy": 0.4731691522908962,
         "model_accuracy": 0.4439066331136739,
-        "ratio_model_to_realized": 0.9381563252051728
+        "ratio_model_to_realized": 0.9381563252051728,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 494,
+        "realized_accuracy": 0.46902022555323286,
+        "model_accuracy": 0.22121309537075504,
+        "ratio_model_to_realized": 0.4716493731369966,
+        "variance_components": {
+          "animal": 0.023283425342944815,
+          "pe": 0.17855645938996306,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -345,13 +741,34 @@
         "n": 448,
         "realized_accuracy": 0.44204565103894183,
         "model_accuracy": 0.42104872166086943,
-        "ratio_model_to_realized": 0.9525005407728292
+        "ratio_model_to_realized": 0.9525005407728292,
+        "variance_components": {
+          "animal": 0.0215176206821712,
+          "pe": 0.025858626452717828,
+          "residual": 0.3113483659880847
+        }
       },
       "threshold_true": {
         "n": 448,
         "realized_accuracy": 0.445039212311888,
         "model_accuracy": 0.44047265696140186,
-        "ratio_model_to_realized": 0.9897389820398886
+        "ratio_model_to_realized": 0.9897389820398886,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 448,
+        "realized_accuracy": 0.4453189958634976,
+        "model_accuracy": 0.43336870695291063,
+        "ratio_model_to_realized": 0.9731646549516382,
+        "variance_components": {
+          "animal": 0.10743517495026587,
+          "pe": 0.11732696755513235,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -360,13 +777,34 @@
         "n": 506,
         "realized_accuracy": 0.39120306616626616,
         "model_accuracy": 0.35627408240013364,
-        "ratio_model_to_realized": 0.9107139314923282
+        "ratio_model_to_realized": 0.9107139314923282,
+        "variance_components": {
+          "animal": 0.013398161699676997,
+          "pe": 0.0314901185562641,
+          "residual": 0.3162381184022806
+        }
       },
       "threshold_true": {
         "n": 506,
         "realized_accuracy": 0.396214247203835,
         "model_accuracy": 0.45373109553744445,
-        "ratio_model_to_realized": 1.145166027570986
+        "ratio_model_to_realized": 1.145166027570986,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 506,
+        "realized_accuracy": 0.391015043132171,
+        "model_accuracy": 0.3515076322668127,
+        "ratio_model_to_realized": 0.8989619157644428,
+        "variance_components": {
+          "animal": 0.05983053336103953,
+          "pe": 0.14755468983638378,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -375,13 +813,34 @@
         "n": 465,
         "realized_accuracy": 0.2671709783910762,
         "model_accuracy": 0.10789977621632592,
-        "ratio_model_to_realized": 0.40386039256998096
+        "ratio_model_to_realized": 0.40386039256998096,
+        "variance_components": {
+          "animal": 0.0010159433211487734,
+          "pe": 0.02722647069506947,
+          "residual": 0.30656581419964685
+        }
       },
       "threshold_true": {
         "n": 465,
         "realized_accuracy": 0.26814967972196263,
         "model_accuracy": 0.4474618482676064,
-        "ratio_model_to_realized": 1.66870178152578
+        "ratio_model_to_realized": 1.66870178152578,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 465,
+        "realized_accuracy": 0.26865515231576137,
+        "model_accuracy": 0.10068759193536136,
+        "ratio_model_to_realized": 0.37478377417090863,
+        "variance_components": {
+          "animal": 0.004130033852217672,
+          "pe": 0.13130181666534918,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -390,13 +849,34 @@
         "n": 448,
         "realized_accuracy": 0.3768088155650419,
         "model_accuracy": 0.32298087813311044,
-        "ratio_model_to_realized": 0.857147881874223
+        "ratio_model_to_realized": 0.857147881874223,
+        "variance_components": {
+          "animal": 0.011647540268954567,
+          "pe": 0.02267680296805547,
+          "residual": 0.3197610266077044
+        }
       },
       "threshold_true": {
         "n": 448,
         "realized_accuracy": 0.3819091150001533,
         "model_accuracy": 0.43287253882234444,
-        "ratio_model_to_realized": 1.1334438530543338
+        "ratio_model_to_realized": 1.1334438530543338,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 448,
+        "realized_accuracy": 0.3744411668793743,
+        "model_accuracy": 0.30996090085539685,
+        "ratio_model_to_realized": 0.8277960018088778,
+        "variance_components": {
+          "animal": 0.047396333602789,
+          "pe": 0.10347844851095656,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -405,13 +885,34 @@
         "n": 472,
         "realized_accuracy": 0.4234901730774747,
         "model_accuracy": 0.4272206597681771,
-        "ratio_model_to_realized": 1.0088089096934485
+        "ratio_model_to_realized": 1.0088089096934485,
+        "variance_components": {
+          "animal": 0.02337052468189968,
+          "pe": 0.03196256250797825,
+          "residual": 0.3108185883717152
+        }
       },
       "threshold_true": {
         "n": 472,
         "realized_accuracy": 0.4273968415432023,
         "model_accuracy": 0.44238281313746347,
-        "ratio_model_to_realized": 1.0350633653261248
+        "ratio_model_to_realized": 1.0350633653261248,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 472,
+        "realized_accuracy": 0.4254071758714682,
+        "model_accuracy": 0.43273528188126725,
+        "ratio_model_to_realized": 1.0172260987247972,
+        "variance_components": {
+          "animal": 0.11091523044838214,
+          "pe": 0.1435376234188959,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -420,13 +921,27 @@
         "n": 469,
         "realized_accuracy": 0.455444375864285,
         "model_accuracy": 0.5257314287812664,
-        "ratio_model_to_realized": 1.1543263165421673
+        "ratio_model_to_realized": 1.1543263165421673,
+        "variance_components": {
+          "animal": 0.036089233571102296,
+          "pe": 0.0,
+          "residual": 0.33980439982584815
+        }
       },
       "threshold_true": {
         "n": 469,
         "realized_accuracy": 0.46005715093855065,
         "model_accuracy": 0.43544044084490086,
-        "ratio_model_to_realized": 0.9464920607289119
+        "ratio_model_to_realized": 0.9464920607289119,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "withheld": "ABP-E403",
+        "message": "threshold model: Laplace-approximate variance estimation did not converge in 200 evaluations"
       }
     },
     {
@@ -435,13 +950,34 @@
         "n": 497,
         "realized_accuracy": 0.46994565798633897,
         "model_accuracy": 0.5883859055081385,
-        "ratio_model_to_realized": 1.2520296666412492
+        "ratio_model_to_realized": 1.2520296666412492,
+        "variance_components": {
+          "animal": 0.05082115236400724,
+          "pe": 0.006914772628350579,
+          "residual": 0.32785067418626807
+        }
       },
       "threshold_true": {
         "n": 497,
         "realized_accuracy": 0.4685807258411857,
         "model_accuracy": 0.4490154875977496,
-        "ratio_model_to_realized": 0.9582457468597049
+        "ratio_model_to_realized": 0.9582457468597049,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 497,
+        "realized_accuracy": 0.46938768819765037,
+        "model_accuracy": 0.5776339549103182,
+        "ratio_model_to_realized": 1.2306116445625377,
+        "variance_components": {
+          "animal": 0.2130575544837035,
+          "pe": 0.04050960149431019,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -450,13 +986,34 @@
         "n": 433,
         "realized_accuracy": 0.39812170045123313,
         "model_accuracy": 0.2192921998836283,
-        "ratio_model_to_realized": 0.5508169980060906
+        "ratio_model_to_realized": 0.5508169980060906,
+        "variance_components": {
+          "animal": 0.005462875080780615,
+          "pe": 0.03421309004444823,
+          "residual": 0.3521332271738794
+        }
       },
       "threshold_true": {
         "n": 433,
         "realized_accuracy": 0.4105522095372557,
         "model_accuracy": 0.44083899587701314,
-        "ratio_model_to_realized": 1.0737708521259561
+        "ratio_model_to_realized": 1.0737708521259561,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 433,
+        "realized_accuracy": 0.40002334209273915,
+        "model_accuracy": 0.2257848628824795,
+        "ratio_model_to_realized": 0.5644292198082151,
+        "variance_components": {
+          "animal": 0.022860227822473215,
+          "pe": 0.12868303974135295,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -465,13 +1022,34 @@
         "n": 490,
         "realized_accuracy": 0.43369995126089717,
         "model_accuracy": 0.06410276822553022,
-        "ratio_model_to_realized": 0.14780441648463197
+        "ratio_model_to_realized": 0.14780441648463197,
+        "variance_components": {
+          "animal": 0.0004420167354791788,
+          "pe": 0.05893457651665799,
+          "residual": 0.30893884001610333
+        }
       },
       "threshold_true": {
         "n": 490,
         "realized_accuracy": 0.4381755196600287,
         "model_accuracy": 0.44623325771844746,
-        "ratio_model_to_realized": 1.018389293095768
+        "ratio_model_to_realized": 1.018389293095768,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 490,
+        "realized_accuracy": 0.427381846073209,
+        "model_accuracy": 0.14237919996601492,
+        "ratio_model_to_realized": 0.33314283532208305,
+        "variance_components": {
+          "animal": 0.010370519487899837,
+          "pe": 0.2710734306632711,
+          "residual": 1.0
+        }
       }
     },
     {
@@ -480,13 +1058,34 @@
         "n": 464,
         "realized_accuracy": 0.4183930752960171,
         "model_accuracy": 0.3982055446428809,
-        "ratio_model_to_realized": 0.9517498451931755
+        "ratio_model_to_realized": 0.9517498451931755,
+        "variance_components": {
+          "animal": 0.01740146695486416,
+          "pe": 0.01842024063340938,
+          "residual": 0.32474312793406457
+        }
       },
       "threshold_true": {
         "n": 464,
         "realized_accuracy": 0.42218120135408377,
         "model_accuracy": 0.44811705229353643,
-        "ratio_model_to_realized": 1.0614329838852778
+        "ratio_model_to_realized": 1.0614329838852778,
+        "variance_components": {
+          "animal": 0.1111,
+          "pe": 0.1111,
+          "residual": 1.0
+        }
+      },
+      "threshold_laplace": {
+        "n": 464,
+        "realized_accuracy": 0.4226712367820495,
+        "model_accuracy": 0.40808187998303386,
+        "ratio_model_to_realized": 0.9654829675421263,
+        "variance_components": {
+          "animal": 0.0815539871300881,
+          "pe": 0.08381141883362425,
+          "residual": 1.0
+        }
       }
     }
   ]
