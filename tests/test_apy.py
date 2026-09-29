@@ -79,7 +79,7 @@ def test_workflow_example05_with_apy(tmp_path):
     from abp.workflows.evaluate import run_evaluation
     root = Path(__file__).resolve().parents[1]
     txt = (root / "examples" / "05_sheep_wwt_single_step" / "analysis.toml").read_text(
-        encoding="utf-8").replace("../sheep_data", str(root / "examples" / "sheep_data"))
+        encoding="utf-8").replace("../sheep_data", (root / "examples" / "sheep_data").as_posix())
     txt = txt.replace('blend_alpha = 0.05', 'blend_alpha = 0.05\napy_core_size = 300')
     txt = txt.replace('mode = "reml"', 'mode = "known"\nvalues = { animal = 3.5, residual = 12.5 }')
     (tmp_path / "a.toml").write_text(txt, encoding="utf-8")

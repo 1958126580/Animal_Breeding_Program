@@ -259,7 +259,7 @@ def test_lr_validation_on_a_metafounder_base(tmp_path):
     """Example 08 on a metafounder base (gamma from a documented file): the LR
     focal EBVs are contrasts with the base and equal the whole evaluation."""
     ex = ROOT / "examples" / "08_sheep_wwt_lr_validation" / "analysis.toml"
-    txt = ex.read_text(encoding="utf-8").replace("../sheep_data", str(ROOT / "examples" / "sheep_data"))
+    txt = ex.read_text(encoding="utf-8").replace("../sheep_data", (ROOT / "examples" / "sheep_data").as_posix())
     # known variances: the LR "whole" evaluation then equals the main evaluation exactly
     # (with REML, LR estimates variances on the partial data only, by design)
     txt = txt.replace('[variances]\nmode = "reml"',
