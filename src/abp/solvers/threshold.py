@@ -206,7 +206,7 @@ def threshold_blup(y: np.ndarray, X: sp.csr_matrix, terms: list[RandomTerm],
             th_n = theta + lam * delta[:n_loc]
             tf_n = tfree + lam * delta[n_loc:]
             tt = unpack_tau(tf_n)
-            if np.all(np.diff(tt[1:K]) > 0) and (not intercept or K == 2 or tt[2] > 0):
+            if np.all(np.diff(tt[1:K]) > 0):            # thresholds stay strictly ordered
                 o = objective(th_n, tt)
                 if o >= obj - 1e-12 * abs(obj):
                     accepted = True

@@ -89,6 +89,15 @@ checks and the documentation of this round. The final round-3 commit 5bb3db1
 [36451049420](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36451049420):
 7 of 7 jobs succeeded; Windows / Python 3.13 **211 passed** in 138.3 s.
 
+Round 4: runs for commits 1e2e1b7 (success), 2e328f9 and 81eb6ba (Linux
+jobs green, the three Windows jobs failed on two tests that wrote
+backslash paths into TOML — a test defect, see §9), 0957b92 (superseded)
+and the fix 1184384:
+[36507918397](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36507918397),
+7 of 7 jobs succeeded (Windows and Ubuntu × Python 3.11–3.13, pure-Python
+kernels); the Windows / Python 3.13 job ran ABP 0.4.0 including the launcher
+run into `%RUNNER_TEMP%\结果 输出`.
+
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer
 NumPy of the Python 3.12/3.13 jobs.
