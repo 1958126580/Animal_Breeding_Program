@@ -412,8 +412,12 @@ def _limitations(d: dict, structure: GeneticStructure) -> list[str]:
                    "as unrelated, non-inbred base animals.")
     if any(t["type"] == "categorical" and t["name"] in d["model"]["traits"] for t in d["traits"]):
         lim.append("Categorical traits: EBVs are on the liability scale of a threshold (probit) "
-                   "model with residual variance 1 and known liability variances; PEV and "
-                   "reliabilities are Laplace approximations at the posterior mode.")
+                   "model with residual variance 1; PEV and reliabilities are Laplace "
+                   "approximations at the posterior mode."
+                   + (" Liability variances were estimated by Laplace-approximate REML, which "
+                      "is biased when there is little information per animal (see the "
+                      "validation report); their estimation error is not propagated."
+                      if d["variances"]["mode"] == "reml" else ""))
     if d["project"]["synthetic_data"]:
         lim.insert(0, "SYNTHETIC DATA: results illustrate the method only and carry no "
                       "information about any real population.")
@@ -437,6 +441,7 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
     upg = _upg_check(model, structure)
     vmode = d["variances"]["mode"]
     reml_info = None
+    fit = None
     if vmode == "known":
         vc = {k: float(v) for k, v in d["variances"]["values"].items()}
     else:
@@ -467,6 +472,23 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
     s = res.solve
     log.info("%s: solved %d equations with %s (%s); relative residual %.2e; %.2f s", trait,
              s.solution.size, s.method, s.selection_reason, s.rel_residual, s.wall_seconds)
+    vc_extra = None
+    if (fit is not None and fit.cov is not None and gen_pev_available(res, model.genetic_term)
+            and model.genetic_term in fit.cov_names):
+        from ..solvers.vc_uncertainty import kackar_harville_delta
+        delta = kackar_harville_delta(model.y, model.fixed.X, active_terms, vc_active, fit.cov,
+                                      fit.cov_names, model.genetic_term, method=sol["method"],
+                                      memory_budget_bytes=budget,
+                                      factorization=sol["factorization"])
+        g = res.terms[model.genetic_term]
+        prior = vc_active[model.genetic_term] * np.asarray(model.terms[
+            [t.name for t in model.terms].index(model.genetic_term)].k_diag, dtype=np.float64)
+        pev_t = g.pev + delta
+        vc_extra = {"pev_incl_vc_uncertainty": pev_t,
+                    "reliability_incl_vc_uncertainty": np.clip(1.0 - pev_t / prior, 0.0, 1.0)}
+        log.info("%s: PEV including variance-estimation uncertainty (Kackar-Harville): mean "
+                 "increase %.4g (%.1f%%)", trait, float(delta.mean()),
+                 100.0 * float(delta.mean() / g.pev.mean()))
     groups = None
     mf_info = None
     contrast = None
@@ -477,7 +499,10 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
     if upg is not None or structure.kind in ("pedigree_mf", "single_step_mf"):
         res.terms[model.genetic_term], groups = _split_upg(res.terms[model.genetic_term],
                                                            structure)
-    files = _write_single_trait_outputs(stage, model, res, ped_data, contrast)
+    if vc_extra is not None and groups is not None:          # keep animal equations only
+        n_an = structure.meta["n_animals"]
+        vc_extra = {k: v[:n_an] for k, v in vc_extra.items()}
+    files = _write_single_trait_outputs(stage, model, res, ped_data, contrast, vc_extra)
     if upg is not None:
         files["upg_solutions"] = _write_upg(stage, trait, groups, structure)
         upg["file"] = files["upg_solutions"]
@@ -550,12 +575,30 @@ def _run_threshold_trait(spec: AnalysisSpec, model: SingleTraitModel,
     """Ordered categorical trait: threshold (probit) model on the liability scale."""
     from types import SimpleNamespace
 
-    from ..solvers.threshold import threshold_blup
+    from ..solvers.threshold import threshold_blup, threshold_laplace_reml
     from .multitrait import EvalState
     d = spec.data
     trait = model.trait
-    vc = {k: float(v) for k, v in d["variances"]["values"].items()}
     sol = d["solver"]
+    reml_info = None
+    if d["variances"]["mode"] == "reml":
+        rc = d["reml"]
+        fit = threshold_laplace_reml(model.y, model.fixed.X, model.terms,
+                                     intercept=d["model"]["intercept"], start=rc["start"],
+                                     tol=max(float(rc["tol"]), 1e-5),
+                                     max_eval=max(int(rc["max_iter"]), 200),
+                                     memory_budget_bytes=budget)
+        vc = dict(fit.variances)
+        reml_info = {"status": fit.status, "iterations": fit.evaluations, "loglik": fit.loglik,
+                     "se": None, "heritability_se": None,
+                     "method": "laplace_approximate_reml", "note": fit.note}
+        variance_source = ("reml (Laplace-approximate, liability scale; residual variance "
+                           "fixed at 1)")
+        log.info("%s: Laplace-approximate REML on the liability scale: %s (%d evaluations)",
+                 trait, {k: round(v, 5) for k, v in vc.items()}, fit.evaluations)
+    else:
+        vc = {k: float(v) for k, v in d["variances"]["values"].items()}
+        variance_source = "known (liability scale; residual variance fixed at 1)"
     res = threshold_blup(model.y, model.fixed.X, model.terms, vc,
                          intercept=d["model"]["intercept"], compute_pev=(sol["pev"] == "exact"),
                          memory_budget_bytes=budget)
@@ -578,10 +621,10 @@ def _run_threshold_trait(spec: AnalysisSpec, model: SingleTraitModel,
         "unit": "liability (residual SD = 1)",
         "n_records": int(model.y.size),
         "n_animals_evaluated": len(gen.labels),
-        "variance_source": "known (liability scale; residual variance fixed at 1)",
+        "variance_source": variance_source,
         "variance_components": vc,
         "heritability": vc[model.genetic_term] / total,
-        "reml": None,
+        "reml": reml_info,
         "genetic_term": model.genetic_term,
         "solver": {"method": f"threshold model, Newton-Raphson ({res.solver})",
                    "selection_reason": "categorical trait", "n_equations": res.n_equations,
@@ -611,7 +654,7 @@ def _run_threshold_trait(spec: AnalysisSpec, model: SingleTraitModel,
                         "min": float(gen.solution.min()), "max": float(gen.solution.max())},
         "files": files,
     }
-    manifest["diagnostics"][trait] = {"solver": out["solver"],
+    manifest["diagnostics"][trait] = {"solver": out["solver"], "reml": reml_info,
                                       "threshold_model": out["threshold_model"]}
     k_diag = np.asarray(structure.k_diag)[:len(gen.labels)]
     state = EvalState(tuple(gen.labels), [trait], gen.solution[:, None],
@@ -701,8 +744,13 @@ def _fixed_rows(model: SingleTraitModel, res: BLUPResult) -> list[dict]:
     return rows
 
 
+def gen_pev_available(res, term: str) -> bool:
+    return res.terms[term].pev is not None
+
+
 def _write_single_trait_outputs(stage: OutputStage, model: SingleTraitModel, res: BLUPResult,
-                                ped_data: PedigreeData | None, contrast: dict | None = None) -> dict:
+                                ped_data: PedigreeData | None, contrast: dict | None = None,
+                                extra: dict | None = None) -> dict:
     trait = model.trait
     gen = res.terms[model.genetic_term]
     files = {}
@@ -731,10 +779,14 @@ def _write_single_trait_outputs(stage: OutputStage, model: SingleTraitModel, res
                          None if contrast["pev"] is None else float(contrast["pev"][k]),
                          None if contrast["reliability"] is None
                          else float(contrast["reliability"][k])]
+        if extra is not None:
+            rows[-1] += [float(v[k]) for v in extra.values()]
     header = ["animal", "sire", "dam", "sex", "generation", "inbreeding",
               "n_records", "ebv", "pev", "sep", "reliability", "accuracy"]
     if contrast is not None:
         header += ["ebv_vs_base", "pev_vs_base", "reliability_vs_base"]
+    if extra is not None:
+        header += list(extra)
     write_csv(stage.path(name), header, rows)
     files["ebv"] = name
     name = f"fixed_effects_{trait}.csv"

@@ -2,7 +2,6 @@
 GBLUP results from PLINK and ABP dosage-matrix inputs."""
 
 import csv
-import shutil
 
 import numpy as np
 import pytest

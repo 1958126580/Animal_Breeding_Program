@@ -89,7 +89,7 @@ def _write_case(tmp_path, default="MF:Y", gamma_rows=None):
           "gamma_provenance": "values for a unit test"}
     if default:
         mf["default"] = default
-    toml = f'''schema_version = "1"
+    toml = '''schema_version = "1"
 [project]
 name = "mf"
 species = "sheep"
@@ -107,10 +107,10 @@ name = "y"
 unit = "kg"
 [model]
 traits = ["y"]
-random = [{{ name = "animal", kind = "additive", relationship = "pedigree" }}]
+random = [{ name = "animal", kind = "additive", relationship = "pedigree" }]
 [variances]
 mode = "known"
-values = {{ animal = 2.0, residual = 3.0 }}
+values = { animal = 2.0, residual = 3.0 }
 [metafounders]
 ''' + "\n".join(f'{k} = "{v}"' for k, v in mf.items()) + "\n"
     (tmp_path / "a.toml").write_text(toml, encoding="utf-8")

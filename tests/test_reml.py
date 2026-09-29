@@ -146,7 +146,6 @@ def test_forced_boundary_case_is_detected():
     one record per animal makes pe confounded with residual only through the
     likelihood of an animal model; use strongly negative intra-animal correlation."""
     rng = np.random.default_rng(5)
-    ped = Pedigree.from_parent_ids([f"f{i}" for i in range(60)], [None] * 60, [None] * 60)
     rec = [f"f{i}" for i in range(60) for _ in range(2)]
     # records of the same animal deviate in opposite directions -> negative
     # within-animal covariance -> animal and pe variance estimates hit zero

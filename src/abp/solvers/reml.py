@@ -98,6 +98,9 @@ class REMLFit:
     start_source: str
     history: list[dict] = field(default_factory=list)
     trace_method: str = "dense_inverse"
+    #: asymptotic covariance of the estimates (inverse AI; order: ``cov_names``); None at a boundary
+    cov: np.ndarray | None = None
+    cov_names: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {"status": self.status, "variances": self.variances, "loglik": self.loglik,
@@ -403,7 +406,7 @@ def reml_fit(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm], cfg: 
                          + [vc_active["residual"]])
     variances = {t.name: vc_active.get(t.name, 0.0) for t in terms}
     variances["residual"] = vc_active["residual"]
-    se = h2 = h2_se = cond = None
+    se = h2 = h2_se = cond = cov_out = None
     genetic = [t.name for t in terms if t.genetic]
     total = sum(variances.values())
     if genetic:
@@ -412,6 +415,7 @@ def reml_fit(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm], cfg: 
         cond = float(np.linalg.cond(point.ai))
         cov = np.linalg.inv(point.ai)
         if not boundary:
+            cov_out = 0.5 * (cov + cov.T)
             se = {n: float(math.sqrt(cov[i, i])) if cov[i, i] > 0 else None
                   for i, n in enumerate(names)}
             if genetic:
@@ -422,4 +426,5 @@ def reml_fit(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm], cfg: 
         cond = None  # singular AI matrix: components not separately identifiable
     status = "converged_boundary" if boundary else "converged"
     return REMLFit(variances, point.loglik, it0, status, boundary, [t.name for t in active], se,
-                   h2, h2_se, cond, start, source, history, ev.trace_method)
+                   h2, h2_se, cond, start, source, history, ev.trace_method, cov_out,
+                   list(names))

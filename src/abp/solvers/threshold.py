@@ -86,13 +86,18 @@ class ThresholdResult:
     max_step: float
     n_equations: int
     solver: str
+    logdet_neg_hessian: float = float("nan")   # log|H| at the mode (for the Laplace likelihood)
 
 
 def threshold_blup(y: np.ndarray, X: sp.csr_matrix, terms: list[RandomTerm],
                    variances: dict[str, float], intercept: bool, tol: float = 1e-10,
                    max_iter: int = 100, compute_pev: bool = True,
-                   memory_budget_bytes: int = 4 * 2**30) -> ThresholdResult:
-    """Posterior mode of the ordered-probit animal model (see module notes)."""
+                   memory_budget_bytes: int = 4 * 2**30, init: ThresholdResult | None = None,
+                   dense_limit: int = 12000) -> ThresholdResult:
+    """Posterior mode of the ordered-probit animal model (see module notes).
+
+    ``init`` (a previous result for the same data and model) warm-starts Newton's
+    method; ``dense_limit`` is the largest system factorised densely."""
     y = np.asarray(y, dtype=np.float64)
     if not np.all(np.isfinite(y)) or not np.all(y == np.round(y)):
         raise ABPError("SCHEMA_TYPE", "a threshold trait needs integer category codes")
@@ -133,6 +138,10 @@ def threshold_blup(y: np.ndarray, X: sp.csr_matrix, terms: list[RandomTerm],
     else:
         b0 = np.zeros(p)
     theta = np.concatenate([b0, np.zeros(n_loc - p)])
+    if init is not None and init.n_equations == n_loc + n_tau and init.categories.size == K:
+        theta = np.concatenate([init.fixed_solution]
+                               + [init.terms[t_.name].solution for t_ in terms])
+        tau = np.concatenate([[-np.inf], init.thresholds, [np.inf]])
 
     def unpack_tau(tfree):
         tt = tau.copy()
@@ -199,7 +208,7 @@ def threshold_blup(y: np.ndarray, X: sp.csr_matrix, terms: list[RandomTerm],
     it, step = 0, np.inf
     for it in range(1, max_iter + 1):
         grad, NH = derivatives(theta, unpack_tau(tfree))
-        fac = _factor(NH, memory_budget_bytes)
+        fac = _factor(NH, memory_budget_bytes, dense_limit)
         delta = fac.solve(grad)
         lam, accepted = 1.0, False
         for _ in range(40):
@@ -224,7 +233,7 @@ def threshold_blup(y: np.ndarray, X: sp.csr_matrix, terms: list[RandomTerm],
                        f"Newton iterations (last step {step:.2e})", last_step=step)
     tt = unpack_tau(tfree)
     grad, NH = derivatives(theta, tt)
-    fac = _factor(NH, memory_budget_bytes)
+    fac = _factor(NH, memory_budget_bytes, dense_limit)
     out: dict = {}
     for t_ in terms:
         a0, b0_ = offs[t_.name]
@@ -250,7 +259,78 @@ def threshold_blup(y: np.ndarray, X: sp.csr_matrix, terms: list[RandomTerm],
         out[t_.name] = TermResult(t_.name, t_.labels, sol, pev, rel, n_cl)
     return ThresholdResult(theta[:p].copy(), tt[1:K].copy(), cats, out, it, obj,
                            step, n_loc + n_tau, "dense" if isinstance(fac, DenseCholesky)
-                           else "sparse_direct")
+                           else "sparse_direct", float(fac.logdet()))
+
+
+def laplace_loglik(y, X, terms, variances: dict[str, float], intercept: bool,
+                   memory_budget_bytes: int = 4 * 2**30, init: ThresholdResult | None = None,
+                   dense_limit: int = 2000) -> tuple[float, ThresholdResult]:
+    """Laplace approximation of ``log p(y | sigma^2)`` with ``b`` and ``tau`` integrated
+    (flat priors), up to a constant that does not depend on the variances::
+
+        log p(y|s) ~ L(mode) - 1/2 sum_k (q_k log s_k + log|K_k|) - 1/2 log|H|,
+
+    ``L`` the log posterior of :func:`threshold_blup` at its mode and ``H`` its
+    negative Hessian over ``(b, u, tau)``.  ``log|K_k|`` is taken from the
+    random terms (constant in ``s``; omitted when unknown)."""
+    res = threshold_blup(y, X, terms, variances, intercept, compute_pev=False,
+                         memory_budget_bytes=memory_budget_bytes, init=init,
+                         dense_limit=dense_limit)
+    ll = res.log_posterior - 0.5 * res.logdet_neg_hessian
+    for t_ in terms:
+        ll -= 0.5 * (t_.q * np.log(variances[t_.name]) + (t_.logdet_k or 0.0))
+    return float(ll), res
+
+
+@dataclass
+class ThresholdVarianceFit:
+    variances: dict
+    loglik: float
+    evaluations: int
+    status: str
+    note: str = ("Laplace-approximate REML for the threshold model (b and thresholds integrated "
+                 "with flat priors); known to be biased for categorical data with little "
+                 "information per animal - see the validation report")
+
+
+def threshold_laplace_reml(y, X, terms, intercept: bool, start: dict | None = None,
+                           tol: float = 1e-6, max_eval: int = 400,
+                           memory_budget_bytes: int = 4 * 2**30) -> ThresholdVarianceFit:
+    """Estimate the liability variances by maximising :func:`laplace_loglik`
+    over ``log sigma_k^2`` (Brent for one term, Nelder-Mead otherwise)."""
+    from scipy.optimize import minimize, minimize_scalar
+    names = [t_.name for t_ in terms]
+    x0 = np.log([float((start or {}).get(nm, 0.2)) for nm in names])
+    n_eval = [0]
+    last: list = [None]                    # warm start: the previous mode
+
+    def f(x):
+        n_eval[0] += 1
+        vc = {nm: float(np.exp(v)) for nm, v in zip(names, np.atleast_1d(x))}
+        vc["residual"] = 1.0
+        ll, last[0] = laplace_loglik(y, X, terms, vc, intercept, memory_budget_bytes,
+                                     init=last[0])
+        return -ll
+
+    if len(names) == 1:
+        r = minimize_scalar(f, bounds=(np.log(1e-4), np.log(20.0)), method="bounded",
+                            options={"xatol": tol, "maxiter": max_eval})
+        x, ok, val = np.array([r.x]), bool(r.success), float(r.fun)
+    else:
+        r = minimize(f, x0, method="Nelder-Mead",
+                     options={"xatol": tol, "fatol": tol, "maxfev": max_eval})
+        x, ok, val = r.x, bool(r.success), float(r.fun)
+    if not ok:
+        raise ABPError("REML_NOT_CONVERGED", "threshold model: Laplace-approximate variance "
+                       f"estimation did not converge in {max_eval} evaluations")
+    vc = {nm: float(np.exp(v)) for nm, v in zip(names, x)}
+    at_bound = [nm for nm, v in vc.items() if v <= 1.0001e-4 or v >= 19.99]
+    if at_bound:
+        raise ABPError("MODEL_NOT_IDENTIFIABLE", f"threshold model: the Laplace-approximate "
+                       f"variance of {at_bound} is at the search bound; the data carry too "
+                       "little information to estimate it", terms=at_bound)
+    vc["residual"] = 1.0
+    return ThresholdVarianceFit(vc, -val, n_eval[0], "converged")
 
 
 def _probit(p):
@@ -258,8 +338,8 @@ def _probit(p):
     return ndtri(np.clip(p, 1e-12, 1 - 1e-12))
 
 
-def _factor(M: sp.csr_matrix, budget: int):
+def _factor(M: sp.csr_matrix, budget: int, dense_limit: int = 12000):
     n = M.shape[0]
-    if n <= 12000 and 16 * n * n <= budget:
+    if n <= dense_limit and 16 * n * n <= budget:
         return DenseCholesky(M.toarray())
     return make_sparse_factor(M, budget)

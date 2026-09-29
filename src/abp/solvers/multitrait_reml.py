@@ -158,8 +158,8 @@ class MTREMLEvaluator:
         self.obs = obs[obs.any(axis=1)]
         self.n_rec = int(self.obs.shape[0])
         # structure (constant across iterations): fix it from a unit-covariance assembly
-        I = np.eye(self.t)
-        mts = assemble_multitrait(data, self.k_inv, I, I)
+        eye = np.eye(self.t)
+        mts = assemble_multitrait(data, self.k_inv, eye, eye)
         sysm = mts.system
         self.rec_idx, self.trait_idx = mts.rec_idx, mts.trait_idx
         self.n_obs = self.rec_idx.size

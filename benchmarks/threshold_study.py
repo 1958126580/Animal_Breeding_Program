@@ -7,7 +7,11 @@ replicates of the synthetic flock is analysed with
 * ``linear_reml``      the linear repeatability model of example 03 (REML);
 * ``threshold_true``   the threshold (probit) repeatability model with the
                        generator's liability variances rescaled to a residual
-                       SD of 1 (example 14).
+                       SD of 1 (example 14);
+* ``threshold_laplace`` the same threshold model with the liability variances
+                       estimated by Laplace-approximate REML (round 5); the
+                       estimates are compared with the generator's values
+                       (0.1111 for both the animal and the pe variance).
 
 For the ewes with records the script reports the realized accuracy
 corr(EBV, TBV) against the simulated liability TBV, the model accuracy
@@ -44,7 +48,16 @@ from abp.workflows.evaluate import run_evaluation  # noqa: E402
 
 EX03 = ROOT / "examples" / "03_sheep_nlb_repeatability" / "analysis.toml"
 EX14 = ROOT / "examples" / "14_sheep_nlb_threshold" / "analysis.toml"
-SCEN = {"linear_reml": EX03, "threshold_true": EX14}
+SCEN = {"linear_reml": EX03, "threshold_true": EX14, "threshold_laplace": EX14}
+TRUE_LIAB = {"animal": 0.1111, "pe": 0.1111}
+
+
+def _spec_text(name: str) -> str:
+    txt = SCEN[name].read_text(encoding="utf-8")
+    if name == "threshold_laplace":
+        txt = txt.replace('mode = "known"', 'mode = "reml"')
+        txt = "\n".join(ln for ln in txt.splitlines() if not ln.startswith("values = { animal"))
+    return txt
 
 
 def replicate(seed: int, work: Path) -> dict:
@@ -55,7 +68,7 @@ def replicate(seed: int, work: Path) -> dict:
     for name, src in SCEN.items():
         spec = work / "cases" / f"{name}.toml"
         spec.parent.mkdir(exist_ok=True)
-        spec.write_text(src.read_text(encoding="utf-8"), encoding="utf-8")
+        spec.write_text(_spec_text(name), encoding="utf-8")
         try:
             res = run_evaluation(spec, work / f"out_{name}", force=True, console=False)
         except ABPError as exc:          # e.g. REML at the boundary: ABP withholds the ranking
@@ -69,7 +82,8 @@ def replicate(seed: int, work: Path) -> dict:
         acc = float(np.corrcoef(t, e)[0, 1])
         macc = float(np.sqrt(rel.mean()))
         out[name] = {"n": int(e.size), "realized_accuracy": acc, "model_accuracy": macc,
-                     "ratio_model_to_realized": macc / acc}
+                     "ratio_model_to_realized": macc / acc,
+                     "variance_components": res.results["traits"]["nlb"]["variance_components"]}
     return out
 
 
@@ -103,6 +117,12 @@ def main():
                   for r in both])
     summary["paired_difference_realized_accuracy_threshold_minus_linear"] = {
         "mean": float(d.mean()), "mc_se": float(d.std(ddof=1) / np.sqrt(d.size))}
+    ok = [r for r in reps if "withheld" not in r["threshold_laplace"]]
+    for k, true in TRUE_LIAB.items():
+        v = np.array([r["threshold_laplace"]["variance_components"][k] for r in ok])
+        summary[f"laplace_estimate_{k}"] = {"mean": float(v.mean()),
+                                             "mc_se": float(v.std(ddof=1) / np.sqrt(v.size)),
+                                             "true": true}
     doc = {"study": "linear vs threshold model, number of lambs born", "replicates": args.replicates,
            "seeds": f"1..{args.replicates}", "specs": {k: str(v.relative_to(ROOT)) for k, v in SCEN.items()},
            "wall_seconds": time.time() - t0, "summary": summary, "replicate_results": reps}

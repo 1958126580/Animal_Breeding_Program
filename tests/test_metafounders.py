@@ -226,7 +226,8 @@ def _gene_drop(seed, m=4000, n_founders=80, gens=3, per_gen=160):
         for _ in range(per_gen):
             s, d = rng.choice(len(prev), 2, replace=False)
             s, d = prev[s], prev[d]
-            pick = lambda h: h[rng.integers(0, 2, m), np.arange(m)]  # unlinked loci
+            def pick(h):                                   # unlinked loci
+                return h[rng.integers(0, 2, m), np.arange(m)]
             a = str(nxt)
             nxt += 1
             hap[a] = np.vstack([pick(hap[s]), pick(hap[d])])

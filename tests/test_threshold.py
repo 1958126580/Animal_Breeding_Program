@@ -58,6 +58,8 @@ def _reference(y, X, Z, Ainv, s2, K):
         tau = np.concatenate([[-np.inf, 0.0], tf, [np.inf]])
         eta = X @ b + Z @ u
         P = norm.cdf(tau[yk + 1] - eta) - norm.cdf(tau[yk] - eta)
+        if not np.all(P > 0):                      # outside the feasible region: reject step
+            return 1e20
         return -(np.sum(np.log(P)) - 0.5 * u @ Ainv @ u / s2)
     x0 = np.concatenate([np.zeros(p + q), np.arange(1, K - 1, dtype=float)])
     r = minimize(f, x0, method="BFGS", options={"gtol": 1e-10, "maxiter": 10000})
@@ -142,5 +144,73 @@ def test_spec_rules_for_categorical_traits():
     bad = dict(base, variances={"mode": "known", "values": {"animal": 0.2, "residual": 2.0}})
     with pytest.raises(ABPError, match="residual"):
         validate_spec_dict(bad)
-    with pytest.raises(ABPError, match="known"):
-        validate_spec_dict(dict(base, variances={"mode": "reml"}))
+    # Laplace-approximate REML is accepted; a residual start other than 1 and Bayes are not
+    assert validate_spec_dict(dict(base, variances={"mode": "reml"}))["variances"]["mode"] == "reml"
+    with pytest.raises(ABPError, match="residual"):
+        validate_spec_dict(dict(base, variances={"mode": "reml"},
+                                reml={"start": {"animal": 0.2, "residual": 2.0}}))
+    with pytest.raises(ABPError, match="bayes|Laplace"):
+        validate_spec_dict(dict(base, variances={"mode": "bayes"}))
+
+
+def _laplace_reference(y, X, Z, A, s2, K):
+    """Independent Laplace log marginal likelihood: BFGS mode of the reference
+    objective, numerical Hessian from function values, dense log-determinants."""
+    Ainv = np.linalg.inv(A)
+    x, f = _reference(y, X, Z, Ainv, s2, K)
+    n, h = x.size, 1e-4
+    H = np.zeros((n, n))
+    E = np.eye(n) * h
+    for i in range(n):
+        for j in range(i, n):
+            H[i, j] = H[j, i] = (f(x + E[i] + E[j]) - f(x + E[i] - E[j]) - f(x - E[i] + E[j])
+                                 + f(x - E[i] - E[j])) / (4 * h * h)
+    q = Z.shape[1]
+    return (-f(x) - 0.5 * (q * np.log(s2) + np.linalg.slogdet(A)[1])
+            - 0.5 * np.linalg.slogdet(H)[1])
+
+
+def test_laplace_loglik_equals_independent_laplace_computation():
+    from abp.solvers.threshold import laplace_loglik
+    y, X, term, Z, Ainv, K = _problem(7, n_anim=30, n_rec=100)
+    A = np.linalg.inv(Ainv)
+    for s2 in (0.2, 0.6):
+        ll, _ = laplace_loglik(y, X, [term], {"animal": s2, "residual": 1.0}, intercept=True)
+        assert ll == pytest.approx(_laplace_reference(y, X, Z, A, s2, K), abs=2e-3)
+
+
+def test_laplace_reml_maximises_the_approximate_likelihood():
+    from abp.solvers.threshold import laplace_loglik, threshold_laplace_reml
+    y, X, term, Z, Ainv, K = _problem(11, n_anim=60, n_rec=600, K=3)
+    fit = threshold_laplace_reml(y, X, [term], intercept=True)
+    s = fit.variances["animal"]
+    assert fit.status == "converged" and fit.variances["residual"] == 1.0 and s > 0
+    def ll(v):
+        return laplace_loglik(y, X, [term], {"animal": v, "residual": 1.0}, True)[0]
+    assert fit.loglik == pytest.approx(ll(s), abs=1e-9)
+    assert ll(s) >= ll(0.9 * s) and ll(s) >= ll(1.1 * s)
+    # data with no genetic signal: the optimum sits at the search bound -> refused
+    rng = np.random.default_rng(0)
+    y0 = 1.0 + (rng.random(y.size) < 0.5)
+    with pytest.raises(ABPError, match="search bound"):
+        threshold_laplace_reml(y0, X, [term], intercept=True)
+
+
+def test_example14_with_laplace_reml(tmp_path):
+    from pathlib import Path
+    from abp.workflows.evaluate import run_evaluation
+    ex = Path(__file__).resolve().parents[1] / "examples" / "14_sheep_nlb_threshold"
+    txt = (ex / "analysis.toml").read_text(encoding="utf-8")
+    txt = txt.replace('mode = "known"', 'mode = "reml"')
+    txt = "\n".join(ln for ln in txt.splitlines() if not ln.startswith("values = { animal"))
+    txt = txt.replace("../sheep_data", (ex.parent / "sheep_data").as_posix())
+    spec = tmp_path / "a.toml"
+    spec.write_text(txt, encoding="utf-8")
+    out = run_evaluation(spec, tmp_path / "o", console=False)
+    t = out.results["traits"]["nlb"]
+    assert t["variance_source"].startswith("reml (Laplace-approximate")
+    assert t["reml"]["status"] == "converged" and t["variance_components"]["residual"] == 1.0
+    # the generator's liability variances are 0.1111 each; one data set, so only a loose check
+    for k in ("animal", "pe"):
+        assert 0.03 < t["variance_components"][k] < 0.3
+    assert "Laplace-approximate REML" in (out.out_dir / "report.md").read_text(encoding="utf-8")

@@ -35,7 +35,7 @@ import scipy.linalg as sla
 import scipy.sparse as sp
 
 from ..errors import ABPError
-from .mme import DenseCholesky, RandomEffect, SolveResult, SparseLU, assemble, solve_system
+from .mme import DenseCholesky, RandomEffect, SolveResult, assemble, solve_system
 
 STACKING_ORDER = "animal-major: equation = offset + animal_index * n_traits + trait_index"
 

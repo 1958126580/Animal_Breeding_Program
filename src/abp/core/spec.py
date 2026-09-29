@@ -563,11 +563,13 @@ def validate_spec_dict(raw: dict) -> dict:
         if len(m["traits"]) > 1:
             raise ABPError("UNSUPPORTED_COMBINATION", "categorical (threshold) traits are "
                            "implemented for single-trait models only in this version")
-        if v["mode"] != "known":
-            raise _err("variances.mode", "the threshold model needs known variances on the "
-                       "liability scale (mode = 'known')")
-        if abs(float(v["values"]["residual"]) - 1.0) > 1e-12:
-            raise _err("variances.values.residual", "the threshold model fixes the residual "
+        if v["mode"] == "bayes":
+            raise _err("variances.mode", "the threshold model takes known liability variances "
+                       "(mode = 'known') or Laplace-approximate REML (mode = 'reml')")
+        vals = v["values"] if v["mode"] == "known" else (d["reml"]["start"] or {})
+        where = "variances.values" if v["mode"] == "known" else "reml.start"
+        if "residual" in vals and abs(float(vals["residual"]) - 1.0) > 1e-12:
+            raise _err(f"{where}.residual", "the threshold model fixes the residual "
                        "variance of the liability at 1; give the other variances on that scale")
         for sec in ("upg", "metafounders", "validation"):
             if raw.get(sec) is not None:

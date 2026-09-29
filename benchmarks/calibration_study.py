@@ -181,6 +181,8 @@ def replicate(seed: int, work: Path) -> dict:
         e_abs = np.array([float(r["ebv"]) for r in rows])
         t = np.array([tbv[r["animal"]] for r in rows])
         err = t - e
+        pev_vc = (np.array([float(r["pev_incl_vc_uncertainty"]) for r in rows])
+                  if "pev_incl_vc_uncertainty" in rows[0] else None)
         out[name] = {
             "n": int(e.size),
             "slope": float(np.cov(t, e)[0, 1] / np.var(e, ddof=1)),
@@ -191,6 +193,9 @@ def replicate(seed: int, work: Path) -> dict:
             "coverage95": float(np.mean(np.abs(err) <= 1.96 * np.sqrt(pev))),
             "sigma_a2": res.results["traits"]["wwt"]["variance_components"]["animal"],
         }
+        if pev_vc is not None and not sfx:            # Kackar-Harville PEV (absolute scale)
+            out[name]["pev_ratio_incl_vc"] = float(np.mean(err ** 2) / np.mean(pev_vc))
+            out[name]["coverage95_incl_vc"] = float(np.mean(np.abs(err) <= 1.96 * np.sqrt(pev_vc)))
         rel_meta = res.manifest["relationship"]
         if "gamma" in rel_meta:
             gamma = float(rel_meta["gamma"][0][0])
@@ -218,7 +223,7 @@ def summarize(reps: list[dict]) -> dict:
         s = {}
         for key in ("slope", "bias", "realized_accuracy", "model_accuracy", "pev_ratio",
                     "coverage95", "sigma_a2", "gamma", "sigma_a2_conventional",
-                    "pev_ratio_absolute"):
+                    "pev_ratio_absolute", "pev_ratio_incl_vc", "coverage95_incl_vc"):
             if key not in reps[0][name]:
                 continue
             v = np.array([r[name][key] for r in reps])

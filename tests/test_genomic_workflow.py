@@ -11,7 +11,7 @@ import pytest
 from abp.errors import ABPError
 from abp.examples.sheep import SheepSimConfig, write_sheep_example
 from abp.workflows.evaluate import run_evaluation
-from tests.reference.dense_reference import blup_v_form, tabular_a
+from tests.reference.dense_reference import tabular_a
 
 SMALL = dict(n_founder_rams=4, n_founder_ewes=40, rams_per_year=4, years=(2021, 2022, 2023),
              snp_per_chrom=40, qtl_per_chrom=20, n_chrom=5, n_wwt_typos=0)
