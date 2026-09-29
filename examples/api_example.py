@@ -183,6 +183,44 @@ print("sparse PEV equals dense PEV:",
       np.allclose(res_sparse.terms["animal"].pev, t.pev, atol=1e-10),
       "| factor entries:", si.nnz_factor, "| kernel:", si.kernel)
 
+# --- 14. Multi-trait REML ----------------------------------------------------------
+from abp.solvers.multitrait_reml import mt_reml_fit
+# two records per animal simulated from the model u ~ N(0, A (x) G0), e ~ N(0, R0)
+L_u = np.linalg.cholesky(np.kron(ped2.a_dense(), G0))
+U_sim = (L_u @ rng.standard_normal(2 * ped2.n)).reshape(ped2.n, 2)
+rec_an = np.repeat(np.arange(ped2.n), 2)
+Y_sim = 10 + U_sim[rec_an] + rng.standard_normal((rec_an.size, 2)) @ np.linalg.cholesky(R0).T
+Xs = [build_fixed_design({}, [], True, rec_an.size).X for _ in range(2)]
+fit_mt = mt_reml_fit(MTData(Y_sim, Xs, rec_an), ped2.ainv(), ped2.logdet_a(),
+                     {"tol": 1e-8, "max_iter": 200})
+print("multi-trait REML:", fit_mt.status, "after", fit_mt.iterations, "iterations; G0",
+      fit_mt.G0.round(2).tolist())
+
+# --- 15. Threshold model for a categorical trait (liability scale) -----------------
+from abp.solvers.threshold import threshold_blup
+cat = 1.0 + (y2 > np.median(y2)) + (y2 > np.quantile(y2, 0.85))   # categories 1, 2, 3
+Xc = build_fixed_design({}, [], True, ped2.n).X
+Zc = sp.identity(ped2.n, format="csr")
+thr = threshold_blup(cat, Xc, [RandomTerm("animal", Zc, ped2.ainv(), ped2.ids, True,
+                                          k_diag=1 + ped2.inbreeding())],
+                     {"animal": 0.3, "residual": 1.0}, intercept=True)
+print("threshold model: thresholds", thr.thresholds.round(3), "| iterations", thr.iterations)
+
+# --- 16. Sparse LDL' factorization (minimum degree) --------------------------------
+from abp.solvers.cholesky import SparseLDL
+C_small = res_sparse.system.C
+fac_ldl = SparseLDL(C_small)
+print("LDL' solve equals the MME solution:",
+      np.allclose(fac_ldl.solve(res_sparse.system.rhs), res_sparse.solve.solution, atol=1e-10),
+      "| log|C| =", round(fac_ldl.logdet(), 6))
+
+# --- 17. APY inverse of G ------------------------------------------------------------
+from abp.core.genomic import apy_inverse
+G_apy_demo = 0.95 * G + 0.05 * np.eye(G.shape[0])
+apy = apy_inverse(G_apy_demo, np.arange(0, G.shape[0], 2))       # every second animal in the core
+print("APY:", apy.record["n_core"], "core animals; inverse matches the implied G_APY:",
+      np.allclose(apy.g_inv @ apy.g_apy, np.eye(G.shape[0]), atol=1e-8))
+
 # --- 11. Whole workflow from an analysis spec ----------------------------------
 root = Path(__file__).resolve().parent
 with tempfile.TemporaryDirectory() as tmp:

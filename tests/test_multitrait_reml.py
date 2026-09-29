@@ -219,3 +219,20 @@ def test_stored_zeros_in_k_inverse_are_ignored(monkeypatch):
     th = MR._pack(np.array([[1.5, 0.4], [0.4, 1.0]]), np.array([[3.0, 0.5], [0.5, 2.0]]))
     p = MR.MTREMLEvaluator(data, Kz, ped.logdet_a()).evaluate(th)
     assert -2 * p.loglik == pytest.approx(_v_form_m2ll(data, A, *MR._unpack(th, 2)), abs=1e-8)
+
+
+def test_boundary_optimum_is_reported_as_not_identifiable():
+    """Trait 2 = 0.5 x trait 1 + noise with one record per animal: the REML
+    optimum lies on the boundary (genetic correlation -> 1).  ABP stops with a
+    diagnosis instead of a plain non-convergence (regression: API example)."""
+    rng = np.random.default_rng(42)
+    ped, data, A = _problem(21, n_anim=150, n_rec=150, miss=0.0)
+    y1 = data.Y[:, 0]
+    Y = np.column_stack([y1, 0.5 * y1 + rng.normal(0, 1, y1.size)])
+    Y[rng.random(y1.size) < 0.4, 1] = np.nan
+    Xs = [sp.csr_matrix(np.ones((int((~np.isnan(Y[:, j])).sum()), 1))) for j in range(2)]
+    with pytest.raises(ABPError) as exc:
+        MR.mt_reml_fit(MTData(Y, Xs, data.animal_col), ped.ainv(), ped.logdet_a(),
+                       {"tol": 1e-8, "max_iter": 60})
+    assert exc.value.code == "ABP-E300" and "boundary" in exc.value.message
+    assert exc.value.details["eigenvalue_ratios"]["G0"] < 0.01      # G0 nearly singular

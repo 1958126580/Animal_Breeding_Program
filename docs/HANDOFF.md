@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-09-28, ABP 0.3.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-09-29, ABP 0.4.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -26,6 +26,10 @@ method in `docs/method_registry.toml`):
   sampling correction), single step on the metafounder base (G05, no tuning),
   EBVs against a reference metafounder with their own PEV/reliability
   (`ebv_vs_base`), example 12;
+* **round 4**: multi-trait REML (AI + EM, missing traits, boundary diagnosis);
+  threshold (probit) model for categorical traits; ABP's sparse LDL' with
+  minimum-degree ordering (default sparse factor; SuperLU kept as
+  reference); APY; metafounders for multi-trait models and LR validation;
 * single-trait BLUP (animal, repeatability), dense/sparse/PCG solvers, PEV,
   reliability; **exact PEV at any size whose factor fits in memory by sparse
   selected inversion** (round 3; Takahashi equations on the symbolic Cholesky
@@ -40,9 +44,16 @@ method in `docs/method_registry.toml`):
 * optimal contribution selection and mating plans (`abp mate`, proposals
   only);
 * workflow with atomic outputs, manifests and reports; CLI; launchers;
-  synthetic sheep generator; 12 examples; documentation; self-test T01–T13.
+  synthetic sheep generator; 14 examples; documentation; self-test T01–T14.
 
 ## 2. Commands that were run (Linux) and their results
+
+Round 4: full test suite with both kernels, `abp selftest` (T01–T14), all
+examples incl. 13 and 14, the F6 factor study (4 × 50 replicates), the
+multi-trait study (50), the two-metafounder study (30), the threshold study
+(30) and benchmarks `--only ldl apy` (details in `docs/validation_report.md`
+§3 and §7.4–7.7).
+
 
 See `docs/validation_report.md` §3 for the full list with logs. Round 3:
 the full test suite with the native kernel (211 passed) and with
@@ -57,17 +68,21 @@ on 7 jobs (run 36447242937: 211 passed on Windows and Linux).
 Windows performance measurements (functional tests only, in CI), CUDA (no
 implementation), real-data validation and comparison software (no data or
 licenses), LR population accuracy (erratum not verifiable), posterior SBC,
-multi-trait calibration study, a calibration study with several metafounders.
+an APY calibration study, liability-variance estimation for the threshold
+model.
 
 ## 4. Open scientific and engineering risks
 
 See `docs/validation_report.md` §8. The most important:
 
-* **F6 (partly open)**: single step on a metafounder base is unbiased in the
-  calibration scenario (0.06 ± 0.06 kg) but its PEV is still ~8% too small
-  (MSE/PEV 1.077 ± 0.024; 17% with REML). Untested hypotheses: γ from SNPs vs
-  QTL frequency distributions, finite QTL number and selection, the 5% blend.
-  Single step with `match_a22` remains biased (0.66 kg) — prefer metafounders.
+* **F6 (resolved; cause of the remainder known)**: metafounder single step is
+  unbiased; its residual 8% PEV over-confidence comes from marker density
+  (calibrated with 10,000 SNPs). Single step with `match_a22` remains biased.
+* **F9 (new observation)**: pedigree BLUP bias 0.135 ± 0.044 kg under random
+  selection in one factor design; unexplained, repeat with more replicates.
+* **F10**: multi-trait REML stops at boundary optima (diagnosed, by design).
+* PEV with REML-estimated variances is 7-13% optimistic (single- and
+  multi-trait): estimation error is not propagated.
 * **F7**: genetic groups defined by long periods leave bias when the level
   drifts within a period.
 * **F8**: BayesCπ π₀ mixing can be slow; ABP withholds such results.
@@ -94,17 +109,19 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-1. F6 follow-up: extend `benchmarks/calibration_study.py` with factors that
-   isolate the residual PEV understatement (γ from QTL vs SNP frequencies;
-   no blend; more QTL; no selection), 50 replicates each.
-2. Multi-trait calibration study (F4) and multi-trait REML (the sparse
-   selected-inversion traces now make this feasible at scale).
-3. Metafounders for multi-trait models and LR validation; a calibration
-   study with two metafounders (crossbred design).
-4. Threshold model for categorical traits (F2).
-5. Supernodal/parallel Cholesky factorization for the sparse path (the
-   bottleneck of exact PEV), keeping SuperLU as the reference.
-6. APY for large genotyped populations, after the deployment sizes are known.
+Round 4 completed all six tasks listed here in round 3. Next:
+
+1. F9: repeat the random-selection design with 200 replicates and check the
+   founder-mean centring of the TBVs.
+2. Propagate variance-estimation uncertainty into reliabilities (or report
+   it), since REML-based PEV is 7-13% optimistic in every study.
+3. Matrix-free single step (A22⁻¹ and G⁻¹/APY applied as operators in PCG) so
+   that memory no longer grows with n₂²; an APY calibration study.
+4. Threshold model: liability-variance estimation (Laplace or MCMC) and
+   multi-trait threshold/linear models.
+5. Boundary handling for multi-trait REML (reduced-rank G0).
+6. Real-data validation (G5) and comparison software — blocked on the gaps
+   in §5.
 
 ## 7. Where things are
 
@@ -113,7 +130,8 @@ See `docs/validation_report.md` §8. The most important:
 | `src/abp/` | package (see `docs/api.md` for layers) |
 | `src/abp/core/metafounders.py`, `src/abp/workflows/metafounder_inputs.py` | metafounders (round 3) |
 | `src/abp/solvers/selinv.py` | sparse selected inversion (round 3) |
-| `src/abp/_native.cpp` | C++20 kernels: inbreeding, Bayesian sweep, `ml_general`, `symbolic_cholesky`, `takahashi` |
+| `src/abp/solvers/cholesky.py`, `multitrait_reml.py`, `threshold.py` | sparse LDL', multi-trait REML, threshold model (round 4) |
+| `src/abp/_native.cpp` | C++20 kernels: inbreeding, Bayesian sweep, `ml_general`, `symbolic_cholesky`, `takahashi`, `mindegree_order`, `ldl_numeric`, `ldl_solve` |
 | `tests/` | test suite; `tests/reference/` holds the independent dense references (incl. `tabular_a_metafounders`) |
 | `examples/` | runnable examples and synthetic data (`*/truth` folders are for validation only) |
 | `docs/` | manual, methods, API, validation, benchmarks, ADRs, requirements, registry, license inventory, error codes |

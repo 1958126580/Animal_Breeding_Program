@@ -475,6 +475,7 @@ given, values must be unique), `date` (none; record dates, required by
 | `unit` | string | yes | shown with every EBV (for example `kg`) |
 | `min`, `max` | number | no | inclusive valid range; see `qc.out_of_range` |
 | `description` | string | no | |
+| `type` | `continuous` or `categorical` | no | `categorical`: ordered integer codes (for example litter size 1/2/3) analysed with a threshold model (§7.14) |
 
 ### 5.6 `[model]`
 
@@ -532,7 +533,8 @@ values = { animal = 20.0, residual = 40.0 }
 | `method` | `"auto"` | `auto`, `dense`, `sparse_direct` or `pcg` (§8) |
 | `tol` | 1e-10 | PCG convergence: true relative residual |
 | `max_iter` | 10000 | PCG iteration limit |
-| `pev` | `"exact"` | `"none"` skips PEV and reliabilities (needed for very large models) |
+| `pev` | `"exact"` | `"none"` skips PEV and reliabilities (only needed when even the sparse factor does not fit in memory) |
+| `factorization` | `"auto"` | sparse direct factor: `ldl` (ABP's LDL' with minimum-degree ordering; the `auto` choice when the compiled kernel is installed) or `superlu` (SciPy's SuperLU, the independent reference) |
 
 ### 5.9 `[qc]`
 
@@ -557,6 +559,8 @@ values = { animal = 20.0, residual = 40.0 }
 | `blend_alpha` | 0.05 | α for `blend` |
 | `ridge` | 0.01 | λ for `ridge` |
 | `tuning` | `"none"` | `match_a22`: rescale G so its mean diagonal and off-diagonal equal those of A22 |
+| `apy_core_size` | 0 | APY (§7.15): number of core animals; 0 uses the exact inverse of G* |
+| `apy_seed` | 20260925 | seed of the random core selection (the core IDs are written to the manifest) |
 
 ### 5.11 `[index]` (optional)
 
@@ -632,7 +636,11 @@ ABP also checks, before running:
   `genotype_assembly`;
 * known variances list exactly the random terms plus `residual`. Single-trait
   models take numbers; multi-trait models take t×t matrices;
-* REML is single-trait only, and `reml.start` (if given) lists every component;
+* REML works for single- and multi-trait models; `reml.start` (single-trait
+  models only) lists every component;
+* categorical traits (`type = "categorical"`) need a single-trait model with
+  known variances on the liability scale and `residual = 1.0`, and cannot be
+  combined with `[upg]`, `[metafounders]` or `[validation]`;
 * multi-trait models contain only the additive term;
 * `variances.mode = "bayes"` and `[bayes]` go together; Bayesian marker
   models are single-trait, have exactly one additive term with
@@ -642,9 +650,8 @@ ABP also checks, before running:
 * `[upg]` needs `relationship = "pedigree"` and a single-trait model; fixed
   groups need `variances.mode = "known"` and cannot be combined with
   `[validation]`; the prefix must differ from every unknown-parent code;
-* `[metafounders]` needs `relationship = "pedigree"` or `"single_step"`, a
-  single-trait model, `variances.mode = "known"` or `"reml"`, and no
-  `[upg]` or `[validation]`; `gamma_source = "file"` needs `gamma_file` and
+* `[metafounders]` needs `relationship = "pedigree"` or `"single_step"`,
+  `variances.mode = "known"` or `"reml"`, and no `[upg]`; `gamma_source = "file"` needs `gamma_file` and
   a non-empty `gamma_provenance`; `"genotypes_gls"` needs genotypes; single
   step (and `"genotypes_gls"`) need `genomic.frequency_source = "fixed_0.5"`
   and `genomic.tuning = "none"`; `default` and `reference` start with the
@@ -845,9 +852,10 @@ checked. Every genotyped animal must be in the pedigree. Example 05.
 > the same study was calibrated. The cause is a mismatch between the
 > genomic and pedigree bases, not a numerical error. **Single step on a
 > metafounder base (§7.13) removed the bias in the same study** (0.06 ± 0.06
-> kg) and reduced the PEV understatement to about 8%, which is still
-> statistically detectable. Prefer the metafounder base, validate forward in
-> time (§7.11), and treat single-step reliabilities as slightly optimistic.
+> kg) and reduced the PEV understatement to about 8%; with 10,000 instead of
+> 2,000 SNPs it was fully calibrated. Prefer the metafounder base, validate
+> forward in time (§7.11), and with sparse marker panels treat single-step
+> reliabilities as slightly optimistic.
 
 ### 7.6 Multi-trait BLUP
 
@@ -875,10 +883,31 @@ values.residual = [[12.25, 0.735], [0.735, 0.49]]
   residual. An example is a lamb's weaning weight and the same animal's
   first litter size two years later (a structural zero).
 * ABP checks that both matrices are symmetric positive definite.
-* Multi-trait models support the additive term only, and variances must be
-  known: multi-trait REML is not implemented yet.
+* Multi-trait models support the additive term only.
 
 Outputs: `ebv_multitrait.csv` with EBV, reliability and SEP per trait.
+
+**Estimating the covariance matrices (multi-trait REML).** Write
+`[variances] mode = "reml"` instead of the matrices. ABP estimates G0 and R0
+jointly by average-information REML with EM steps as a fallback; missing
+traits are handled exactly. The report lists the estimates, heritabilities,
+genetic and residual correlations and approximate standard errors; the
+matrices are then used for multi-trait BLUP. Example 13 (weaning weight,
+fat depth and faecal egg count, 1,893 lambs):
+
+```bash
+abp run examples/13_sheep_multitrait_reml/analysis.toml --out runs/ex13
+```
+
+converges in 15 iterations (about 8 s) to genetic variances 3.96, 0.263 and
+0.401 (generator: 4.0, 0.25, 0.30) — one replicate. Over 50 simulated
+replicates (validation report §7) the estimates were unbiased within about
+two Monte-Carlo standard errors, and multi-trait BLUP with the true
+covariances was calibrated for all three traits (F4 of earlier rounds was a
+single-replicate artefact). With REML covariances the PEV is 9–13% too
+small, because the estimation error of the covariances is not propagated.
+A covariance matrix estimated as (nearly) singular stops the run
+(`ABP-E300`): boundary handling is not implemented for multi-trait REML.
 
 ### 7.7 Economic index on EBVs
 
@@ -1298,11 +1327,98 @@ validation report §7.1), for the selection candidates:
 
 "True variances" for metafounders means the simulated variance converted to
 the metafounder scale with the estimated γ. The bias is gone; PEV is still
-about 8% too small with true variances and 17% with REML. These numbers
-describe one synthetic design, not your population.
+about 8% too small with true variances and 17% with REML.
 
-Limitations: single-trait models; not combinable with genetic groups, LR
-validation or Bayesian marker models in this version; Γ is treated as known.
+**Why PEV was still too small, and what fixes it.** A factor study
+(`benchmarks/calibration_study.py --design`, 50 replicates each) changed one
+thing at a time. Drawing the QTL frequencies like the SNP frequencies, or
+dropping the 5% blend, changed nothing (MSE/PEV 1.09). With 10,000 SNPs
+instead of 2,000, single step on the metafounder base was calibrated
+(MSE/PEV 0.98 ± 0.02, coverage 0.952, bias 0.00). The residual
+over-confidence comes from marker density: with few markers G measures the
+relationships at the causal loci with error, which the model ignores. With
+sparse panels, treat single-step reliabilities as optimistic.
+
+**Several breeds.** In a simulated two-breed composite (30 replicates,
+`benchmarks/two_metafounder_study.py`) two metafounders (one per breed)
+reduced the root-mean-square bias of the candidates from 0.33 (conventional
+single step) or 0.32 (one metafounder) to 0.22 and improved PEV calibration
+(MSE/PEV 1.11 instead of 1.20), at the same accuracy. Γ between the breeds
+was recovered within 0.015.
+
+Metafounders work with single- and multi-trait models (the contrast columns
+are `ebv_vs_base_<trait>` etc. in `ebv_multitrait.csv`, and an economic
+index uses the contrasts) and with LR validation (partial and whole EBVs are
+compared as contrasts). These numbers describe synthetic designs, not your
+population.
+
+Limitations: not combinable with genetic groups, categorical traits or
+Bayesian marker models in this version; Γ is treated as known.
+
+### 7.14 Categorical traits: the threshold model
+
+Litter size, calving ease or disease scores are recorded in a few ordered
+categories. A linear model on the codes misstates reliabilities (finding F2).
+Declare the trait categorical:
+
+```toml
+[[traits]]
+name = "nlb"
+unit = "lambs"
+type = "categorical"          # integer codes, ordered
+
+[variances]
+mode = "known"
+values = { animal = 0.1111, pe = 0.1111, residual = 1.0 }   # liability scale
+```
+
+ABP fits a threshold (probit) model: each record has a normal liability with
+residual variance fixed at 1; thresholds divide the liability into the
+observed categories (the first threshold is 0 when the model has an
+intercept). Breeding values, PEV and reliabilities are on the **liability
+scale**; PEV is a Laplace approximation at the posterior mode. The
+thresholds are written to `thresholds_<trait>.csv`. Liability variances must
+be known (from a publication or a separate analysis); estimating them is not
+implemented. Any random terms (for example a permanent environment) can be
+used; genetic groups, metafounders, LR validation and multi-trait models
+cannot.
+
+Example 14 analyses the litter sizes of example 03 this way:
+
+```bash
+abp run examples/14_sheep_nlb_threshold/analysis.toml --out runs/ex14
+```
+
+Over 30 simulated replicates (`benchmarks/threshold_study.py`) the threshold
+model's model accuracy matched its realized accuracy (ratio 1.00 ± 0.03)
+while the linear model understated it (0.83 ± 0.05) and was withheld three
+times because REML put the genetic variance at zero. The threshold model's
+realized accuracy was higher by 0.004 ± 0.001 (paired). The threshold model
+used the true liability variances; the linear model estimated its own.
+
+### 7.15 Very many genotyped animals: APY
+
+Inverting G costs time proportional to the cube of the number of genotyped
+animals. The algorithm for proven and young (APY; Misztal et al. 2014)
+chooses a core of animals and treats the others as conditionally
+independent given the core, which gives G⁻¹ in time proportional to
+`core³ + others × core²`:
+
+```toml
+[genomic]
+apy_core_size = 2000     # 0 = exact inverse
+apy_seed = 20260925      # core drawn at random; the IDs go to manifest.json
+```
+
+APY replaces G by a slightly different matrix (G_APY), so it is a model
+choice, recorded in the manifest. A core larger than the rank of G (for
+example more core animals than markers) is refused because the core block
+must be invertible; with a core below that rank APY also handles a singular
+G without blending. On 8,000 genotyped animals × 10,000 SNPs the inverse took
+2.4 s instead of 14.6 s; on example 05 a 300-animal core gave EBVs
+correlated above 0.98 with the exact analysis. In this version the
+single-step blocks are still stored densely, so memory still grows with the
+square of the number of genotyped animals.
 
 ---
 
@@ -1314,7 +1430,7 @@ written to the report and the manifest.
 | Situation | Solver | Why |
 |---|---|---|
 | ≤ 12,000 equations and within the memory budget | dense Cholesky (LAPACK) | fastest; exact PEV |
-| larger, `pev = "exact"` | sparse direct (SuperLU) with selected inversion | exact PEV for any size whose factor fits in memory |
+| larger, `pev = "exact"` | sparse direct (ABP's LDL', or SuperLU, see `solver.factorization`) with selected inversion | exact PEV for any size whose factor fits in memory |
 | larger, `pev = "none"` | Jacobi-preconditioned conjugate gradients | fast; falls back to sparse direct if it does not converge |
 
 **Exact PEV at scale.** Selected inversion (Takahashi equations) computes
@@ -1340,7 +1456,9 @@ Memory for the dense path is about 16 × N² bytes (solutions) or
 | inbreeding, C++ kernel | 100,000 animals, 10 generations | 0.8 s |
 | BLUP, PCG, no PEV | 100,500 equations | 0.26 s |
 | BLUP, dense, with PEV | 5,500 equations | 4.8 s |
-| BLUP, sparse direct, **exact PEV** (selected inversion) | 100,500 equations | 16.9 s (factorization 15.2 s, selected inversion 2.1 s) |
+| BLUP, sparse direct, **exact PEV**, LDL' + selected inversion | 100,500 equations | 3.2 s (SuperLU: 17.7 s) |
+| G⁻¹ exact vs APY (2,000 core) | 8,000 genotyped × 10,000 SNPs | 14.6 s vs 2.4 s |
+| multi-trait REML, 3 traits (example 13) | 6,390 equations, 15 iterations | about 8 s |
 | REML (AI), sparse factor + selected inversion | 20,050 equations, 6 iterations | 7.3 s |
 | metafounder relationships (5 metafounders), C++ kernel | 100,000 animals, 20 generations | 11.9 s (Python reference 168 s) |
 | REML (AI), dense | 3,050 equations, 6 iterations | 3.2 s |
@@ -1366,6 +1484,8 @@ Memory for the dense path is about 16 × N² bytes (solutions) or
 | `upg_solutions_<trait>.csv` | genetic groups: `group, effect, solution, pev, sep, reliability, n_animals_with_contribution, sum_gene_fraction` (§7.9) |
 | `ebv_<trait>.csv` with metafounders | the columns above (absolute scale; `inbreeding` relative to the metafounder base) plus `ebv_vs_base, pev_vs_base, reliability_vs_base` against the reference metafounder (§7.13) |
 | `metafounder_solutions_<trait>.csv` | `metafounder, gamma_self, solution, pev, sep, reliability, n_animals_with_contribution, sum_gene_fraction` |
+| `metafounder_solutions_multitrait.csv` | `metafounder, trait, gamma_self, solution, pev, sep` (multi-trait models) |
+| `thresholds_<trait>.csv` | categorical traits: `threshold, between_category, and_category, value, status` |
 | `lr_validation.json`, `lr_focal_<trait>.csv` | LR validation statistics, bootstrap and assumptions; partial and whole EBVs of the focal animals (§7.11) |
 | `ebv_<trait>.csv` (Bayesian) | `animal, sire, dam, sex, n_records, gebv_posterior_mean, gebv_posterior_sd` (§7.10) |
 | `marker_effects_<trait>.csv` | `marker_id, counted_allele, frequency, effect_posterior_mean, inclusion_probability` |
@@ -1487,6 +1607,9 @@ remedy: Correct the parent IDs or the sex column for the listed animals.
 | `ABP-E302 RELATIONSHIP_SINGULAR` | G is singular. Choose `genomic.singular_policy = "blend"` or `"ridge"`. |
 | `ABP-E303` "repeated records" | Add `{ name = "pe", kind = "iid" }` to `model.random`. |
 | `ABP-E500` during selected inversion | The sparse factor does not fit in `resources.max_memory_gb`. Raise the budget if the machine has the memory, or set `solver.pev = "none"`. |
+| `ABP-E404` "not positive definite (non-positive pivot)" | The coefficient matrix is not positive definite: check that variances are > 0 and that fixed effects are not confounded. |
+| `ABP-E300` "estimated G0/R0 is (nearly) singular" | Multi-trait REML reached a boundary (a variance or correlation at its limit). Drop a trait, merge sparse classes, or give known covariances. |
+| `ABP-E302` "APY: G_cc … is not positive definite" | The APY core is larger than the rank of G (for example more core animals than markers). Use a smaller `apy_core_size`. |
 | `ABP-E205 PEDIGREE_UNASSIGNED_BASE` | With `[metafounders]`, an unknown parent has no metafounder. Code it (`MF:…`) or set `metafounders.default`. |
 | `ABP-E302` with metafounders | Γ is not positive definite (file values, or too few genotyped descendants for an estimate), or is too large for the pedigree (Mendelian sampling variance ≤ 0). |
 | `ABP-E300` "base allele frequencies of the metafounders are not estimable" | A metafounder has no genotyped descendants, or the gene fractions of two metafounders are collinear. Merge them or supply Γ from a documented file. |
@@ -1506,11 +1629,11 @@ The complete list is in [`error_codes.md`](error_codes.md).
 
 ## 13. Limitations and good practice
 
-What ABP does **not** do yet: metafounders with multi-trait models or LR
-validation, maternal and social effects,
-random regression and test-day models, threshold and survival models,
-genotype × environment models, dominance and epistasis, APY and other
-approximations for very large genomic data, multi-trait REML, multi-trait
+What ABP does **not** do yet: maternal and social effects,
+random regression and test-day models, multi-trait threshold models,
+estimation of liability variances, survival models,
+genotype × environment models, dominance and epistasis, matrix-free
+single step for very large genotyped populations, multi-trait
 or single-step Bayesian models, Bayesian LASSO/horseshoe priors, genomic
 OCS, VCF/BGEN/PLINK 2 readers, and GPU computation.
 

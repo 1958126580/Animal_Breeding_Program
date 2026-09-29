@@ -4,6 +4,27 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.4.0] - 2026-09-29
+
+Fourth development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Multi-trait REML (`variances.mode = "reml"` with several traits): AI-REML with EM fallback for G0 and R0, missing traits handled exactly, dense or sparse selected-inversion traces; boundary optima stop with a diagnosis (`ABP-E300`); example 13.
+- Threshold (probit) model for ordered categorical traits (`[[traits]] type = "categorical"`): posterior mode by Newton-Raphson, liability-scale EBVs with Laplace PEV, thresholds file; example 14.
+- Sparse LDL' factorization with minimum-degree ordering (C++ kernels `mindegree_order`, `ldl_numeric`, `ldl_solve`); `solver.factorization = "auto" | "ldl" | "superlu"`.
+- APY inverse of G for GBLUP and single step (`genomic.apy_core_size`, `genomic.apy_seed`).
+- Metafounders for multi-trait models (contrasts per trait, index on contrasts) and for LR validation.
+- Studies: F6 factor study (`calibration_study.py --design`), multi-trait calibration, two-metafounder composite, linear vs threshold model; simulator options for SNP/QTL frequency ranges and random ram selection (defaults byte-identical).
+- Self-test T14 (sparse LDL'); benchmark groups `ldl` and `apy`; API sections 15-18; methods §19-22.
+
+### Changed
+- **[results]** The sparse direct path uses ABP's LDL' by default when the compiled kernel is present (same results as SuperLU to rounding; 5.5x faster at 100,500 equations).
+- **[results]** Under metafounders, single-trait and multi-trait economic indices use the EBVs relative to the reference metafounder.
+- Metafounders are no longer restricted to single-trait models or runs without LR validation.
+
+### Fixed
+- Stored zeros of `A⁻¹` (exact cancellation, e.g. a son mated to his own dam) were requested from the selected inverse and refused, which stopped sparse REML (single- and multi-trait) on such pedigrees.
+
 ## [0.3.0] - 2026-09-28
 
 Third development round. Evidence and gaps: `docs/validation_report.md`.

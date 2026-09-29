@@ -1,6 +1,6 @@
 # ABP Python API
 
-Version 0.3.0. Every snippet below is taken from `examples/api_example.py`,
+Version 0.4.0. Every snippet below is taken from `examples/api_example.py`,
 which the test suite runs (`tests/test_examples.py::test_api_example_script_runs`).
 The mathematics behind each function is in [`methods.md`](methods.md).
 
@@ -15,7 +15,7 @@ arrays are NumPy `float64`, and sparse matrices are SciPy CSR.
 | `abp.core` | pedigree (`pedigree`), unknown-parent groups (`upg`), metafounders (`metafounders`), fixed-effect design (`design`), genomic relationships (`genomic`), model compiler (`model`), analysis spec (`spec`) |
 | `abp.io` | delimited-table reader with provenance (`tables`), PLINK 1 binary reader (`plink`) |
 | `abp.qc` | pedigree, phenotype and genotype QC with structured findings |
-| `abp.solvers` | MME assembly and solvers (`mme`), sparse selected inversion (`selinv`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`), Bayesian marker models (`bayes`), MCMC diagnostics (`mcmc_diagnostics`) |
+| `abp.solvers` | MME assembly and solvers (`mme`), sparse selected inversion (`selinv`), sparse LDL' (`cholesky`), multi-trait REML (`multitrait_reml`), threshold model (`threshold`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`), Bayesian marker models (`bayes`), MCMC diagnostics (`mcmc_diagnostics`) |
 | `abp.decision` | selection indices (`selection_index`), optimal contributions (`ocs`), mating allocation (`mating`) |
 | `abp.workflows` | end-to-end evaluation, LR validation (`validation_lr`), mating plans (`mating_plan`), outputs, manifests, reports |
 | `abp.errors` | `ABPError` and the error-code table |
@@ -311,3 +311,65 @@ si.trace_product(M, offset)
 
 `pev_diagonal`, multi-trait PEV blocks and REML traces use this
 automatically on the sparse path.
+
+## 15. Multi-trait REML: `abp.solvers.multitrait_reml`
+
+```python
+from abp.solvers.multitrait_reml import mt_reml_fit
+fit_mt = mt_reml_fit(MTData(Y_sim, Xs, rec_an), ped2.ainv(), ped2.logdet_a(),
+                     {"tol": 1e-8, "max_iter": 200})
+fit_mt.G0, fit_mt.R0, fit_mt.to_dict(["t1", "t2"])["genetic_correlations"]
+```
+
+| Name | Returns |
+|---|---|
+| `mt_reml_fit(data, k_inv, logdet_k, cfg, memory_budget_bytes, start=None)` | `MTREMLFit` with `G0`, `R0`, `loglik`, `iterations`, `se`, `trace_method`, `history`; `ABP-E403` if not converged, `ABP-E300` at a boundary |
+| `MTREMLEvaluator(data, k_inv, logdet_k).evaluate(theta)` | log-likelihood, scores, AI matrix and EM update at `theta = (vech G0, vech R0)` |
+| `default_start(data)` | the data-based starting matrices |
+
+## 16. Threshold model: `abp.solvers.threshold`
+
+```python
+from abp.solvers.threshold import threshold_blup
+thr = threshold_blup(cat, Xc, [RandomTerm("animal", Zc, ped2.ainv(), ped2.ids, True,
+                                          k_diag=1 + ped2.inbreeding())],
+                     {"animal": 0.3, "residual": 1.0}, intercept=True)
+thr.thresholds, thr.terms["animal"].solution, thr.terms["animal"].pev
+```
+
+`threshold_blup(y, X, terms, variances, intercept, tol=1e-10, max_iter=100,
+compute_pev=True)` returns `ThresholdResult` (`fixed_solution`, `thresholds`
+with the first fixed at 0 when `intercept`, `categories`, `terms` of
+`TermResult` on the liability scale with Laplace PEV, `iterations`,
+`log_posterior`). `variances["residual"]` must be 1.
+
+## 17. Sparse LDL': `abp.solvers.cholesky`
+
+```python
+from abp.solvers.cholesky import SparseLDL
+fac_ldl = SparseLDL(C_small)          # minimum-degree ordering, symbolic, numeric
+fac_ldl.solve(rhs); fac_ldl.logdet(); fac_ldl.selected_inverse().diagonal(idx)
+```
+
+| Name | Returns |
+|---|---|
+| `SparseLDL(C, memory_budget_bytes)` | factor with `solve`, `logdet`, `selected_inverse`, `inverse_block`, `nnz_factor`, `kernel`; `ABP-E404` for a non-positive pivot |
+| `mindegree_order(C)` | `(order, kernel)` |
+| `abp.solvers.mme.make_sparse_factor(C, budget, factorization)` | `SparseLDL` or `SparseLU` (`"auto"`, `"ldl"`, `"superlu"`) |
+
+`blup(..., factorization=...)` and `build_and_solve(..., factorization=...)`
+pass the choice through; the workflow reads `solver.factorization`.
+
+## 18. APY: `abp.core.genomic.apy_inverse`
+
+```python
+from abp.core.genomic import apy_inverse
+apy = apy_inverse(G_apy_demo, np.arange(0, G.shape[0], 2))
+apy.g_inv, apy.logdet, apy.g_apy, apy.m, apy.record
+```
+
+`apy_inverse(G, core)` returns `APYInverse`: the inverse and log-determinant
+of `G_APY`, the implied `G_APY`, the conditional variances `m` of the
+non-core animals and a record for the manifest. `single_step(...,
+g_inverse=(apy.g_inv, apy.logdet))` uses it in `H⁻¹`; the workflow reads
+`genomic.apy_core_size` and `genomic.apy_seed`.

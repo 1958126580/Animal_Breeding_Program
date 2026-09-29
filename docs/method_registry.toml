@@ -7,8 +7,8 @@
 # calibration, G5 external validity, G6 scale/platform, G7 decision/release.
 
 schema_version = "1"
-registry_date = "2026-09-28"
-abp_version = "0.3.0"
+registry_date = "2026-09-29"
+abp_version = "0.4.0"
 
 [[method]]
 method_id = "ped.a_matrix"
@@ -185,7 +185,7 @@ tests = ["tests/test_multitrait.py::test_two_animals_two_traits_kronecker_order"
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "single_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["no multi-trait REML", "no repeated records or extra random terms in multi-trait models"]
+known_limits = ["no repeated records or extra random terms in multi-trait models"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -465,10 +465,14 @@ tests = ["tests/test_metafounders.py::test_extended_matrix_inverse_and_logdet_ma
 # G4: benchmarks/calibration_study.py, 50 replicates: single-step bias 0.660 +- 0.067 kg (match_a22)
 # -> 0.057 +- 0.058 kg (metafounders, true variances); MSE/PEV 1.283 -> 1.077 +- 0.024; coverage
 # 0.917 -> 0.941. Residual PEV understatement is significant (F6 partly open).
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "partial_50_replicates_bias_removed_pev_understated_8pct", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+# Round 4: F6 factor study (4 x 50 replicates): with 10,000 SNPs MSE/PEV 0.978 +- 0.017 and coverage
+# 0.952 (calibrated); the residual understatement with 2,000 SNPs is due to marker density, not to the
+# QTL frequency distribution or the blend.  Two-metafounder study (30 replicates): RMS bias 0.219 vs
+# 0.326 (conventional) at equal accuracy.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_calibrated_with_10000_snps_pev_optimistic_by_8pct_with_2000_snps", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["single trait; no LR validation, Bayesian models or genetic groups together with metafounders", "Gamma treated as known (its estimation error is not propagated)", "pooled sampling correction slightly over-corrects a metafounder with extreme base frequencies (simulation: -0.008 vs +0.018 uncorrected)", "GLS Gamma dense in genotyped animals"]
+known_limits = ["no Bayesian marker models, genetic groups or categorical traits together with metafounders", "Gamma treated as known (its estimation error is not propagated)", "pooled sampling correction slightly over-corrects a metafounder with extreme base frequencies (simulation: -0.008 vs +0.018 uncorrected)", "GLS Gamma dense in genotyped animals"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -496,12 +500,105 @@ maturity = "experimental"
 known_limits = ["single-threaded numeric phase", "memory grows with fill of the factor (dense genotyped blocks in single step)", "no approximate reliabilities for systems whose factor does not fit"]
 dependencies = ["numpy", "scipy"]
 
+[[method]]
+method_id = "reml.multi_trait"
+name = "Multi-trait REML for genetic and residual covariance matrices (AI with EM fallback)"
+estimand = "variance-covariance components G0, R0 (conditional on the model); genetic and residual correlations"
+scope = "multi-trait animal model, one additive term, trait-specific fixed effects, missing traits; pedigree, genomic, single-step or metafounder structures with log|K|"
+math = "docs/methods.md#19-multi-trait-reml"
+sources = ["Gilmour, Thompson & Cullis 1995 Biometrics 51:1440", "Johnson & Thompson 1995 J Dairy Sci 78:449", "Henderson 1984 (MME likelihood)"]
+errata = []
+exact_or_approximate = "exact REML (up to convergence tolerance); SE asymptotic from the AI matrix"
+complexity = "per iteration: one factorization + selected inversion (or dense inverse up to 2,000 equations) + one multi-RHS solve"
+code = ["src/abp/solvers/multitrait_reml.py", "src/abp/workflows/multitrait.py"]
+tests = ["tests/test_multitrait_reml.py::test_loglik_equals_v_form_up_to_constant_and_scores_match_finite_differences",
+         "tests/test_multitrait_reml.py::test_em_step_increases_loglik_and_keeps_pd",
+         "tests/test_multitrait_reml.py::test_optimum_equals_independent_nelder_mead",
+         "tests/test_multitrait_reml.py::test_dense_and_sparse_trace_paths_agree",
+         "tests/test_multitrait_reml.py::test_three_traits_with_structural_missing_pattern",
+         "tests/test_multitrait_reml.py::test_stored_zeros_in_k_inverse_are_ignored",
+         "tests/test_multitrait_reml.py::test_example13_multitrait_reml_end_to_end"]
+# G4: benchmarks/mt_calibration_study.py, 50 replicates (wwt, fat, fec): REML G0 unbiased within ~2 MC SE;
+# BLUP with REML covariances: MSE/PEV 1.09-1.13 (estimation error not propagated).
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_50_replicates_estimates_unbiased_pev_optimistic_9_to_13pct", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["no boundary handling (singular G0 or R0 stops the run)", "no user start values", "no extra random terms (repeated records) in multi-trait models", "covariance estimation error not propagated into PEV"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "threshold.probit"
+name = "Threshold (ordered probit) animal model for categorical traits"
+estimand = "additive_ebv on the liability scale (residual variance 1); thresholds"
+scope = "single ordered categorical trait (>= 2 categories), known liability variances, any random terms and relationship structures without groups or metafounders"
+math = "docs/methods.md#20-threshold-probit-model-for-categorical-traits"
+sources = ["Gianola & Foulley 1983 GSE 15:201", "Harville & Mee 1984 Biometrics 40:393", "Pratt 1981 JASA 76:103"]
+errata = []
+exact_or_approximate = "posterior mode exact (Newton, concave objective); PEV and reliability Laplace approximations"
+complexity = "per Newton iteration one factorization of the MME-sized system (5-10 iterations typical)"
+code = ["src/abp/solvers/threshold.py", "src/abp/workflows/evaluate.py"]
+tests = ["tests/test_threshold.py::test_mode_equals_independent_optimizer_and_laplace_pev_equals_numerical_hessian",
+         "tests/test_threshold.py::test_binary_trait_and_category_relabelling",
+         "tests/test_threshold.py::test_refusals",
+         "tests/test_threshold.py::test_example14_threshold_workflow",
+         "tests/test_threshold.py::test_spec_rules_for_categorical_traits"]
+# G4: benchmarks/threshold_study.py, 30 replicates: model/realized accuracy 1.001 +- 0.031 (linear model 0.827 +- 0.054)
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_30_replicates_reliability_calibrated", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["liability variances must be known (no threshold-model variance estimation)", "single trait only", "PEV is a Laplace approximation", "no genetic groups, metafounders or LR validation with categorical traits"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "num.sparse_ldl"
+name = "Sparse LDL' factorization with minimum-degree ordering"
+estimand = "factorization of the MME coefficient matrix (not an estimate)"
+scope = "symmetric positive-definite systems on the sparse direct path; default when the compiled kernel is present"
+math = "docs/methods.md#21-sparse-ldl-factorization"
+sources = ["George & Liu 1981 (minimum degree)", "Liu 1990 SIAM J Matrix Anal Appl 11:134 (elimination tree)"]
+errata = []
+exact_or_approximate = "exact (floating point); non-positive pivots refused"
+complexity = "ordering on the explicit elimination graph (dense rows last); numeric work proportional to the factor's flops"
+code = ["src/abp/solvers/cholesky.py", "src/abp/solvers/mme.py", "src/abp/_native.cpp"]
+tests = ["tests/test_cholesky.py::test_ldl_solve_logdet_inverse_equal_dense",
+         "tests/test_cholesky.py::test_native_ordering_and_numeric_equal_python_reference",
+         "tests/test_cholesky.py::test_minimum_degree_reduces_fill_against_natural_order",
+         "tests/test_cholesky.py::test_not_positive_definite_is_refused",
+         "tests/test_cholesky.py::test_blup_ldl_equals_superlu_and_dense"]
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_applicable", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["single-threaded", "explicit elimination graph (not an approximate-minimum-degree quotient graph); ordering time grows with fill", "Python fallback is slow for large systems (SuperLU is used then)"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "gen.apy"
+name = "APY (algorithm for proven and young) inverse of G"
+estimand = "relationship structure G_APY (a different model from G; recorded)"
+scope = "GBLUP and single step (not with metafounders in this version); random core of a declared size and seed"
+math = "docs/methods.md#22-apy-inverse-of-g"
+sources = ["Misztal, Legarra & Aguilar 2014 J Dairy Sci 97:3943"]
+errata = []
+exact_or_approximate = "exact inverse of G_APY; G_APY approximates G by conditional independence of non-core animals given the core"
+complexity = "O(c^3 + n c^2) instead of O((c+n)^3); dense n2 x n2 storage in this version"
+code = ["src/abp/core/genomic.py", "src/abp/workflows/genomic_inputs.py"]
+tests = ["tests/test_apy.py::test_apy_inverse_equals_inverse_of_implied_g_and_logdet",
+         "tests/test_apy.py::test_all_animals_in_core_reproduce_the_exact_inverse",
+         "tests/test_apy.py::test_singular_g_is_handled_when_core_is_full_rank",
+         "tests/test_apy.py::test_single_step_with_apy_matches_explicit_h",
+         "tests/test_apy.py::test_workflow_example05_with_apy"]
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["random core selection only (no eigenvalue-based core size rule)", "dense storage of A22^-1 and G_APY^-1 blocks (memory n2^2)", "no calibration study of APY vs full G yet"]
+dependencies = ["numpy", "scipy"]
+
 # Methods of the specification that are NOT implemented in this version. They stay in
 # the registry so that they cannot silently disappear (spec: every method has a status).
 [[planned]]
-ids = ["metafounders.multi_trait", "apy", "ss_snpblup", "bayes.lasso", "bayes.horseshoe",
-       "bayes.single_step", "bayes.multi_trait", "reml.multi_trait", "random_regression",
-       "maternal_effects", "social_effects", "threshold_models", "survival_models",
+ids = ["ss_snpblup", "bayes.lasso", "bayes.horseshoe",
+       "bayes.single_step", "bayes.multi_trait", "random_regression",
+       "maternal_effects", "social_effects", "threshold_multi_trait", "survival_models",
        "gxe_models", "dominance_epistasis", "gwas", "lr_population_accuracy",
        "genomic_ocs", "breeding_program_simulation", "vcf_bgen_pgen_readers", "cuda_backend",
        "federated_privacy", "annotation_priors", "foundation_model_annotation",

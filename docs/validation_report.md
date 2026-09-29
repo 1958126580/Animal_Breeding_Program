@@ -1,6 +1,6 @@
-# Validation report: ABP 0.3.0
+# Validation report: ABP 0.4.0
 
-Date: 2026-09-28 (round 3; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
+Date: 2026-09-29 (round 4; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
 evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
 (round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
@@ -19,7 +19,7 @@ not_run.
 | G1 mathematics | independent derivations, analytical cases, dimension, limit and equivalence tests | passed | §4, §5 |
 | G2 numerics | residuals, convergence, boundaries, exact references | passed | §4, §5; MCMC diagnostics equal ArviZ to ≤ 8·10⁻¹⁶ |
 | G3 software | ID mapping, bad inputs, recovery, interface consistency | passed (Linux; Windows CI) | §3, §5, §6 |
-| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); **single step on a metafounder base unbiased, PEV still ~8% too small** (F6 partly open); REML 40 replicates; genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
+| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
 | G5 external validity | real data, time or population hold-out | **not_run** | no real data were available or authorized (the LR workflow exists and was run on synthetic data) |
 | G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`), including exact PEV for 100,500 equations; Windows functional tests in CI (round 3: 211 tests passed on Windows and Linux, §3a), no Windows timings; no CUDA path |
 | G7 decision and release | feasible plans, installation reproduction, evidence package | **partial** | mating plans satisfy every hard constraint, verified per plan (§5, §6); no binary release; project license not chosen |
@@ -44,12 +44,17 @@ AlphaMate has been run.
 
 | Command | Result | Log |
 |---|---|---|
-| `python -m pytest -v` (native C++ kernel; round 3) | **211 passed**, 0 failed, 0 skipped, 157.6 s | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 3) | **208 passed**, 0 failed, 3 skipped (native-only comparisons), 1,010.6 s (run concurrently with the examples) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
-| `abp selftest` with and without the native kernel (round 3) | RESULT: PASS (both; T01–T13; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
-| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 3) | all 15 exit status 0 | `docs/validation/examples-linux.log` |
+| `python -m pytest -v` (native C++ kernel; round 4) | **242 passed**, 0 failed, 0 skipped, 145.1 s | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 4) | **237 passed**, 0 failed, 5 skipped (native-only comparisons), 939.3 s (run concurrently with the examples) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `abp selftest` with and without the native kernel (round 4) | RESULT: PASS (both; T01–T14; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
+| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–14, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 4) | all 17 exit status 0 | `docs/validation/examples-linux.log` |
 | `python benchmarks/calibration_study.py --replicates 50 --workers 4` (round 3, six scenarios) | completed; round-2 scenarios reproduced exactly | `docs/validation/calibration_study.json`, `.log` |
 | `python benchmarks/run_benchmarks.py --only selinv metafounders` (round 3) | completed | `benchmarks/results/2026-09-28-linux-x86_64-round3.json` |
+| `python benchmarks/calibration_study.py --design {qtl_like_snp, no_blend, dense_markers, random_selection}` (round 4, 50 replicates each) | completed | `docs/validation/f6_factor_*.json`, `.log` |
+| `python benchmarks/mt_calibration_study.py --replicates 50 --workers 4` (round 4) | completed (after the stored-zero fix, §9) | `docs/validation/mt_calibration_study.json`, `.log` |
+| `python benchmarks/two_metafounder_study.py --replicates 30 --workers 4` (round 4) | completed | `docs/validation/two_metafounder_study.json`, `.log` |
+| `python benchmarks/threshold_study.py --replicates 30 --workers 4` (round 4) | completed (linear model withheld in 3 replicates) | `docs/validation/threshold_study.json`, `.log` |
+| `python benchmarks/run_benchmarks.py --only ldl apy` (round 4) | completed | `benchmarks/results/2026-09-29-linux-x86_64-round4.json` |
 | `python benchmarks/upg_study.py` (linear trend; `--trend step`; `--trend step --ratio 25`), 20 replicates each | completed | `docs/validation/upg_study*.json`, `.log` |
 | `python benchmarks/sbc_bayes.py --replicates 300` | all 32 rank-uniformity tests passed (smallest p = 0.029) | `docs/validation/sbc_bayes.json`, `.log` |
 | `ARVIZ_PATH=… python benchmarks/mcmc_diagnostics_crosscheck.py` | max relative difference 2.2e-16 (R-hat), 7.8e-16 (bulk ESS), 2.5e-16 (tail ESS), 2.3e-16 (MCSE) | `docs/validation/mcmc_diagnostics_crosscheck.json` |
@@ -122,6 +127,10 @@ nothing from `abp`.
 |---|---|
 | Pedigree | A, F, A⁻¹A = I and log\|A\| vs the tabular method on random inbred pedigrees; C++ vs Python kernel (1e-13); input-order invariance; unknown parents as distinct base animals; cycle, self-parent and same-sire-and-dam rejection |
 | Metafounders | `A_ext`, its inverse and log-determinant = independent implementation of the recursive definition (1e-11; a mutation of the dᵢ formula is caught); zero inputs reduce to ordinary Meuwissen–Luo; C++ = Python kernel on 4,000 animals × 3 metafounders; BLUP solutions, PEV and reliability = V-form (1e-9); REML log L and score = V-form (1e-10); single-step `H⁻¹`, diag(H), log det and covariances with the metafounders = dense `H`; base contrast (EBV, PEV, reliability) = V-form PEV matrix; Γ estimation by gene drop from two correlated base populations (4 seeds, error < 0.03, correction reduces the diagonal bias); missing dosages; non-estimable metafounders, non-PD Γ, too-large Γ, unassigned unknown parents and invalid Γ files refused; spec rules; example 12 |
+| Multi-trait REML | Henderson log L = marginal V-form log L exactly (2 and 3 traits, missing patterns); scores = central differences of the V-form (1e-6); EM increases log L and stays PD; optimum = independent Nelder-Mead on a Cholesky parametrisation (2e-3); dense = sparse trace paths (log L, score, EM, AI); stored zeros of K⁻¹ ignored; boundary optimum reported as `ABP-E300`; example 13 |
+| Threshold model | posterior mode = independent BFGS on a `scipy.stats.norm` objective (2e-5); Laplace PEV = inverse of a numerical Hessian (0.2%); category relabelling invariance and order reversal; refusals (residual ≠ 1, one category, non-integer codes); spec rules; example 14 |
+| Sparse LDL' | solve, log-determinant and selected inverse = dense algebra (native and Python, with a dense row); native ordering and numeric = Python reference (identical order); fill < ½ of natural order and ≤ 1.2 × SuperLU's MMD; non-PD refused; BLUP LDL' = SuperLU = dense |
+| APY | inverse = dense inverse of the implied G_APY, log-determinant; exact with one non-core animal; singular G handled below its rank, refused above; single step with APY = explicit dense H; workflow (EBV correlation > 0.98 with exact G on example 05) |
 | Selected inversion | every stored entry of the selected inverse = `numpy.linalg.inv` (1e-15, three random matrices); C++ = Python kernels; symbolic pattern closes over an exact numeric cancellation that SuperLU drops; out-of-pattern requests refused; memory guard; sparse PEV and reliability = dense path (1e-12); sparse REML log L, score, EM update and AI = dense path; multi-trait PEV blocks = dense path for coupled and uncoupled traits; 100,500-equation PEV = unit-vector solves (6.7e-16, benchmark) |
 | Genetic groups | `A*⁻¹` = explicit block formula; `Q` = independent recursion; random groups: solutions and PEV = V-form BLUP with the explicit covariance (1e-9), `log det K` = explicit log-determinant; fixed groups: solutions and PEV = explicit MME in `(b, g, u)` transformed to `(u + Qg, g)` (1e-10); confounding with the intercept and groups without descendants refused (unit and workflow); group codes parsed as groups, animal IDs with the prefix rejected; spec rules |
 | BLUP | V-form with a generalized inverse for rank-deficient X plus a permanent-environment term; dense, sparse and PCG agreement; invariance to the constraint choice and record order; kg→g scaling; invalid variances rejected; PCG non-convergence is an error; automatic PCG → direct fallback recorded |
@@ -153,6 +162,8 @@ nothing from `abp`.
 | 09 mating plan | C_t 0.0410, ceiling 0.0506 (ΔF 1%) active; maximum-merit coancestry would be 0.120; KKT stationarity 9.2e-11; integer plan 20 sires × 150 ewes, coancestry 0.05057 ≤ ceiling after 1 repair and 2 improving moves, merit gap 0.0019 SCU; 331 pairs forbidden by relationship, 258 by recessive risk; mean progeny F 0.00003; all plan checks true |
 | 10 fec BayesC | converged after one extension (8,000 iterations × 4 chains, native kernel, 25 s); h² 0.31 (SD 0.12); worst scalar R-hat 1.005, worst GEBV R-hat 1.003; smallest bulk ESS 813; predictive p-values 0.30–0.74. **BayesCπ on the same data did not pass within 16,000 iterations (π₀ mixing) and was withheld (exit status 6)** — intended behaviour |
 | 12 wwt single step, metafounder base | REML converged in 8 iterations (σ²_MF 4.64, σ²e 12.54); γ̂ 0.552 (0.563 uncorrected); without rescaling, mean diagonal/off-diagonal of G05 1.284/0.588 vs A22^Γ 1.292/0.601 |
+| 13 multi-trait REML (wwt, fat, fec) | converged in 15 iterations (3 EM + 12 AI), sparse trace path, 7.9 s; G0 diagonal 3.96 / 0.263 / 0.401, genetic correlations 0.29 (wwt-fat), −0.37 (wwt-fec), −0.13 (fat-fec) (single replicate) |
+| 14 nlb threshold model | converged in a few Newton iterations; thresholds 0 (fixed) and 1.587; liability-scale EBVs with Laplace reliabilities in [0, 1] |
 | 11 wwt genetic groups | random groups: REML converged in 6 iterations (σ²a 4.23, σ²e 11.51); fixed groups: estimability rank 13/13, no reliabilities reported; group solutions A_16_19 / A_20_24 / B = +2.57 / +3.32 / −1.63 (random), +3.80 / +4.98 / −0.80 (fixed); realised group means +2.79 / +5.14 / −1.22 (single replicate, see §7) |
 
 ## 7. Statistical calibration studies (G4)
@@ -231,7 +242,78 @@ chi-square uniformity p-values of the ranks (10 bins; failure if p < 0.001).
 
 All 32 tests passed (smallest p = 0.029; 3 of 32 below 0.05, where 1.6 are expected by chance). SBC has limited power against small errors: passing supports, but does not prove, that each sampler computes the posterior of its stated model. The mean normalised rank of every quantity lies between 0.47 and 0.56 (0.5 expected).
 
-### 7.4 Other
+### 7.4 F6 factor study (round 4; `benchmarks/calibration_study.py --design`)
+
+Metafounder single step with the converted true variances; each design
+changes one factor of the default (50 replicates each; raw results
+`docs/validation/f6_factor_*.json`).
+
+| Design | Bias (kg) | Slope | MSE / mean PEV | Coverage |
+|---|---:|---:|---:|---:|
+| default (2,000 SNPs; §7.1) | 0.057 ± 0.058 | 0.957 ± 0.017 | 1.077 ± 0.024 | 0.941 ± 0.003 |
+| QTL frequencies drawn like the SNPs (U(0.05, 0.95)) | 0.095 ± 0.068 | 0.958 ± 0.019 | 1.086 ± 0.040 | 0.940 ± 0.005 |
+| no 5% blend (G05 alone) | 0.066 ± 0.058 | 0.954 ± 0.017 | 1.086 ± 0.025 | 0.940 ± 0.003 |
+| **10,000 SNPs** | **0.002 ± 0.051** | **0.996 ± 0.015** | **0.978 ± 0.017** | **0.952 ± 0.002** |
+| rams chosen at random (no selection) | 0.128 ± 0.043 | 0.990 ± 0.017 | 1.053 ± 0.027 | 0.942 ± 0.003 |
+
+The residual over-confidence of §7.1 is explained by marker density: with
+2,000 SNPs G measures the relationships at the QTL with error that the model
+does not represent; with 10,000 SNPs single step on the metafounder base is
+calibrated. The γ-mismatch and blend hypotheses of round 3 are rejected.
+Observation (F9): under random selection pedigree BLUP with true variances
+also shows a bias of 0.135 ± 0.044 kg (≈ 3 MC SE) — not explained yet.
+
+### 7.5 Multi-trait calibration (round 4; `benchmarks/mt_calibration_study.py`)
+
+Weaning weight, fat depth and faecal egg count jointly; 50 replicates;
+candidates of the last season.
+
+| Model | Trait | Slope | Bias | Realized acc. | Model acc. | MSE / PEV | Coverage |
+|---|---|---:|---:|---:|---:|---:|---:|
+| true covariances | wwt | 0.978 ± 0.018 | 0.014 ± 0.058 | 0.613 | 0.624 | 1.027 ± 0.023 | 0.948 |
+| | fat | 0.993 ± 0.020 | 0.004 ± 0.013 | 0.592 | 0.607 | 0.984 ± 0.017 | 0.953 |
+| | fec | 1.034 ± 0.026 | −0.005 ± 0.014 | 0.535 | 0.525 | 0.982 ± 0.021 | 0.952 |
+| multi-trait REML | wwt | 0.959 ± 0.023 | −0.069 ± 0.078 | 0.611 | 0.634 | 1.087 ± 0.036 | 0.940 |
+| | fat | 1.008 ± 0.031 | 0.002 ± 0.014 | 0.584 | 0.608 | 1.094 ± 0.038 | 0.939 |
+| | fec | 1.032 ± 0.033 | 0.011 ± 0.016 | 0.522 | 0.531 | 1.129 ± 0.050 | 0.935 |
+
+Mean REML estimates of G0 (± MC SE): diagonal 4.21 ± 0.12, 0.245 ± 0.009,
+0.298 ± 0.012 (true 4.0, 0.25, 0.3025); covariances 0.315 ± 0.022, −0.040 ±
+0.027, −0.011 ± 0.007 (true 0.3, 0, 0). Multi-trait BLUP is calibrated with
+the true covariances (F4 was a single-replicate artefact); with estimated
+covariances PEV is 9–13% too small (estimation error not propagated), as
+for single-trait REML (7%).
+
+### 7.6 Two base populations (round 4; `benchmarks/two_metafounder_study.py`)
+
+Independent gene drop of two breeds with differentiated frequencies, F1 and
+composite generations, genotyped unrecorded candidates; 30 replicates;
+truth = TBV relative to breed A's base. All models REML.
+
+| Model | Realized acc. | Slope | RMS bias across replicates | MSE / PEV | Coverage |
+|---|---:|---:|---:|---:|---:|
+| conventional single step (match_a22 + 5% blend) | 0.426 ± 0.014 | 0.935 ± 0.044 | 0.326 | 1.211 ± 0.068 | 0.923 |
+| one metafounder | 0.426 ± 0.014 | 0.936 ± 0.044 | 0.320 | 1.204 ± 0.065 | 0.923 |
+| two metafounders (by breed), reference A | 0.426 ± 0.014 | 0.939 ± 0.044 | **0.219** | **1.112 ± 0.059** | **0.934** |
+
+Estimated Γ minus the SNP-based truth: −0.001 (AA), −0.007 (AB), −0.015 (BB).
+
+### 7.7 Linear vs threshold model for litter size (round 4; `benchmarks/threshold_study.py`)
+
+30 replicates; ewes with records; truth = liability TBV.
+
+| Model | Withheld | Realized accuracy | Model accuracy | Model / realized |
+|---|---:|---:|---:|---:|
+| linear repeatability, REML | 3 of 30 (σ²a at the boundary) | 0.447 ± 0.011 | 0.374 ± 0.027 | 0.827 ± 0.054 |
+| threshold, known liability variances | 0 | 0.451 ± 0.011 | 0.443 ± 0.001 | 1.001 ± 0.031 |
+
+Paired difference of realized accuracy (threshold − linear, 27 replicates):
+0.0036 ± 0.0008. The threshold model's reliabilities are calibrated; the
+linear model's understate its accuracy (F2). The threshold model used the
+true liability variances, the linear model estimated its own, so the
+calibration comparison is partly confounded by that difference.
+
+### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
 σ²e = 3, 250 animals), mean estimates lay within 3 Monte-Carlo SE of the
@@ -244,13 +326,15 @@ for the four-trait example.
 | ID | Finding | Status | Assessment and next action |
 |---|---|---|---|
 | F1 | Under-dispersion and bias of candidate EBVs in one replicate (round 1) | **resolved** | 50 replicates (§7.1): slope 0.978 ± 0.018, bias 0.02 ± 0.06 kg, coverage 0.948 for pedigree BLUP |
-| F2 | For nlb (a thresholded count) the model reliability (√ = 0.21) understates realized accuracy (0.38) | open | expected scale mismatch of a linear model on a liability trait; threshold model (M10); do not use nlb reliabilities for decisions |
+| F2 | For nlb (a thresholded count) the model reliability (√ = 0.21) understates realized accuracy (0.38) | **resolved** (round 4) | threshold model: model/realized accuracy 1.001 ± 0.031 over 30 replicates (§7.7); the linear model understates it (0.827) — use `type = "categorical"` for such traits |
 | F3 | GBLUP h² for fec from 247 records is 0.55 ± 0.16 (pedigree 0.26, single step 0.30, simulated ≈ 0.25) | open (explained) | small selected subset; REML with dense G matches the independent optimum; the manual advises single step over GBLUP subsets |
-| F4 | fec model reliability (0.48) understates realized accuracy (0.58) in the four-trait run | open | the calibration study covered weaning weight only; extend it to the multi-trait model |
-| F5 | Exact PEV for > 30,000 equations and REML beyond the dense memory limit are refused | **resolved** (round 3) | sparse selected inversion: exact PEV for 100,500 equations in 16.9 s, agreement with unit-vector solves 6.7e-16; REML on the sparse path; the remaining limit is factor memory (checked, `ABP-E500`). Approximate reliabilities for systems whose factor does not fit remain a roadmap item |
-| F6 | Single step (match_a22, 5% blend, 2,000 SNPs) biased by +0.66 kg (TBV − EBV) with PEV understated by 28% and coverage 0.917 | **partly resolved** (round 3) | on a metafounder base: bias 0.06 ± 0.06 kg, MSE/PEV 1.08 ± 0.02, coverage 0.941 (§7.1). Residual PEV understatement is significant. Untested hypotheses: γ is estimated from SNPs (frequencies U(0.05, 0.95) in the generator) while the QTL have U(0.02, 0.98), so the variance conversion uses too small a γ for the QTL; finite QTL number and selection; the 5% blend. Next: vary each factor in the study; until then treat single-step reliabilities as slightly optimistic |
+| F4 | fec model reliability (0.48) understates realized accuracy (0.58) in the four-trait run | **resolved** (round 4) | 50-replicate multi-trait study (§7.5): model accuracy 0.525 vs realized 0.535 ± 0.012, MSE/PEV 0.98, coverage 0.952 — a single-replicate artefact |
+| F5 | Exact PEV for > 30,000 equations and REML beyond the dense memory limit are refused | **resolved** (round 3) | sparse selected inversion: exact PEV for 100,500 equations in 16.9 s (3.2 s with ABP's LDL' in round 4), agreement with unit-vector solves 6.7e-16; REML on the sparse path; the remaining limit is factor memory (checked, `ABP-E500`). Approximate reliabilities for systems whose factor does not fit remain a roadmap item |
+| F6 | Single step (match_a22, 5% blend, 2,000 SNPs) biased by +0.66 kg (TBV − EBV) with PEV understated by 28% and coverage 0.917 | **resolved; cause of the remainder identified** (rounds 3–4) | on a metafounder base: bias 0.06 ± 0.06 kg, MSE/PEV 1.08 ± 0.02 (§7.1); the remaining 8% over-confidence is due to marker density — with 10,000 SNPs MSE/PEV 0.978 ± 0.017, coverage 0.952 (§7.4); not due to the QTL frequency distribution or the blend. With sparse panels single-step reliabilities stay slightly optimistic |
 | F7 | Genetic groups leave residual bias when the group level drifts within a period; random groups with a small ratio are strongly shrunk | open (documented) | define groups by shorter periods where data allow; choose the ratio deliberately (§7.9 of the manual); fixed groups where estimable |
 | F8 | BayesCπ on example 10 data mixes slowly in π₀ and was withheld after 16,000 iterations | open (behaves as designed) | fix π₀ (BayesC) or run longer; a reparameterized π₀ update is a candidate improvement |
+| F9 | Under random selection (F6 factor design) pedigree BLUP with true variances shows a candidate bias of 0.135 ± 0.044 kg (≈ 3 MC SE) | open (observation) | not seen with selection (0.016 ± 0.058); candidate explanations (finite QTL, drift of the founder mean, chance with 5 designs × 3 scenarios) untested; repeat with more replicates |
+| F10 | Multi-trait REML does not handle boundary optima | open (by design) | a covariance matrix tending to singular stops the run with `ABP-E300` and a diagnosis (tested); give known covariances or drop a trait |
 
 ## 9. Defects found and fixed
 
@@ -271,6 +355,9 @@ for the four-trait example.
 | 3 | Single-step base contrast used `Cov(u_i, u_ref)` from `A^Γ` instead of `H` (reliability −0.0073 for one founder) | reliability range check in replicate 42 of the calibration study | covariances with the metafounders taken from `H` | `test_single_step_with_metafounders_matches_dense_h` |
 | 3 | `ABPError` raised in a worker process could not be unpickled, which hung the study's process pool | calibration study | picklable by name, message and details | `test_abp_error_survives_pickling` |
 | 3 | Calibration study set its one-thread BLAS limit after importing NumPy (load average 19 on 4 cores, no replicate finished in 20 minutes) | monitoring the study | limit set before the import | — (benchmark script) |
+| 4 | Stored zeros in `A⁻¹` (exact cancellation when a son is mated to his own dam) were requested from the selected inverse and refused; affected multi-trait REML (seed 2 of the study) and, latently, single-trait sparse REML | multi-trait calibration study | zero-weight entries dropped before the lookup | `test_stored_zeros_in_k_inverse_are_ignored`, `test_sparse_reml_ignores_stored_zeros_in_k_inverse` |
+| 4 | Multi-trait REML reported "not converged" when the optimum was on the boundary | API example data | boundary diagnosis (`ABP-E300`) when full AI steps keep leaving the positive-definite region | `test_boundary_optimum_is_reported_as_not_identifiable` |
+| 4 | Minimum-degree ordering took 83 s because an intercept row absorbed every elimination | profiling | dense rows eliminated last (as in AMD): about 2 s | `test_ldl_solve_logdet_inverse_equal_dense` (dense-row case) |
 
 Errors in *test or benchmark construction* that were caught and corrected
 (production code unaffected): a counterexample built with the wrong V (T05),
@@ -284,8 +371,13 @@ QC), a REML workflow test on 7 records (correctly stopped at the boundary;
 replaced by a likelihood-level test), and a native-vs-Python comparison with
 a relative tolerance on values near cancellation (replaced by an absolute
 tolerance at the value scale; both kernels are separately checked against
-the dense inverse to 1e-15). Each fix kept the original acceptance
-threshold.
+the dense inverse to 1e-15); in round 4, an LR test that compared the
+LR "whole" evaluation (variances from the partial data by design) with the
+main evaluation (switched to known variances), a regression test that
+picked an A⁻¹ pair that was not empty, a native-kernel test that did not
+honour `ABP_DISABLE_NATIVE`, and a threshold study that stopped when ABP
+correctly withheld a linear-model result (now counted as withheld). Each fix
+kept the original acceptance threshold.
 
 ## 10. Not run (and why)
 
@@ -299,5 +391,6 @@ threshold.
 | Comparison with BLUPF90, MiXBLUP, ASReml, DMU, JWAS, BGLR | not installed or licensed in this environment; must be run under a pre-registered protocol |
 | Independent mature simulator (AlphaSimR, QMSim, XSim) | not installed; ABP's generators are independent of its solver code but are not mature external simulators |
 | Multi-trait calibration study | F4; the study covered weaning weight only |
-| Metafounders with several base populations in a calibration study | only the one-metafounder design was simulated end to end; multi-metafounder Γ estimation was tested by gene drop (unit test, 4 seeds) |
+| APY calibration study | APY was verified algebraically and on example 05 (EBV correlation > 0.98 with the exact G), not in a replicated simulation |
+| Threshold model with estimated liability variances | not implemented (variances must be known) |
 | Installation from a built wheel or installer | no binary packaging yet (source install only) |

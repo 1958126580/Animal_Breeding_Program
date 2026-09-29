@@ -357,9 +357,11 @@ def mt_reml_fit(data: MTData, k_inv, logdet_k: float | None, cfg: dict,
     history: list[dict] = []
     point = ev.evaluate(theta)
     n_em_first = 3
+    pd_rejected: list[bool] = []          # was the AI proposal outside the PD region?
     for it in range(1, max_iter + 1):
         step_kind = "em"
         new = None
+        rejected_pd = False
         if it > n_em_first:
             try:
                 delta = np.linalg.solve(point.ai, point.score)
@@ -370,6 +372,8 @@ def mt_reml_fit(data: MTData, k_inv, logdet_k: float | None, cfg: dict,
                 for _ in range(6):
                     cand = point.theta + lam * delta
                     Gc, Rc = _unpack(cand, t)
+                    if not (_is_pd(Gc) and _is_pd(Rc)):
+                        rejected_pd = rejected_pd or lam == 1.0
                     if _is_pd(Gc) and _is_pd(Rc):
                         pc = ev.evaluate(cand)
                         if pc.loglik >= point.loglik - 1e-10 * abs(point.loglik):
@@ -386,12 +390,27 @@ def mt_reml_fit(data: MTData, k_inv, logdet_k: float | None, cfg: dict,
             dec = float(new.score @ np.linalg.solve(new.ai, new.score))
         except np.linalg.LinAlgError:
             dec = float("inf")
+        pd_rejected.append(it > n_em_first and rejected_pd)
         history.append({"iteration": it, "step": step_kind, "loglik": new.loglik,
-                        "rel_change": rel, "newton_decrement": dec})
+                        "rel_change": rel, "newton_decrement": dec,
+                        "ai_step_outside_pd_region": pd_rejected[-1]})
         point = new
         if rel < tol and abs(dec) < tol:
             break
     else:
+        G_, R_ = _unpack(point.theta, t)
+        ratios = {w: float(np.linalg.eigvalsh(S)[0] / np.linalg.eigvalsh(S)[-1])
+                  for w, S in (("G0", G_), ("R0", R_))}
+        recent = pd_rejected[-20:]
+        if recent and sum(recent) >= len(recent) / 2:
+            raise ABPError("MODEL_NOT_IDENTIFIABLE",
+                           "multi-trait REML: the likelihood keeps increasing towards the "
+                           "boundary of the parameter space (full-length AI steps leave the "
+                           "positive-definite region; smallest/largest eigenvalue "
+                           f"G0 {ratios['G0']:.3g}, R0 {ratios['R0']:.3g}): a correlation tends "
+                           "to +-1 or a variance to 0, which this version does not estimate; "
+                           "give known covariances or drop a trait",
+                           eigenvalue_ratios=ratios, history=history[-5:])
         raise ABPError("REML_NOT_CONVERGED", f"multi-trait REML did not converge in {max_iter} "
                        "iterations", history=history[-5:])
     G0, R0 = _unpack(point.theta, t)

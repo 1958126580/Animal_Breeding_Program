@@ -1,6 +1,6 @@
 # command: abp selftest
-# date: 2026-09-28T16:25:55+00:00
-ABP 0.3.0 self-test (native kernel: True)
+# date: 2026-09-29T01:09:55+00:00
+ABP 0.4.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
@@ -15,10 +15,11 @@ ABP 0.3.0 self-test (native kernel: True)
   [PASS] T11 native Bayesian sweep = Python reference
   [PASS] T12 metafounder relationships, inverse and log-determinant - kernel native_cpp_ml_general
   [PASS] T13 selected inversion (Takahashi) = exact inverse on the pattern - kernel native_cpp/native_cpp
+  [PASS] T14 sparse LDL' solve and log-determinant - kernel order native_cpp, symbolic native_cpp, numeric native_cpp
 RESULT: PASS
 
 # command: ABP_DISABLE_NATIVE=1 abp selftest
-ABP 0.3.0 self-test (native kernel: False)
+ABP 0.4.0 self-test (native kernel: False)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel python_meuwissen_luo
@@ -33,4 +34,5 @@ ABP 0.3.0 self-test (native kernel: False)
   [SKIP] T11 native Bayesian sweep (native kernel not available or disabled)
   [PASS] T12 metafounder relationships, inverse and log-determinant - kernel python_ml_general
   [PASS] T13 selected inversion (Takahashi) = exact inverse on the pattern - kernel python/python
+  [PASS] T14 sparse LDL' solve and log-determinant - kernel order python, symbolic python, numeric python
 RESULT: PASS

@@ -4,7 +4,8 @@ All data here are **synthetic** or taken from a textbook teaching example.
 Each example is run end to end by the test suite (`tests/test_examples.py`,
 `tests/test_workflow.py`, `tests/test_ocs_mating.py`,
 `tests/test_bayes_workflow.py`, `tests/test_upg_workflow.py`,
-`tests/test_metafounder_workflow.py`), so the
+`tests/test_metafounder_workflow.py`, `tests/test_multitrait_reml.py`,
+`tests/test_threshold.py`), so the
 commands below are known to work.
 
 | # | Folder | Analysis | Command |
@@ -21,6 +22,8 @@ commands below are known to work.
 | 10 | `10_sheep_fec_bayesc` | faecal egg count, BayesC (π₀ = 0.95), 4 chains, convergence-gated | `abp run examples/10_sheep_fec_bayesc/analysis.toml --out runs/ex10` |
 | 11 | `11_sheep_upg` | a flock buying rams from two breeders without ancestry: random (`analysis.toml`, REML) and fixed (`analysis_fixed.toml`) genetic groups; `make_data.py` regenerates the data, `compare.py` compares with and without groups against the truth | `abp run examples/11_sheep_upg/analysis.toml --out runs/ex11` |
 | 12 | `12_sheep_wwt_single_step_metafounder` | weaning weight, single step on a metafounder base: all unknown parents from base population `MF:BASE`, γ estimated from the genotypes, `G05` without rescaling, REML; EBVs also against the base (`ebv_vs_base`) | `abp run examples/12_sheep_wwt_single_step_metafounder/analysis.toml --out runs/ex12` |
+| 13 | `13_sheep_multitrait_reml` | weaning weight, fat depth and faecal egg count: genetic and residual covariance matrices by multi-trait REML, then multi-trait BLUP | `abp run examples/13_sheep_multitrait_reml/analysis.toml --out runs/ex13` |
+| 14 | `14_sheep_nlb_threshold` | litter size (1/2/3 lambs) with a threshold (probit) repeatability model on the liability scale | `abp run examples/14_sheep_nlb_threshold/analysis.toml --out runs/ex14` |
 | - | `api_example.py` | the Python API, step by step | `python examples/api_example.py` |
 
 ## The synthetic sheep flock (`sheep_data/`)

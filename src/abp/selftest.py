@@ -205,5 +205,12 @@ def run_selftest() -> tuple[bool, list[str]]:
           _close(si.diagonal(np.arange(3)), [0.75, 1.0, 0.75])
           and _close(si.entries(np.array([0, 1, 2]), np.array([1, 2, 1])), [0.5, 0.5, 0.5]),
           f"kernel {si.kernel}")
+
+    # T14 sparse LDL' (minimum degree) of tridiag(-1, 2, -1): det = 4, x = (1, 1, 1) for b = (1, 0, 1)
+    from .solvers.cholesky import SparseLDL
+    fl = SparseLDL(T)
+    check("T14 sparse LDL' solve and log-determinant",
+          _close(fl.solve(np.array([1.0, 0.0, 1.0])), [1.0, 1.0, 1.0])
+          and _close(fl.logdet(), np.log(4.0)), f"kernel {fl.kernel}")
     lines.append("RESULT: " + ("PASS" if ok_all else "FAIL"))
     return ok_all, lines

@@ -2,14 +2,16 @@
 
 Measured 2026-09-25 with `python benchmarks/run_benchmarks.py --full`
 (round 1) and `--only bayes ocs upg plink` (round 2), and 2026-09-28 with
-`--only selinv metafounders` (round 3). Raw results:
+`--only selinv metafounders` (round 3), and 2026-09-29 with `--only ldl apy`
+(round 4). Raw results:
 `benchmarks/results/2026-09-25-linux-x86_64.json`,
 `benchmarks/results/2026-09-25-linux-x86_64-round2.json` and
-`benchmarks/results/2026-09-28-linux-x86_64-round3.json`.
+`benchmarks/results/2026-09-28-linux-x86_64-round3.json` and
+`benchmarks/results/2026-09-29-linux-x86_64-round4.json`.
 
 **Machine:** cloud Linux VM, Intel Xeon @ 2.10 GHz, 4 vCPUs (1 thread per
 core), 15 GiB RAM, no GPU. **Software:** Python 3.11.15, NumPy 2.4.6,
-SciPy 1.17.1, OpenBLAS 0.3.31 (scipy-openblas), ABP 0.1.0/0.2.0/0.3.0, native kernel
+SciPy 1.17.1, OpenBLAS 0.3.31 (scipy-openblas), ABP 0.1.0–0.4.0, native kernel
 built with GCC 13.3 (`-O3 -std=c++20`). **Method:** synthetic inputs from
 fixed seeds; wall-clock time of one run per case (`time.perf_counter`), with
 warm imports but no warm-up run. Peak RSS of the whole benchmark process was
@@ -106,15 +108,31 @@ metafounder trace costs the same as the ordinary Meuwissen–Luo trace on a
 deep pedigree (8.7 s in round 1); founders and animals with a metafounder
 parent need no tracing.
 
+## Round 4: sparse LDL', APY, multi-trait REML
+
+| Case | Size | Time | Check |
+|---|---|---:|---|
+| exact PEV, ABP LDL' (minimum degree) + selected inversion | 100,000 animals, 100,500 equations, 1,276,361 factor entries | 3.2 s end to end (ordering ≈ 2 s, numeric 0.3 s, selected inversion 0.6 s) | EBV and PEV equal the SuperLU path to 1.8e-13 and 5.7e-14 |
+| same with SuperLU | 1,274,782 factor entries | 17.7 s | reference |
+| G⁻¹ exact (Cholesky) | 8,000 genotyped × 10,000 SNPs | 14.6 s | — |
+| G_APY⁻¹, 2,000 core animals | same | 2.4 s | smallest m_i 0.74 (all positive) |
+| multi-trait REML, 3 traits (example 13) | 6,390 equations, 15 iterations | 7.9 s sparse / 44.2 s dense trace path | identical log L |
+
+The first version of the minimum-degree ordering took 83 s on the
+100,500-equation system because the intercept equation (linked to all
+80,000 recorded animals) absorbed every elimination; setting rows of degree
+> 10√n aside and eliminating them last (as AMD does) reduced it to about
+2 s at the same fill.
+
 ## Scale limits
 
 | Operation | Limit | Reason |
 |---|---|---|
 | dense solver (default choice) | ≤ 12,000 equations and within `resources.max_memory_gb` | memory 16–24 × N² bytes |
-| exact PEV, sparse path | memory of the symbolic factor (24 bytes per entry) within `resources.max_memory_gb` | selected inversion; checked before numeric work (`ABP-E500`) |
+| exact PEV, sparse path | memory of the symbolic factor (24 bytes per entry) within `resources.max_memory_gb` | LDL' or SuperLU + selected inversion; checked before numeric work (`ABP-E500`) |
 | REML | dense ≤ 12,000 equations; above, sparse factor + selected inversion within the memory budget | factor fill |
 | metafounder Γ estimation | dense in genotyped animals (`A22`, n₂ × m dosages) | GLS base allele frequencies |
-| G and H | dense `n_g × n_g` | APY is on the roadmap |
+| G and H | dense `n_g × n_g` storage | APY reduces the inversion to `O(c³ + n c²)`; matrix-free single step is on the roadmap |
 | fixed-effect rank check | ≤ 20,000 columns | dense X'X scan |
 | OCS | a few thousand candidates | dense candidate A and active-set QP |
 | mating LP | ~10⁵ sire × dam pairs in seconds | LP size = number of pairs |

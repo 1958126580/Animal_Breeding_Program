@@ -1,6 +1,6 @@
 # ABP Methods Reference
 
-Version 0.3.0 · 2026-09-28
+Version 0.4.0 · 2026-09-29
 
 This document states, for every implemented method, the model, its
 assumptions, the equations as implemented, the matrix dimensions and data
@@ -20,7 +20,11 @@ Contents: [1 Estimands](#1-estimands) · [2 Pedigree](#2-pedigree-relationships)
 [15 PLINK input](#15-plink-1-binary-input) ·
 [16 Bayesian marker models](#16-bayesian-marker-models-and-mcmc-diagnostics) ·
 [17 Metafounders](#17-metafounders) ·
-[18 Selected inversion](#18-sparse-selected-inversion-exact-pev-at-scale)
+[18 Selected inversion](#18-sparse-selected-inversion-exact-pev-at-scale) ·
+[19 Multi-trait REML](#19-multi-trait-reml) ·
+[20 Threshold model](#20-threshold-probit-model-for-categorical-traits) ·
+[21 Sparse LDL'](#21-sparse-ldl-factorization) ·
+[22 APY](#22-apy-inverse-of-g)
 
 ---
 
@@ -830,7 +834,157 @@ numeric factor has an exact zero that SuperLU drops),
 and AI matrix), `test_multitrait_pev_blocks_sparse_equal_dense` (coupled and
 uncoupled traits). Scale: `benchmarks/run_benchmarks.py --only selinv`.
 
-## 19. References (additions)
+## 19. Multi-trait REML
+
+Code: `abp/solvers/multitrait_reml.py` (`MTREMLEvaluator`, `mt_reml_fit`);
+workflow `abp/workflows/multitrait.py`. Registry id `reml.multi_trait`.
+
+**Model.** As §8: `Var(u) = K ⊗ G0` (animal-major), `Var(e_r) = R0[o_r, o_r]`
+for the observed traits `o_r` of record `r`, trait-specific fixed designs.
+Parameters `θ = (vech G0, vech R0)`; direction `E_jk = e_j e_k' + e_k e_j'`
+(`e_j e_j'` on the diagonal).
+
+**Likelihood** (Henderson's form; equal to the marginal V-form, tested):
+
+    −2 log L = Σ_r log|R0[o_r,o_r]| + t log|K| + q log|G0| + log|C| + y'Py,
+    y'Py = y'R⁻¹y − s'W'R⁻¹y.
+
+**Quantities of C⁻¹** (both on the pattern of `C`, hence available from
+selected inversion, §18): `T_jk = Σ_ab K⁻¹_ab C^{(a,j),(b,k)}` and
+`Q_r = W_r C⁻¹ W_r'` for every record.
+
+**Scores.** Genetic direction `E`:
+`½[tr(G0⁻¹EG0⁻¹(U'K⁻¹U + T)) − q tr(EG0⁻¹)]`. Residual direction `E`:
+`½Σ_r[e_r'R_r⁻¹E_rR_r⁻¹e_r + tr(R_r⁻¹E_rR_r⁻¹Q_r) − tr(R_r⁻¹E_r)]` with
+`E_r = E[o_r,o_r]`. **AI matrix** `½F'PF` with working variates
+`f_E = Z vec(U M')`, `M = EG0⁻¹` (genetic; from `Z'Py = (K⊗G0)⁻¹û`) and
+`f_E = D_E R⁻¹e` (residual), one multi-RHS solve.
+
+**EM update** (first three iterations and whenever an AI step fails):
+`G0 ← (U'K⁻¹U + T)/q`; `R0 ← (1/n_rec) Σ_r E[e_r e_r' | y]`, where for a
+record with missing traits `m` the second moments are completed by
+`B = R_mo R_oo⁻¹`: `E[e_m e_o'] = B S_oo`,
+`E[e_m e_m'] = B S_oo B' + (R_mm − B R_om)`, `S_oo = ê_oê_o' + Q_r`. Missing
+traits are handled exactly; nothing is imputed into `y`. EM keeps both
+matrices positive semi-definite.
+
+**Control.** AI steps are halved (at most 6 times) until both matrices are
+positive definite and `log L` does not decrease; otherwise EM. Convergence:
+relative parameter change and Newton decrement `< reml.tol`. A (nearly)
+singular estimate (smallest eigenvalue ≤ 10⁻⁸ × largest) stops with
+`ABP-E300`: boundary handling is not implemented for the multi-trait case.
+Stored zeros of `K⁻¹` (exact cancellation, e.g. a son mated to his own dam)
+are dropped before the trace pairs are formed. Trace path: dense inverse up
+to 2,000 equations, sparse selected inversion above (example 13, 6,390
+equations: 44.2 s dense, 7.9 s sparse, identical log L).
+
+**Tests.** `test_loglik_equals_v_form_up_to_constant_and_scores_match_finite_differences`
+(exact log L; scores against central differences of the V-form, 1e−6),
+`test_em_step_increases_loglik_and_keeps_pd`,
+`test_optimum_equals_independent_nelder_mead` (Cholesky-parametrised V-form,
+2e−3), `test_dense_and_sparse_trace_paths_agree`,
+`test_three_traits_with_structural_missing_pattern`,
+`test_stored_zeros_in_k_inverse_are_ignored`, `test_refusals`,
+`test_example13_multitrait_reml_end_to_end`. Simulation evidence:
+`benchmarks/mt_calibration_study.py` (validation report §7).
+
+## 20. Threshold (probit) model for categorical traits
+
+Code: `abp/solvers/threshold.py` (`threshold_blup`); workflow
+`abp/workflows/evaluate.py::_run_threshold_trait`. Registry id
+`threshold.probit`.
+
+**Model** (Gianola & Foulley 1983; Harville & Mee 1984). Ordered categories
+`y_i ∈ {1..K}` from a liability `l_i = x_i'b + Σ z_ik'u_k + e_i`,
+`e_i ~ N(0, 1)`, thresholds `−∞ = τ_0 < τ_1 < … < τ_{K−1} < τ_K = ∞`:
+`P(y_i = k) = Φ(τ_k − η_i) − Φ(τ_{k−1} − η_i)`. With an intercept `τ_1 = 0`.
+Random terms on the liability scale with **known** variances; the residual
+variance is 1 (identification; the spec refuses another value).
+
+**Estimation.** Joint posterior mode of `(b, u, τ)` (flat priors on `b`, `τ`)
+of `Σ log P(y_i) − ½ Σ_k u_k'K_k⁻¹u_k/σ_k²`, strictly concave (Pratt 1981).
+With `a_i = τ_{y−1} − η_i`, `b_i = τ_y − η_i`, `P_i = Φ(b) − Φ(a)`:
+
+    g_a = −φ(a)/P,  g_b = φ(b)/P,
+    H_aa = aφ(a)/P − φ(a)²/P²,  H_bb = −bφ(b)/P − φ(b)²/P²,  H_ab = φ(a)φ(b)/P²,
+
+with `φ(±∞) = (±∞)φ(±∞) = 0`; the chain rule through `a` and `b` gives the
+gradient and Hessian in `(η, τ)`. Newton–Raphson with step-halving (thresholds
+kept ordered, log posterior non-decreasing) until the largest step is
+< 10⁻¹⁰. `log P` uses the upper-tail form when `a > 0` for numerical
+stability.
+
+**Uncertainty.** PEV is the diagonal of the inverse negative Hessian at the
+mode (Laplace approximation) and reliabilities `1 − PEV/(σ²K_ii)` are on the
+liability scale; both are labelled approximate.
+
+**Tests.** `test_mode_equals_independent_optimizer_and_laplace_pev_equals_numerical_hessian`
+(BFGS on an independent `scipy.stats.norm` objective, 2e−5; PEV against the
+inverse of a central-difference Hessian, 0.2%),
+`test_binary_trait_and_category_relabelling` (codes ×10 give identical
+results; reversed order negates the solutions), `test_refusals`,
+`test_example14_threshold_workflow`, `test_spec_rules_for_categorical_traits`.
+Simulation evidence: `benchmarks/threshold_study.py`.
+
+## 21. Sparse LDL' factorization
+
+Code: `abp/solvers/cholesky.py` (`SparseLDL`, `mindegree_order`,
+`ldl_numeric_python`, `ldl_solve_python`), C++ kernels `mindegree_order`,
+`ldl_numeric`, `ldl_solve`; factory `abp/solvers/mme.py::make_sparse_factor`.
+Registry id `num.sparse_ldl`.
+
+* **Ordering:** minimum degree on the explicit elimination graph (George &
+  Liu 1981): eliminate a node of smallest current degree (ties: smallest
+  index), join its neighbours into a clique. Rows of degree
+  `> max(16, 10√n)` (an intercept linked to every recorded animal) are set
+  aside and eliminated last, as in AMD — this took the ordering of the
+  100,500-equation benchmark from 83 s to about 2 s. The C++ and Python
+  orders are identical (tested).
+* **Symbolic:** the elimination-tree pattern of §18 on `B = C[q][:, q]`.
+* **Numeric (up-looking):** for each `k`, scatter `B[:k, k]`, take its
+  elimination-tree reach, process it in increasing index order (a
+  descendant always precedes its ancestors):
+  `y_i −= L_ij y_j` over the filled part of column `j`, `L_kj = y_j/d_j`,
+  `d_k = B_kk − Σ L_kj y_j`. `d_k ≤ 0` stops with `ABP-E404`.
+* **Solve:** `x = P'L⁻ᵀD⁻¹L⁻¹Pb` for many right-hand sides; `log|C| = Σ log d_k`.
+
+`solver.factorization = "auto"` uses this factor when the compiled kernel is
+present and SuperLU otherwise; `"superlu"` keeps the independent reference
+path. Both give the same selected inverse (tested to 1e−12 and on the
+100,500-equation benchmark to 6e−14).
+
+**Tests.** `test_ldl_solve_logdet_inverse_equal_dense` (native and Python,
+with and without a dense row), `test_native_ordering_and_numeric_equal_python_reference`,
+`test_minimum_degree_reduces_fill_against_natural_order`,
+`test_not_positive_definite_is_refused`, `test_blup_ldl_equals_superlu_and_dense`.
+
+## 22. APY inverse of G
+
+Code: `abp/core/genomic.py::apy_inverse`; workflow
+`abp/workflows/genomic_inputs.py`. Registry id `gen.apy`.
+
+With core animals `c` and non-core animals `n` (Misztal, Legarra & Aguilar
+2014):
+
+    G_APY⁻¹ = [[G_cc⁻¹, 0], [0, 0]] + [[−G_cc⁻¹G_cn], [I]] M⁻¹ [[−G_ncG_cc⁻¹, I]],
+    m_i = g_ii − g_ic G_cc⁻¹ g_ci,   log|G_APY| = log|G_cc| + Σ log m_i.
+
+`G_APY` equals `G*` on the core blocks and the non-core diagonal; non-core
+off-diagonals become `G_nc G_cc⁻¹ G_cn`. **APY is a different model**, not an
+approximation of `G*⁻¹` that ABP hides: the manifest records the core size,
+the selection rule (random with `genomic.apy_seed`), the core IDs and their
+hash. `G_cc` must be positive definite and every `m_i > 0` (`ABP-E302`
+otherwise); a singular `G*` is acceptable when the core is below its rank,
+so the full-`G*` definiteness check is skipped with APY. Cost
+`O(c³ + nc²)`. Limitation of this version: the single-step blocks
+(`A22⁻¹`, `G_APY⁻¹`) are still stored densely (memory `O(n₂²)`).
+
+**Tests.** `test_apy_inverse_equals_inverse_of_implied_g_and_logdet`,
+`test_all_animals_in_core_reproduce_the_exact_inverse`,
+`test_singular_g_is_handled_when_core_is_full_rank`,
+`test_single_step_with_apy_matches_explicit_h`, `test_workflow_example05_with_apy`.
+
+## 23. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.
@@ -847,3 +1001,10 @@ uncoupled traits). Scale: `benchmarks/run_benchmarks.py --only selinv`.
 * Legarra A, Christensen OF, Vitezica ZG, Aguilar I, Misztal I (2015) Genetics 200:455–468.
 * Liu JWH (1990) SIAM J Matrix Anal Appl 11:134–172.
 * Takahashi K, Fagan J, Chin M-S (1973) Proc 8th PICA Conference, Minneapolis, 63–71.
+* George A, Liu JWH (1981) Computer Solution of Large Sparse Positive Definite Systems. Prentice-Hall.
+* Gianola D, Foulley JL (1983) Genet Sel Evol 15:201–224.
+* Gilmour AR, Thompson R, Cullis BR (1995) Biometrics 51:1440–1450.
+* Harville DA, Mee RW (1984) Biometrics 40:393–408.
+* Johnson DL, Thompson R (1995) J Dairy Sci 78:449–456.
+* Misztal I, Legarra A, Aguilar I (2014) J Dairy Sci 97:3943–3952.
+* Pratt JW (1981) J Am Stat Assoc 76:103–106.
