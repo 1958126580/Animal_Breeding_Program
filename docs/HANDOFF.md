@@ -55,7 +55,7 @@ method in `docs/method_registry.toml`):
 ## 2. Commands that were run (Linux) and their results
 
 Round 5: full test suite with the native kernel (259 passed) and with
-`ABP_DISABLE_NATIVE=1`, `abp selftest` (T01–T15), all examples and the API
+`ABP_DISABLE_NATIVE=1` (254 passed, 5 native-only skipped), all 17 examples exit 0, `abp selftest` (T01–T15), all examples and the API
 example, F9 study (2 × 200 replicates), Kackar–Harville calibration (50),
 APY calibration (50), threshold study with Laplace REML (30), matrix-free
 benchmark (50,000 animals / 6,000 genotyped); CI runs 36522550336,

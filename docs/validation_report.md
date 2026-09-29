@@ -47,7 +47,7 @@ AlphaMate has been run.
 | Command | Result | Log |
 |---|---|---|
 | `python -m pytest -v` (native C++ kernel; round 5) | **259 passed**, 0 failed, 0 skipped, 214.2 s | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 5) | PYKERNEL_RESULT | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 5) | **254 passed**, 0 failed, 5 skipped (native-only comparisons), 1400.6 s (run concurrently with the examples) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
 | `abp selftest` with and without the native kernel (round 5) | RESULT: PASS (both; T01–T15; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
 | `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–14, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 5, incl. API sections 18–21) | all 17 exit status 0 (run concurrently with the pure-Python test suite) | `docs/validation/examples-linux.log` |
 | `python benchmarks/calibration_study.py --design random_selection --scenarios pedigree_true --replicates 200` and `--design default` (round 5, F9) | completed | `docs/validation/f9_random_selection.json`, `f9_default.json`, `.log` |
@@ -111,7 +111,7 @@ Round 5: runs [36522550336](https://github.com/1958126580/Animal_Breeding_Progra
 (ba094c1, version 0.5.0 with the matrix-free single step): 7 of 7 jobs
 succeeded in each; the Windows / Python 3.13 job of the last run reported
 ABP 0.5.0 from the launcher run into `%RUNNER_TEMP%\结果 输出` and the repeat
-returned exit status 2 (`ABP-E503`). CI_FINAL
+returned exit status 2 (`ABP-E503`). The final documentation commit is listed in the HANDOFF.
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer
