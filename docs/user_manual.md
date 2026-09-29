@@ -165,12 +165,15 @@ allele frequency, a selection index, inbreeding and the inverse relationship
 matrix, BLUP and PEV, a REML derivative, the single-step identity, the
 textbook example of Mrode (2005), PLINK byte decoding, the inverse
 relationship matrix with genetic groups, a closed-form optimal-contribution
-problem, MCMC diagnostics against ArviZ reference values, and (if compiled)
-the C++ Bayesian sweep against the Python reference. It must end with
+problem, MCMC diagnostics against ArviZ reference values, (if compiled)
+the C++ Bayesian sweep against the Python reference, metafounder
+relationships, selected inversion, the sparse LDL' factorization and the
+Schur-complement form of A22⁻¹ used by the matrix-free single step. It must
+end with
 `RESULT: PASS`. It also reports whether the native C++ kernel is in use.
 
 ```
-ABP 0.2.0 self-test (native kernel: True)
+ABP 0.5.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
@@ -183,6 +186,10 @@ ABP 0.2.0 self-test (native kernel: True)
   [PASS] T09 OCS closed form a = (1 + sqrt(16C - 2))/4
   [PASS] T10 R-hat, bulk and tail ESS = reference values
   [PASS] T11 native Bayesian sweep = Python reference
+  [PASS] T12 metafounder relationships, inverse and log-determinant - kernel native_cpp_ml_general
+  [PASS] T13 selected inversion (Takahashi) = exact inverse on the pattern - kernel native_cpp/native_cpp
+  [PASS] T14 sparse LDL' solve and log-determinant - kernel order native_cpp, symbolic native_cpp, numeric native_cpp
+  [PASS] T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)
 RESULT: PASS
 ```
 
@@ -517,14 +524,16 @@ mode = "known"
 values = { animal = 20.0, residual = 40.0 }
 ```
 
-`[reml]` (used with `mode = "reml"`; single-trait models only):
+`[reml]` (used with `mode = "reml"`):
 
 | Key | Default | Notes |
 |---|---|---|
 | `algorithm` | `"ai"` | average information with EM fallback; `"em"` = EM only (slow near zero variances) |
 | `max_iter` | 200 | exceeding it is an error (`ABP-E403`); no result is issued |
 | `tol` | 1e-8 | both the relative parameter change and the Newton decrement must fall below it |
-| `start` | data-based | `{ animal = ..., residual = ... }`; default: the OLS residual variance split 1/3 genetic, 1/6 per other term |
+| `start` | data-based | single-trait only: `{ animal = ..., residual = ... }`; default: the OLS residual variance split 1/3 genetic, 1/6 per other term. For categorical traits `residual` must be 1. |
+| `boundary` | `"stop"` | multi-trait only: `"reduced_rank"` refits with a genetic covariance matrix of rank traits − 1 when the full-rank optimum is on the boundary (§7.6) |
+| `rank` | – | multi-trait only: fit the genetic covariance matrix with this rank (below the number of traits) directly; not together with `boundary = "reduced_rank"` |
 
 ### 5.8 `[solver]`
 
@@ -561,6 +570,7 @@ values = { animal = 20.0, residual = 40.0 }
 | `tuning` | `"none"` | `match_a22`: rescale G so its mean diagonal and off-diagonal equal those of A22 |
 | `apy_core_size` | 0 | APY (§7.15): number of core animals; 0 uses the exact inverse of G* |
 | `apy_seed` | 20260925 | seed of the random core selection (the core IDs are written to the manifest) |
+| `single_step_mode` | `"explicit"` | `"matrix_free"`: H⁻¹ is applied as an operator inside PCG, without dense A22, A22⁻¹ or n × n₂ blocks (§7.15). Solutions only: needs known variances, `solver.pev = "none"`, one trait and `tuning = "none"` |
 
 ### 5.11 `[index]` (optional)
 
@@ -792,8 +802,22 @@ REML that does not converge within `reml.max_iter` is an **error**. No EBVs
 are published from unconverged variances. If the genetic variance itself is
 estimated as zero, ABP refuses to rank animals (`ABP-E300`).
 
-REML uses the dense solver. Its memory need is about 24 × N² bytes for N
-equations (about 1 GB for 6,500 equations; see §8). Checkpoints are written
+Up to 12,000 equations REML uses the dense solver (memory about 24 × N²
+bytes for N equations); above that it uses the sparse factor and selected
+inversion (§8).
+
+**PEV including the uncertainty of the variances.** PEV from the mixed-model
+equations assumes the variances are known. With REML estimates the true
+prediction error is larger. For single-trait REML runs `ebv_<trait>.csv` has
+two extra columns, `pev_incl_vc_uncertainty` and
+`reliability_incl_vc_uncertainty`: the Kackar–Harville correction, which adds
+the effect of the sampling error of the REML variances (from the inverse
+average-information matrix). In 50 simulated replicates the usual PEV was 7%
+too small (ratio of squared errors to PEV 1.070 ± 0.033) and the corrected
+PEV was calibrated (1.017 ± 0.031; interval coverage 0.949 for a nominal
+0.95). The columns are absent when the variances are known or when REML ended
+at a boundary. The correction does not fix other sources of error, such as a
+mismatched genetic base (§7.5). Checkpoints are written
 after every iteration next to the output folder. If a run is interrupted,
 re-run the same command with `--resume` to continue. ABP refuses a checkpoint
 that belongs to different inputs or a different spec.
@@ -905,9 +929,28 @@ replicates (validation report §7) the estimates were unbiased within about
 two Monte-Carlo standard errors, and multi-trait BLUP with the true
 covariances was calibrated for all three traits (F4 of earlier rounds was a
 single-replicate artefact). With REML covariances the PEV is 9–13% too
-small, because the estimation error of the covariances is not propagated.
-A covariance matrix estimated as (nearly) singular stops the run
-(`ABP-E300`): boundary handling is not implemented for multi-trait REML.
+small, because the estimation error of the covariances is not propagated
+(the single-trait correction of §7.3 is not available for multi-trait
+models).
+
+**Correlations at ±1: reduced rank.** Sometimes the likelihood keeps
+increasing towards a genetic correlation of ±1 (for example when one trait
+is almost a linear function of another). By default ABP then stops
+(`ABP-E300`) with a diagnosis. With
+
+```toml
+[reml]
+boundary = "reduced_rank"
+```
+
+it refits with a genetic covariance matrix of rank traits − 1,
+G0 = ΛΛ′, so the boundary is part of the model (Kirkpatrick & Meyer 2004).
+`reml.rank = 1` (for example) states the rank directly instead. The report
+marks the result as reduced-rank and gives the log-likelihood, so fits with
+different ranks can be compared; standard errors are not given. The
+reduced-rank fit uses a derivative-free optimiser: it is slower than
+AI-REML and meant for a few traits. A singular *residual* matrix still stops
+the run.
 
 ### 7.7 Economic index on EBVs
 
@@ -1377,9 +1420,15 @@ residual variance fixed at 1; thresholds divide the liability into the
 observed categories (the first threshold is 0 when the model has an
 intercept). Breeding values, PEV and reliabilities are on the **liability
 scale**; PEV is a Laplace approximation at the posterior mode. The
-thresholds are written to `thresholds_<trait>.csv`. Liability variances must
-be known (from a publication or a separate analysis); estimating them is not
-implemented. Any random terms (for example a permanent environment) can be
+thresholds are written to `thresholds_<trait>.csv`. Liability variances are
+best taken from a publication or a separate large analysis. They can also be
+estimated (`variances.mode = "reml"`) by a Laplace approximation of the
+restricted likelihood, but **this estimate is biased when animals have few
+records**: in the study below it put the genetic liability variance at
+0.085 ± 0.013 instead of 0.111, stopped at the search bound in 6 of 30
+replicates, and its reliabilities were then as optimistic as the linear
+model's (model/realized accuracy 0.80 ± 0.06). The report states the source
+of the variances. Any random terms (for example a permanent environment) can be
 used; genetic groups, metafounders, LR validation and multi-trait models
 cannot.
 
@@ -1416,9 +1465,28 @@ example more core animals than markers) is refused because the core block
 must be invertible; with a core below that rank APY also handles a singular
 G without blending. On 8,000 genotyped animals × 10,000 SNPs the inverse took
 2.4 s instead of 14.6 s; on example 05 a 300-animal core gave EBVs
-correlated above 0.98 with the exact analysis. In this version the
-single-step blocks are still stored densely, so memory still grows with the
-square of the number of genotyped animals.
+correlated above 0.98 with the exact analysis.
+
+**Memory: matrix-free single step.** The explicit single step stores A22,
+its inverse, G*⁻¹ and an animals × genotyped block densely, so memory grows
+with the square of the number of genotyped animals. With
+
+```toml
+[genomic]
+apy_core_size = 2000
+single_step_mode = "matrix_free"
+
+[solver]
+pev = "none"
+```
+
+ABP never forms these matrices: H⁻¹ is applied to vectors inside the
+iterative solver, A22⁻¹ from sparse blocks of A⁻¹ and G⁻¹ through the APY
+formula. The EBVs are the same as with the explicit construction (to the
+solver tolerance; checked in the tests). This path gives solutions only: no
+PEV or reliabilities, no REML (variances must be known), one trait, and no
+genomic tuning, genetic groups, metafounders or LR validation. See
+`docs/benchmarks.md` for measured memory and time.
 
 ---
 

@@ -24,7 +24,11 @@ Contents: [1 Estimands](#1-estimands) · [2 Pedigree](#2-pedigree-relationships)
 [19 Multi-trait REML](#19-multi-trait-reml) ·
 [20 Threshold model](#20-threshold-probit-model-for-categorical-traits) ·
 [21 Sparse LDL'](#21-sparse-ldl-factorization) ·
-[22 APY](#22-apy-inverse-of-g)
+[22 APY](#22-apy-inverse-of-g) ·
+[23 PEV with REML uncertainty](#23-pev-including-the-uncertainty-of-reml-variances-kackarharville) ·
+[24 Threshold REML](#24-laplace-approximate-reml-for-the-threshold-model) ·
+[25 Reduced-rank G0](#25-reduced-rank-genetic-covariance-matrix-in-multi-trait-reml) ·
+[26 Matrix-free single step](#26-matrix-free-single-step)
 
 ---
 
@@ -984,7 +988,148 @@ so the full-`G*` definiteness check is skipped with APY. Cost
 `test_singular_g_is_handled_when_core_is_full_rank`,
 `test_single_step_with_apy_matches_explicit_h`, `test_workflow_example05_with_apy`.
 
-## 23. References (additions)
+## 23. PEV including the uncertainty of REML variances (Kackar–Harville)
+
+Code: `abp/solvers/vc_uncertainty.py`; workflow `abp/workflows/evaluate.py`.
+Registry id `blup.pev_vc`.
+
+PEV from the MME is conditional on the variance parameters θ. When θ is
+estimated by REML, the prediction error of the empirical BLUP is larger. To
+first order (Kackar & Harville 1984, J Am Stat Assoc 79:853; Harville &
+Jeske 1992, J Am Stat Assoc 87:724),
+
+    PEV*_i ≈ PEV_i(θ̂) + g_iᵀ Σ_θ g_i,   g_i = ∂û_i/∂θ at θ̂,   Σ_θ = AI(θ̂)⁻¹,
+
+with the asymptotic covariance of θ̂ from the inverse average-information
+matrix. `g_i` is obtained for all animals at once by central differences of
+the BLUP solutions (relative step 10⁻⁴ on each variance, two extra solves per
+variance component). The
+correction is **not** made when REML ended at a boundary (the AI inverse is
+not a valid covariance there). The second-order bias of the plug-in PEV
+itself (Kenward & Roger 1997) is not included.
+
+Outputs: `pev_incl_vc_uncertainty` and `reliability_incl_vc_uncertainty`
+columns in `ebv_<trait>.csv` (single-trait REML runs, animal equations). The
+standard `pev` and `reliability` columns are unchanged.
+
+**Tests.** `test_delta_equals_v_form_derivatives` (g from central differences
+of the independent V-form BLUP `û = σ²_a A Zᵀ V⁻¹(y − Xb̂)`, with a given
+`Σ_θ`; rtol 10⁻⁵),
+`test_workflow_reports_pev_including_vc_uncertainty`.
+**Evidence.** Calibration study (50 replicates, `calibration_kh.json`):
+pedigree REML `mean((TBV − EBV)²)/mean(PEV)` 1.070 ± 0.033 with the plug-in
+PEV and 1.017 ± 0.031 with PEV*; coverage of nominal 95% intervals 0.942 →
+0.949.
+
+## 24. Laplace-approximate REML for the threshold model
+
+Code: `abp/solvers/threshold.py::laplace_loglik`, `threshold_laplace_reml`.
+Registry id `threshold.laplace_reml`.
+
+With `b` and the thresholds `τ` given flat priors and integrated together with
+`u`, the Laplace approximation of the marginal likelihood of the liability
+variances `s = (σ²_1, …)` is
+
+    log p(y | s) ≈ L(θ̂) − ½ Σ_k (q_k log σ²_k + log|K_k|) − ½ log|H(θ̂)|,
+
+where `L` is the log posterior of §20 at its mode `θ̂ = (b̂, û, τ̂)` and `H` its
+negative Hessian (Harville & Mee 1984; Tempelman & Gianola 1993). `log|H|`
+comes from the same Cholesky/LDL' factor that Newton's method uses. The
+objective is maximised over `log σ²_k` (Brent on [10⁻⁴, 20] for one term,
+Nelder–Mead otherwise); each evaluation warm-starts Newton's method from the
+previous mode (the mode is unique because the log posterior is strictly
+concave, so this changes only the cost). An optimum at a search bound raises
+`ABP-E300`; non-convergence `ABP-E403`.
+
+**Known limitation.** The Laplace approximation is biased for categorical
+data with little information per animal. In the 30-replicate study
+(`threshold_study.json`, 2–3 lambings per ewe, three categories) the genetic
+liability variance was estimated at 0.085 ± 0.013 (true 0.111) and the
+permanent-environment variance at 0.130 ± 0.012 (true 0.111); 6 of 30 runs
+were withheld at the bound; the model accuracy then understated the realized
+accuracy (ratio 0.80 ± 0.06) much like the linear model. ABP labels the
+source "reml (Laplace-approximate …)" and writes this limitation into the
+report. Known liability variances remain the recommended input.
+
+**Tests.** `test_laplace_loglik_equals_independent_laplace_computation`
+(independent BFGS mode with `scipy.stats.norm`, numerical Hessian from
+function values, dense log-determinants), `test_laplace_reml_maximises_the_approximate_likelihood`
+(incl. refusal at the search bound), `test_example14_with_laplace_reml`.
+
+## 25. Reduced-rank genetic covariance matrix in multi-trait REML
+
+Code: `abp/solvers/multitrait_reml.py::ReducedRankEvaluator`,
+`mt_reml_fit_reduced_rank`; `abp/solvers/multitrait.py` (`loadings`).
+Registry id `reml.multi_trait_reduced_rank`.
+
+When the full-rank optimum lies on the boundary (finding F10), `G0` is
+estimated as `ΛΛᵀ` with `Λ` (`t × r`) lower trapezoidal (Kirkpatrick & Meyer
+2004; Meyer & Kirkpatrick 2005). With latent factors `f ~ N(0, K ⊗ I_r)` and
+`u = (I_q ⊗ Λ) f` the model is an ordinary mixed model in `f`, with
+`Z_f = Z (I_q ⊗ Λ)` and precision `K⁻¹ ⊗ I_r`, and Henderson's form of the
+restricted likelihood is
+
+    −2 log L = Σ_r log|R0[o_r, o_r]| + r log|K| + log|C_f| + yᵀPy,
+
+because `log|Var(f)| = r log|K|`. The parameters `(Λ, chol R0)` (log
+diagonal for `R0`) are unconstrained; `−2 log L` is minimised by L-BFGS-B with
+central-difference gradients (`2 n_par` likelihood evaluations per gradient).
+Convergence requires the largest gradient element below 10⁻³; otherwise
+`ABP-E403`. A singular `R0` or loadings of lower rank than requested give
+`ABP-E300`. BLUP is solved for `f`: `û_i = Λ f̂_i`, `PEV_i = Λ C^{f_i f_i} Λᵀ`,
+reliabilities `1 − PEV_ii/(K_ii (ΛΛᵀ)_jj)`. No sampling errors are reported
+for this parameterisation. The rank is a modelling assumption; the report
+says so.
+
+Spec: `reml.boundary = "reduced_rank"` refits with rank `t − 1` after the
+full-rank fit stops at the boundary (`ABP-E300`); `reml.rank = r` fits rank
+`r` directly. Not combined with metafounders in this version.
+
+**Tests.** `test_reduced_rank_loglik_equals_v_form_with_singular_g0`
+(3 cases incl. rank 1, to 10⁻⁸), `test_full_rank_reduced_rank_fit_equals_ai_reml`
+(rank `t` reproduces the AI-REML optimum: log L to 10⁻⁷),
+`test_boundary_data_rank_one_fit_equals_independent_v_form_optimum`
+(independent Nelder–Mead on the V-form), `test_reduced_rank_blup_and_pev_equal_v_form`,
+`test_workflow_reduced_rank_fallback_and_direct_rank`, `test_spec_rules_for_reduced_rank`.
+
+## 26. Matrix-free single step
+
+Code: `abp/core/ssop.py`; `abp/solvers/mme.py` (`MixedModelSystem.extra`);
+`abp/workflows/genomic_inputs.py::_matrix_free_single_step`. Registry id
+`gen.ssgblup_matrix_free`.
+
+PCG needs only products `C v`. With `H⁻¹ = A⁻¹ + embed(G*⁻¹ − A22⁻¹)`, the MME
+are assembled with the sparse `A⁻¹` and the correction is applied inside
+every product:
+
+* `A22⁻¹ v = A²² v − A²¹ (A¹¹)⁻¹ A¹² v`, where `A^{ij}` are the blocks of the
+  sparse `A⁻¹` for non-genotyped (1) and genotyped (2) animals (the inverse of
+  a block of `A` is the Schur complement of the corresponding blocks of
+  `A⁻¹`; Strandén & Mäntysaari 2014, Masuda et al. 2017). `A¹¹` is factorised
+  once by the sparse LDL' of §21.
+* `G*⁻¹ v`: a dense inverse, or the APY inverse as an operator,
+  `out_c = G_cc⁻¹ v_c + P M⁻¹ (Pᵀ v_c − v_n)`, `out_n = M⁻¹ (v_n − Pᵀ v_c)`,
+  `P = G_cc⁻¹ G_cn`. With APY the blocks `G*_cc`, `G*_cn` and `diag(G*)_n` are
+  computed from the centred genotypes (and, for the blend policy, the core
+  columns of `A` by Colleau products), so neither `G`, `A22` nor any
+  `n₂ × n₂` or `n × n₂` matrix is formed; memory `O(nnz(A⁻¹) + c² + c n₂ +
+  n₂ m)`.
+* Jacobi preconditioner: `diag(C_A)` plus `diag(G*⁻¹) − diag(A²²)` at the
+  genotyped animals, i.e. `diag(G*⁻¹)` there, a positive lower bound of
+  `diag(H⁻¹)` (`diag(A22⁻¹) ≤ diag(A²²)`).
+
+Every solution is verified with the true residual computed through the same
+operator (`‖C s − r‖/‖r‖ ≤ tol`). Not available on this path (refused by the
+spec rules): PEV/reliabilities, REML, `diag(H)`, genomic tuning, multi-trait
+models, UPG, metafounders and LR validation.
+
+**Tests.** `test_a22_inverse_operator_equals_dense_inverse`,
+`test_apy_operator_from_genotypes_equals_dense_apy` (ridge and blend, incl.
+`log|G_APY|`), `test_matrix_free_evaluation_equals_explicit` (example 05
+data, exact G⁻¹ and APY with 150 core animals: EBVs equal to 10⁻⁷ relative),
+`test_spec_rules_for_matrix_free`.
+
+## 27. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.
@@ -1008,3 +1153,11 @@ so the full-`G*` definiteness check is skipped with APY. Cost
 * Johnson DL, Thompson R (1995) J Dairy Sci 78:449–456.
 * Misztal I, Legarra A, Aguilar I (2014) J Dairy Sci 97:3943–3952.
 * Pratt JW (1981) J Am Stat Assoc 76:103–106.
+* Harville DA, Jeske DR (1992) J Am Stat Assoc 87:724–731.
+* Kackar RN, Harville DA (1984) J Am Stat Assoc 79:853–862.
+* Kenward MG, Roger JH (1997) Biometrics 53:983–997.
+* Kirkpatrick M, Meyer K (2004) Genetics 168:2295–2306.
+* Masuda Y, Misztal I, Legarra A, et al. (2017) J Dairy Sci 100:9844–9853.
+* Meyer K, Kirkpatrick M (2005) Genet Sel Evol 37:1–30.
+* Strandén I, Mäntysaari EA (2014) Proc 10th WCGALP, Vancouver.
+* Tempelman RJ, Gianola D (1993) Genet Sel Evol 25:305–319.

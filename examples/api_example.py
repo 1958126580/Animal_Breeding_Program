@@ -221,6 +221,45 @@ apy = apy_inverse(G_apy_demo, np.arange(0, G.shape[0], 2))       # every second 
 print("APY:", apy.record["n_core"], "core animals; inverse matches the implied G_APY:",
       np.allclose(apy.g_inv @ apy.g_apy, np.eye(G.shape[0]), atol=1e-8))
 
+# --- 18. PEV including the uncertainty of the REML variances (Kackar-Harville) -------
+from abp.solvers.vc_uncertainty import kackar_harville_delta
+res2 = blup(y2, X2, [term2], fit.variances)
+delta = kackar_harville_delta(y2, X2, [term2], fit.variances, fit.cov, fit.cov_names, "animal")
+pev_total = res2.terms["animal"].pev + delta
+print("PEV incl. REML uncertainty: mean increase",
+      f"{100 * np.mean(delta / res2.terms['animal'].pev):.2f}%")
+
+# --- 19. Laplace-approximate REML for the threshold model ----------------------------
+from abp.solvers.threshold import threshold_laplace_reml
+tfit = threshold_laplace_reml(cat, Xc, [RandomTerm("animal", Zc, ped2.ainv(), ped2.ids, True,
+                                                   k_diag=1 + ped2.inbreeding(),
+                                                   logdet_k=ped2.logdet_a())], intercept=True)
+print("threshold Laplace REML: liability variance", round(tfit.variances["animal"], 3),
+      "after", tfit.evaluations, "evaluations")
+
+# --- 20. Reduced-rank genetic covariance matrix (multi-trait REML at the boundary) ---
+from abp.solvers.multitrait_reml import mt_reml_fit_reduced_rank
+rr = mt_reml_fit_reduced_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), ped2.logdet_a(),
+                              1, {"tol": 1e-8, "max_iter": 200})
+res_rr = build_and_solve(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), 1 + ped2.inbreeding(),
+                         None, rr.R0, loadings=rr.loadings)
+print("rank-1 G0:", rr.G0.round(3).tolist(), "| logL", round(rr.loglik, 4),
+      "| EBV trait 2 of animal 0:", round(float(res_rr.ebv[0, 1]), 4))
+
+# --- 21. Matrix-free single step (H^-1 as an operator in PCG) -------------------------
+from abp.core.genomic import spd_inverse_and_logdet
+from abp.core.ssop import A22InverseOperator, DenseInverseOperator, SingleStepHInverse
+g_idx = ped2.index_of(geno_ids)
+h_op = SingleStepHInverse(ped2.ainv().tocsr(), g_idx,
+                          DenseInverseOperator(spd_inverse_and_logdet(Gstar, "G*")[0]),
+                          A22InverseOperator(ped2.ainv(), g_idx))
+ss_mf = blup(y2, X2, [RandomTerm("animal", Z2, h_op, ped2.ids, True)],
+             {"animal": 2.0, "residual": 4.0}, method="pcg", compute_pev=False)
+ss_ex = blup(y2, X2, [RandomTerm("animal", Z2, ss.h_inv, ped2.ids, True)],
+             {"animal": 2.0, "residual": 4.0}, method="pcg", compute_pev=False)
+print("matrix-free single step equals explicit H^-1:",
+      np.allclose(ss_mf.terms["animal"].solution, ss_ex.terms["animal"].solution, atol=1e-7))
+
 # --- 11. Whole workflow from an analysis spec ----------------------------------
 root = Path(__file__).resolve().parent
 with tempfile.TemporaryDirectory() as tmp:

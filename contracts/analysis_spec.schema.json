@@ -544,6 +544,15 @@
         "apy_seed": {
           "type": "integer",
           "default": 20260925
+        },
+        "single_step_mode": {
+          "type": "string",
+          "enum": [
+            "explicit",
+            "matrix_free"
+          ],
+          "default": "explicit",
+          "description": "'matrix_free': H^-1 is applied as an operator inside PCG (A22^-1 from sparse blocks of A^-1, G^-1 dense or APY); memory no longer grows with n x n_genotyped. Solutions only: needs known variances, solver.pev = 'none', a single-trait model and tuning = 'none'."
         }
       }
     },

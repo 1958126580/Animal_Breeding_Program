@@ -1,6 +1,6 @@
 """``abp selftest``: installation check against hand-derived analytical values.
 
-Every expected value below was derived by hand (T12 and T13 in the comments), is printed in the cited
+Every expected value below was derived by hand (T12, T13 and T15 in the comments), is printed in the cited
 source, or (T10) was computed by an independent implementation (ArviZ) -
 none is produced by ABP itself.  The checks exercise the production
 kernels on the target machine (BLAS/LAPACK, optional C++ kernel), so a pass
@@ -212,5 +212,15 @@ def run_selftest() -> tuple[bool, list[str]]:
     check("T14 sparse LDL' solve and log-determinant",
           _close(fl.solve(np.array([1.0, 0.0, 1.0])), [1.0, 1.0, 1.0])
           and _close(fl.logdet(), np.log(4.0)), f"kernel {fl.kernel}")
+
+    # T15 matrix-free single step: A22^-1 from sparse blocks of A^-1.  Founders 1, 2; 3 = 1 x 2;
+    # genotyped {1, 3}: A22 = [[1, .5], [.5, 1]], A22^-1 = [[4, -2], [-2, 4]] / 3
+    from .core.ssop import A22InverseOperator
+    p3 = Pedigree.from_parent_ids(["1", "2", "3"], [None, None, "1"], [None, None, "2"])
+    g3 = p3.index_of(["1", "3"])
+    op3 = A22InverseOperator(p3.ainv(), g3)
+    check("T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)",
+          _close(op3(np.array([1.0, 0.0])), [4 / 3, -2 / 3])
+          and _close(op3(np.array([0.0, 1.0])), [-2 / 3, 4 / 3]))
     lines.append("RESULT: " + ("PASS" if ok_all else "FAIL"))
     return ok_all, lines

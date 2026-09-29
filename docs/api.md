@@ -1,6 +1,6 @@
 # ABP Python API
 
-Version 0.4.0. Every snippet below is taken from `examples/api_example.py`,
+Version 0.5.0. Every snippet below is taken from `examples/api_example.py`,
 which the test suite runs (`tests/test_examples.py::test_api_example_script_runs`).
 The mathematics behind each function is in [`methods.md`](methods.md).
 
@@ -12,10 +12,10 @@ arrays are NumPy `float64`, and sparse matrices are SciPy CSR.
 
 | Package | Role |
 |---|---|
-| `abp.core` | pedigree (`pedigree`), unknown-parent groups (`upg`), metafounders (`metafounders`), fixed-effect design (`design`), genomic relationships (`genomic`), model compiler (`model`), analysis spec (`spec`) |
+| `abp.core` | pedigree (`pedigree`), unknown-parent groups (`upg`), metafounders (`metafounders`), matrix-free single-step operators (`ssop`), fixed-effect design (`design`), genomic relationships (`genomic`), model compiler (`model`), analysis spec (`spec`) |
 | `abp.io` | delimited-table reader with provenance (`tables`), PLINK 1 binary reader (`plink`) |
 | `abp.qc` | pedigree, phenotype and genotype QC with structured findings |
-| `abp.solvers` | MME assembly and solvers (`mme`), sparse selected inversion (`selinv`), sparse LDL' (`cholesky`), multi-trait REML (`multitrait_reml`), threshold model (`threshold`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`), Bayesian marker models (`bayes`), MCMC diagnostics (`mcmc_diagnostics`) |
+| `abp.solvers` | MME assembly and solvers (`mme`), sparse selected inversion (`selinv`), sparse LDL' (`cholesky`), multi-trait REML (`multitrait_reml`), threshold model (`threshold`), PEV with REML uncertainty (`vc_uncertainty`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`), Bayesian marker models (`bayes`), MCMC diagnostics (`mcmc_diagnostics`) |
 | `abp.decision` | selection indices (`selection_index`), optimal contributions (`ocs`), mating allocation (`mating`) |
 | `abp.workflows` | end-to-end evaluation, LR validation (`validation_lr`), mating plans (`mating_plan`), outputs, manifests, reports |
 | `abp.errors` | `ABPError` and the error-code table |
@@ -373,3 +373,71 @@ of `G_APY`, the implied `G_APY`, the conditional variances `m` of the
 non-core animals and a record for the manifest. `single_step(...,
 g_inverse=(apy.g_inv, apy.logdet))` uses it in `H⁻¹`; the workflow reads
 `genomic.apy_core_size` and `genomic.apy_seed`.
+
+## 19. PEV including REML uncertainty: `abp.solvers.vc_uncertainty`
+
+```python
+from abp.solvers.vc_uncertainty import kackar_harville_delta
+res2 = blup(y2, X2, [term2], fit.variances)
+delta = kackar_harville_delta(y2, X2, [term2], fit.variances, fit.cov, fit.cov_names, "animal")
+pev_total = res2.terms["animal"].pev + delta
+```
+
+`reml_fit` now returns `REMLFit.cov` (the inverse average-information matrix,
+`None` at a boundary) and `REMLFit.cov_names`. `kackar_harville_delta(y, X,
+terms, variances, cov, names, genetic_term, method="auto", ...)` returns
+`Δ_i = g_i' Σ g_i` for every equation of the genetic term (methods §23).
+
+## 20. Threshold-model variance estimation: `abp.solvers.threshold`
+
+```python
+from abp.solvers.threshold import threshold_laplace_reml
+tfit = threshold_laplace_reml(cat, Xc, [RandomTerm("animal", Zc, ped2.ainv(), ped2.ids, True,
+                                                   k_diag=1 + ped2.inbreeding(),
+                                                   logdet_k=ped2.logdet_a())], intercept=True)
+tfit.variances, tfit.loglik, tfit.evaluations
+```
+
+| Name | Returns |
+|---|---|
+| `laplace_loglik(y, X, terms, variances, intercept, init=None)` | `(log p(y│s) up to a constant, ThresholdResult at the mode)` |
+| `threshold_laplace_reml(y, X, terms, intercept, start=None, tol=1e-6, max_eval=400)` | `ThresholdVarianceFit` (`variances` incl. `residual = 1`, `loglik`, `evaluations`, `status`, `note`); `ABP-E300` at the search bound, `ABP-E403` if not converged |
+| `threshold_blup(..., init=None, dense_limit=12000)` | as before; `init` warm-starts Newton's method, `ThresholdResult.logdet_neg_hessian` is `log|H|` at the mode |
+
+The estimates are biased with little information per animal (methods §24).
+
+## 21. Reduced-rank multi-trait REML: `abp.solvers.multitrait_reml`
+
+```python
+from abp.solvers.multitrait_reml import mt_reml_fit_reduced_rank
+rr = mt_reml_fit_reduced_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), ped2.logdet_a(),
+                              1, {"tol": 1e-8, "max_iter": 200})
+res_rr = build_and_solve(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), 1 + ped2.inbreeding(),
+                         None, rr.R0, loadings=rr.loadings)
+```
+
+| Name | Returns |
+|---|---|
+| `mt_reml_fit_reduced_rank(data, k_inv, logdet_k, rank, cfg, memory_budget_bytes, start=None)` | `ReducedRankFit` (`loadings` Λ, `G0 = ΛΛ'`, `R0`, `rank`, `loglik`, `evaluations`, `gradient_norm`, `to_dict(traits)`) |
+| `ReducedRankEvaluator(data, k_inv, logdet_k, rank).m2ll(Lam, R0)` | `(−2 log L, factor)` of the reduced-rank model |
+| `assemble_multitrait(data, k_inv, G0, R0, loadings=None)`, `build_and_solve(..., loadings=None)` | with `loadings`, the latent-factor system; `build_and_solve` reports EBVs and PEV blocks on the trait scale |
+
+## 22. Matrix-free single step: `abp.core.ssop`
+
+```python
+from abp.core.genomic import spd_inverse_and_logdet
+from abp.core.ssop import A22InverseOperator, DenseInverseOperator, SingleStepHInverse
+g_idx = ped2.index_of(geno_ids)
+h_op = SingleStepHInverse(ped2.ainv().tocsr(), g_idx,
+                          DenseInverseOperator(spd_inverse_and_logdet(Gstar, "G*")[0]),
+                          A22InverseOperator(ped2.ainv(), g_idx))
+ss_mf = blup(y2, X2, [RandomTerm("animal", Z2, h_op, ped2.ids, True)],
+             {"animal": 2.0, "residual": 4.0}, method="pcg", compute_pev=False)
+```
+
+| Name | Role |
+|---|---|
+| `A22InverseOperator(ainv, geno_index)` | callable `v -> A22⁻¹ v` from sparse blocks of `A⁻¹` |
+| `DenseInverseOperator(g_inv)` / `APYOperator(g_cc, g_cn, g_nn_diag, core, n2)` | callables `v -> G*⁻¹ v` (dense, or APY without forming `G_APY⁻¹`); `.diag()` |
+| `apy_blocks_from_genotypes(Wc, d, core, policy, alpha, ridge, a22_core_cols, a22_diag)` | `G*_cc`, `G*_cn`, `diag(G*)_n` from centred genotypes |
+| `SingleStepHInverse(a_inv, geno_index, g_op, a22_op)` | usable as `RandomTerm.k_inv`; `blup` then assembles `A⁻¹` and applies the correction inside PCG (`MixedModelSystem.extra`); dense/sparse direct solvers and PEV are refused |

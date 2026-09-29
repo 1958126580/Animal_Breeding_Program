@@ -73,10 +73,26 @@ class MixedModelSystem:
     rinv: sp.spmatrix
     p: int
     offsets: dict[str, tuple[int, int]]  # name -> (start, stop) in the solution vector
+    # matrix-free parts of the precision (e.g. single step): (start, stop, operator, scale);
+    # the operator has correction(u) and correction_diag() (see abp.core.ssop)
+    extra: list = field(default_factory=list)
 
     @property
     def n_equations(self) -> int:
         return self.C.shape[0]
+
+    def matvec(self, v: np.ndarray) -> np.ndarray:
+        """``C v`` including the matrix-free parts."""
+        out = self.C @ v
+        for a, b, op, scale in self.extra:
+            out[a:b] += scale * op.correction(v[a:b])
+        return out
+
+    def diagonal(self) -> np.ndarray:
+        d = self.C.diagonal().copy()
+        for a, b, op, scale in self.extra:
+            d[a:b] += scale * op.correction_diag()
+        return d
 
 
 def assemble(y: np.ndarray, X: sp.csr_matrix, randoms: Sequence[RandomEffect],
@@ -378,7 +394,13 @@ def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: b
     """Solve the MME and verify the solution against the original system."""
     t0 = time.perf_counter()
     n_eq = system.n_equations
-    chosen, reason = choose_method(n_eq, need_inverse, memory_budget_bytes, method)
+    if system.extra:
+        if need_inverse or method not in ("auto", "pcg"):
+            raise ABPError("UNSUPPORTED_COMBINATION", "a matrix-free single-step system is "
+                           "solved by PCG only and provides no PEV (solver.pev = \"none\")")
+        chosen, reason = "pcg", "matrix-free single step: H^-1 applied as an operator"
+    else:
+        chosen, reason = choose_method(n_eq, need_inverse, memory_budget_bytes, method)
     factor = None
     iterations = None
     history: list[tuple[int, float]] = []
@@ -392,11 +414,10 @@ def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: b
         if need_inverse:
             raise ABPError("UNSUPPORTED_COMBINATION",
                            "PCG does not provide PEV; use solver.pev = \"none\" or a direct solver")
-        C = system.C
-        s, info = pcg(lambda v: C @ v, system.rhs, C.diagonal(), tol=tol, max_iter=max_iter)
+        s, info = pcg(system.matvec, system.rhs, system.diagonal(), tol=tol, max_iter=max_iter)
         iterations, history = info.iterations, info.history
         if not info.converged:
-            if method == "auto":  # documented fallback to the verified direct solver
+            if method == "auto" and not system.extra:  # documented fallback to the verified direct solver
                 reason += (f"; PCG did not converge in {info.iterations} iterations "
                            f"(rel. residual {info.rel_residual:.2e}) -> fell back to sparse direct")
                 chosen = "sparse_direct"
@@ -407,7 +428,7 @@ def solve_system(system: MixedModelSystem, method: str = "auto", need_inverse: b
                                f"PCG stopped after {info.iterations} iterations with relative "
                                f"residual {info.rel_residual:.3e} > tol {tol:.1e}",
                                iterations=info.iterations, rel_residual=info.rel_residual, tol=tol)
-    rnorm = float(np.linalg.norm(system.C @ s - system.rhs))
+    rnorm = float(np.linalg.norm(system.matvec(s) - system.rhs))
     bnorm = float(np.linalg.norm(system.rhs))
     rel = rnorm / bnorm if bnorm > 0 else rnorm
     limit = max(residual_limit, tol) if chosen == "pcg" else residual_limit

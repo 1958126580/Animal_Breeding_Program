@@ -17,7 +17,14 @@ breeding values:
 * ``single_step_mf_true`` the same with known variances converted to the
                      metafounder scale: sigma_MF^2 = 4.0 / (1 - gamma/2), where
                      gamma is the replicate's own estimate (from genotypes and
-                     pedigree only; no phenotypes), sigma_e^2 = 12.25.
+                     pedigree only; no phenotypes), sigma_e^2 = 12.25;
+* ``single_step_apy150_true`` / ``single_step_apy300_true`` (round 5) the
+                     single_step_true configuration with the APY inverse and
+                     150 / 300 randomly chosen core animals.
+
+REML scenarios also report ``pev_ratio_incl_vc`` and ``coverage95_incl_vc``
+(round 5): the same statistics with the Kackar-Harville PEV that includes the
+uncertainty of the REML variance estimates.
 
 Per replicate: dispersion slope b(TBV | EBV), bias mean(TBV - EBV),
 realized accuracy, model accuracy sqrt(mean reliability), the ratio
@@ -121,6 +128,12 @@ SCENARIOS = {
     "single_step_mf_reml": dict(rel="single_step", variances=REML, geno=GENO, genomic=GMF, mf=MF),
     "single_step_mf_true": dict(rel="single_step", variances=None, geno=GENO, genomic=GMF,
                                 mf=MF),
+    # round 5: APY with 150 / 300 of the ~476 genotyped animals as core (compare with
+    # single_step_true, which uses the same G configuration with the exact G inverse)
+    "single_step_apy150_true": dict(rel="single_step", variances=TRUE, geno=GENO,
+                                    genomic=GCFG + "\napy_core_size = 150", mf=""),
+    "single_step_apy300_true": dict(rel="single_step", variances=TRUE, geno=GENO,
+                                    genomic=GCFG + "\napy_core_size = 300", mf=""),
 }
 
 

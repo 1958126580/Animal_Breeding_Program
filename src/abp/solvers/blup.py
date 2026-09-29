@@ -98,9 +98,19 @@ def build_system(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm],
                            term=name, value=v)
     n = y.shape[0]
     rinv = sp.identity(n, format="csr") * (1.0 / variances["residual"])
-    randoms = [RandomEffect(t.name, t.Z, _scaled_precision(t.k_inv, variances[t.name]), t.labels)
-               for t in terms]
-    return assemble(y, X, randoms, rinv)
+    from ..core.ssop import SingleStepHInverse
+    randoms, extra = [], []
+    for t in terms:
+        if isinstance(t.k_inv, SingleStepHInverse):      # matrix-free single step
+            randoms.append(RandomEffect(t.name, t.Z, _scaled_precision(t.k_inv.a_inv,
+                                                                       variances[t.name]), t.labels))
+            extra.append((t.name, t.k_inv, 1.0 / variances[t.name]))
+        else:
+            randoms.append(RandomEffect(t.name, t.Z, _scaled_precision(t.k_inv, variances[t.name]),
+                                        t.labels))
+    system = assemble(y, X, randoms, rinv)
+    system.extra = [(*system.offsets[name], op, sc) for name, op, sc in extra]
+    return system
 
 
 def blup(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm],

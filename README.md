@@ -2,8 +2,10 @@
 
 ABP is a command-line tool and Python library for estimating breeding values
 and planning selection. It covers pedigree and genomic BLUP, single-step
-GBLUP, APY, REML variance components (single- and multi-trait), multi-trait
-BLUP, threshold models for categorical traits, unknown-parent groups,
+GBLUP (explicit or matrix-free), APY, REML variance components (single- and
+multi-trait, with reduced-rank genetic covariance matrices at the boundary),
+PEV that includes the uncertainty of REML variances, multi-trait BLUP,
+threshold models for categorical traits, unknown-parent groups,
 metafounders,
 Bayesian marker models (BayesA/B/C/Cπ/R, Bayesian ridge regression),
 forward-in-time validation, selection indices, optimal contribution selection
@@ -11,7 +13,7 @@ and mating plans. Every result can be traced back to its inputs, model and
 code. It is built to the project's research and
 development specification (`docs/` and the uploaded instruction set).
 
-> **Status: 0.4.0, research-grade.** Every method listed below has passed
+> **Status: 0.5.0, research-grade.** Every method listed below has passed
 > analytical and independent-reference tests on Linux; simulation studies
 > cover EBV calibration, genetic groups and the Bayesian samplers. It has
 > **not** been validated on real breeding data, compared with
@@ -19,6 +21,9 @@ development specification (`docs/` and the uploaded instruction set).
 > G tuned to A22 was biased in the calibration scenario (finding F6); on a
 > metafounder base it is unbiased, and calibrated with a dense marker panel
 > (10,000 SNPs); with 2,000 SNPs its PEV is about 8% too small.
+> Liability variances of the threshold model estimated by ABP's Laplace
+> approximation were biased in the simulation study; known variances are
+> recommended.
 > CI runs the test suite on Linux and Windows (Python 3.11–3.13).
 > ABP makes no claim of superiority over any other software. See
 > [`docs/validation_report.md`](docs/validation_report.md) for exactly what has
@@ -26,13 +31,13 @@ development specification (`docs/` and the uploaded instruction set).
 
 ## What it does
 
-| Area | Capability (0.4) | Evidence |
+| Area | Capability (0.5) | Evidence |
 |---|---|---|
 | Data contracts and QC | CSV import with strict schemas; pedigree QC (cycles, duplicates, sex and birth-order conflicts, missing parents); phenotype QC (ranges, repeated records, outliers); genotype QC (allele and assembly contract, call rates, MAF, Mendelian conflicts). Excluded records are always listed. | `tests/test_qc.py`, `tests/test_workflow.py` |
 | Pedigree relationships | Ordering, inbreeding (Meuwissen-Luo; optional C++20 kernel), sparse A-inverse, `A x` products without forming A (Colleau); unknown-parent groups (random or estimable fixed) by the QP transformation; metafounders (related base populations; Γ from a documented file or estimated from genotypes) for pedigree BLUP, REML and single step | spec gold standard T03, independent tabular method; explicit-model references for groups and metafounders; 20-replicate group study; 50-replicate single-step study |
-| BLUP | Single-trait animal and repeatability models; rank-deficient fixed effects; dense, sparse-direct and PCG solvers; exact PEV, SEP and reliability at scale by ABP's sparse LDL' and selected inversion (100,500 equations in 3.2 s); threshold (probit) model for ordered categorical traits | T04, Mrode (2005) Ex. 3.1, independent V-form reference, 50-replicate calibration study |
-| REML | Average-information REML with EM fallback, boundary (zero-variance) handling, standard errors, checkpoint and resume; dense or sparse (selected-inversion) traces; multi-trait AI-REML for G0 and R0 with missing traits | T05, independent optimizer, 40-replicate simulation |
-| Genomics | Dosage CSV or PLINK 1 binary input; VanRaden G with recorded frequency source; explicit singular-G policy; GBLUP; GBLUP/SNP-BLUP equivalence; single-step H-inverse; APY | T01, T06, explicit-H reference, hand-decoded PLINK bytes |
+| BLUP | Single-trait animal and repeatability models; rank-deficient fixed effects; dense, sparse-direct and PCG solvers; exact PEV, SEP and reliability at scale by ABP's sparse LDL' and selected inversion (100,500 equations in 3.2 s); threshold (probit) model for ordered categorical traits; PEV and reliability including the uncertainty of REML variances (Kackar–Harville) | T04, Mrode (2005) Ex. 3.1, independent V-form reference, 50-replicate calibration study |
+| REML | Average-information REML with EM fallback, boundary (zero-variance) handling, standard errors, checkpoint and resume; dense or sparse (selected-inversion) traces; multi-trait AI-REML for G0 and R0 with missing traits; reduced-rank G0 = ΛΛ′ at the boundary; Laplace-approximate REML for threshold traits | T05, independent optimizer, 40-replicate simulation, V-form references with singular G0, independent Laplace computation |
+| Genomics | Dosage CSV or PLINK 1 binary input; VanRaden G with recorded frequency source; explicit singular-G policy; GBLUP; GBLUP/SNP-BLUP equivalence; single-step H-inverse; APY; matrix-free single step (H⁻¹ as an operator: 1.7 GB instead of 10.9 GB for 50,000 animals / 6,000 genotyped) | T01, T06, T15, explicit-H reference, hand-decoded PLINK bytes |
 | Bayesian marker models | BRR, BayesA, BayesB, BayesC, BayesCπ, BayesR (Gibbs, 4+ chains, optional C++ sweep); R-hat, bulk/tail ESS and MCSE for every scalar and GEBV; results withheld unless converged; traces and posterior predictive checks | exact Gaussian posterior (BRR), exact inclusion probability, simulation-based calibration of all six samplers, diagnostics equal to ArviZ to 1e-15 |
 | Validation | Forward-in-time LR method: bias, dispersion, correlation of partial vs whole EBVs with bootstrap intervals; hidden records cannot leak | hand-computed statistics, leakage test |
 | Multi-trait | Multi-trait BLUP with known covariances, trait-specific fixed effects, missing traits, per-animal PEV blocks | 2×2 Kronecker-order gold standard, V-form reference |
@@ -42,7 +47,7 @@ development specification (`docs/` and the uploaded instruction set).
 Not implemented yet (tracked as `not_run` in
 [`docs/method_registry.toml`](docs/method_registry.toml)): maternal and
 random-regression models, multi-trait threshold and survival models,
-matrix-free single step, multi-trait and single-step Bayesian models, genomic OCS,
+multi-trait and single-step Bayesian models, genomic OCS,
 VCF/BGEN readers, CUDA.
 
 ## Install
@@ -109,7 +114,9 @@ log and returns ABP's exit status.
   information cut-off. Additive breeding values are never presented as total
   genetic values or phenotype predictions.
 * Unknown parents are distinct base animals, never one common ancestor.
-  `A22⁻¹` is computed from `A22`, not taken from `A⁻¹`.
+  `A22⁻¹` is the inverse of `A22` (explicitly, or exactly as the Schur
+  complement of blocks of `A⁻¹` in the matrix-free path), never the
+  genotyped block of `A⁻¹`.
 * A singular `G` is never repaired silently. Blending, ridge and tuning are
   explicit, and their magnitudes are recorded.
 * Non-convergence (REML or MCMC), reliabilities outside [0, 1], confounded

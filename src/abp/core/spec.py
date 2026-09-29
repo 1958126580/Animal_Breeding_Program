@@ -214,6 +214,12 @@ SCHEMA = Section({
                                    "Core animals are drawn at random among the genotyped with "
                                    "apy_seed; the list is written to apy_core.csv."),
         "apy_seed": Field("int", default=20260925),
+        "single_step_mode": Field("str", default="explicit", choices=("explicit", "matrix_free"),
+                                  doc="'matrix_free': H^-1 is applied as an operator inside PCG "
+                                      "(A22^-1 from sparse blocks of A^-1, G^-1 dense or APY); "
+                                      "memory no longer grows with n x n_genotyped. Solutions "
+                                      "only: needs known variances, solver.pev = 'none', a "
+                                      "single-trait model and tuning = 'none'."),
     }),
     "index": Section({
         "weights": Field("float_map", required=True, doc="Economic weight per unit of each trait."),
@@ -482,6 +488,26 @@ def validate_spec_dict(raw: dict) -> dict:
         if dd["plink"] is None and (dd["genotypes"] is None or dd["marker_map"] is None):
             raise _err("data.genotypes", f"relationship {rel!r} needs genotypes and marker_map "
                                          "(or data.plink)")
+    if d["genomic"]["single_step_mode"] == "matrix_free":
+        g = d["genomic"]
+        why = None
+        if rel != "single_step":
+            why = "relationship = 'single_step'"
+        elif d["variances"]["mode"] != "known":
+            why = "variances.mode = 'known' (REML needs log|H| and traces)"
+        elif d["solver"]["pev"] != "none":
+            why = "solver.pev = 'none' (PEV needs diag(C^-1))"
+        elif d["solver"]["method"] not in ("auto", "pcg"):
+            why = "solver.method = 'auto' or 'pcg'"
+        elif len(d["model"]["traits"]) != 1:
+            why = "a single-trait model"
+        elif g["tuning"] != "none":
+            why = "genomic.tuning = 'none'"
+        elif raw.get("metafounders") is not None or raw.get("upg") is not None \
+                or raw.get("validation") is not None:
+            why = "no [metafounders], [upg] or [validation] section"
+        if why:
+            raise _err("genomic.single_step_mode", f"'matrix_free' needs {why}")
     if d["genomic"]["frequency_source"] == "file" and d["data"]["allele_frequencies"] is None:
         raise _err("data.allele_frequencies", "required when genomic.frequency_source = 'file'")
     v = d["variances"]

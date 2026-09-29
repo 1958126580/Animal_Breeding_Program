@@ -111,6 +111,8 @@ def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship
     prep = prepare_genotypes(spec, ped, manifest, animals_with_records)
     geno, p, freq_note, transductive = prep.geno, prep.p, prep.freq_note, prep.transductive
     src = cfg["frequency_source"]
+    if relationship == "single_step" and cfg["single_step_mode"] == "matrix_free":
+        return _matrix_free_single_step(spec, ped, prep)
     G, d = vanraden_g(geno.dosage, p, geno.missing)
     meta = {"method": "VanRaden (2008) method 1: G = WW'/(2 sum p(1-p))",
             "frequency_source": src, "frequency_note": freq_note,
@@ -169,3 +171,71 @@ def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship
                      g_inverse=None if apy is None else (apy.g_inv, apy.logdet))
     meta["single_step"] = "H^-1 = A^-1 + embed(G*^-1 - A22^-1); A22^-1 from A22 itself"
     return GeneticStructure("single_step", ped.pedigree.ids, ss.h_inv, ss.h_diag, ss.logdet_h, meta)
+
+
+def _matrix_free_single_step(spec: AnalysisSpec, ped: PedigreeData | None,
+                             prep: PreparedGenotypes) -> GeneticStructure:
+    """Single step with ``H^{-1}`` as an operator (:mod:`abp.core.ssop`); no dense
+    ``A22``, ``A22^{-1}`` or ``n x n2`` block is formed, and with APY no ``G``."""
+    from ..core.genomic import centered, scaling_d
+    from ..core.ssop import (A22InverseOperator, APYOperator, DenseInverseOperator,
+                             SingleStepHInverse, apy_blocks_from_genotypes)
+    from .manifest import sha256_array
+    cfg = spec["genomic"]
+    if ped is None:
+        raise ABPError("UNSUPPORTED_COMBINATION", "single step needs a pedigree")
+    geno, p = prep.geno, prep.p
+    P = ped.pedigree
+    absent = [a for a in geno.ids if not P.contains(a)]
+    if absent:
+        raise ABPError("GENOTYPE_ID_CONFLICT", f"{len(absent)} genotyped animal(s) are not in "
+                       "the pedigree", animals=absent[:20])
+    g_index = P.index_of(geno.ids)
+    n2 = len(geno.ids)
+    d = scaling_d(p)
+    Wc = centered(geno.dosage, p, geno.missing)
+    meta = {"method": "VanRaden (2008) method 1: G = WW'/(2 sum p(1-p))",
+            "frequency_source": cfg["frequency_source"], "frequency_note": prep.freq_note,
+            "candidate_genotype_use": ("transductive_unsupervised" if prep.transductive
+                                       else "none"),
+            "missing_dosage_policy": "set to 2p (centred value 0) at the reference frequency",
+            "n_genotyped": n2, "n_markers": len(geno.markers), "scaling_d": d,
+            "assembly": geno.assembly,
+            "g_policy": {"singular_policy": cfg["singular_policy"], "tuning": "none",
+                         "blend_alpha": (cfg["blend_alpha"] if cfg["singular_policy"] == "blend"
+                                         else None),
+                         "ridge": cfg["ridge"] if cfg["singular_policy"] == "ridge" else None},
+            "single_step": "matrix-free: H^-1 v = A^-1 v + embed(G*^-1 v2 - A22^-1 v2); "
+                           "A22^-1 v2 = A^22 v2 - A^21 (A^11)^-1 A^12 v2 (sparse LDL' of A^11)",
+            "single_step_mode": "matrix_free"}
+    n_core = int(cfg["apy_core_size"])
+    pol = cfg["singular_policy"]
+    if n_core:
+        if n_core >= n2:
+            raise ABPError("SPEC_INVALID", f"genomic.apy_core_size ({n_core}) must be smaller "
+                           f"than the number of genotyped animals ({n2})")
+        core = np.sort(np.random.default_rng(cfg["apy_seed"]).choice(n2, n_core, replace=False))
+        a22_cols = a22_diag = None
+        if pol == "blend":
+            a22_cols = P.a_columns(g_index[core])[g_index]            # n2 x c
+            a22_diag = 1.0 + P.inbreeding()[g_index]
+        gcc, gcn, gnn = apy_blocks_from_genotypes(Wc, d, core, pol, cfg["blend_alpha"],
+                                                  cfg["ridge"], a22_cols, a22_diag)
+        g_op = APYOperator(gcc, gcn, gnn, core, n2)
+        ids = [geno.ids[k] for k in core]
+        meta["apy"] = {"method": "APY (Misztal, Legarra & Aguilar 2014), applied as an operator",
+                       "n_core": int(n_core), "n_noncore": int(n2 - n_core),
+                       "min_m": float(g_op.m.min()), "mean_m": float(g_op.m.mean()),
+                       "core_selection": f"random, seed {cfg['apy_seed']}",
+                       "core_ids_sha256": sha256_array(ids), "core_ids": ids}
+    else:
+        G = (Wc @ Wc.T) / d
+        G = 0.5 * (G + G.T)
+        A22 = P.a_submatrix(g_index) if pol == "blend" else None
+        Gs, rec = apply_g_policy(G, pol, "none", A22, cfg["blend_alpha"], cfg["ridge"])
+        meta["g_policy"] = rec.__dict__
+        g_op = DenseInverseOperator(spd_inverse_and_logdet(Gs, "G*")[0])
+    a22_op = A22InverseOperator(P.ainv(), g_index)
+    h = SingleStepHInverse(P.ainv().tocsr(), g_index, g_op, a22_op, meta)
+    # diag(H) is not computed on this path; reliabilities are refused by the spec rules
+    return GeneticStructure("single_step", P.ids, h, np.full(P.n, np.nan), None, meta)
