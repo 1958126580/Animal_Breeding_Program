@@ -184,7 +184,12 @@ SCHEMA = Section({
         "method": Field("str", default="auto", choices=("auto", "dense", "sparse_direct", "pcg")),
         "tol": Field("float", default=1e-10, check=_positive),
         "max_iter": Field("int", default=10000, check=_positive),
-        "pev": Field("str", default="exact", choices=("exact", "none")),
+        "pev": Field("str", default="exact", choices=("exact", "none", "sampled"),
+                     doc="'sampled': PEV and reliabilities estimated by simulation "
+                         "(matrix-free single step only; Monte-Carlo SE reported)."),
+        "pev_samples": Field("int", default=200, check=lambda x: None if x >= 10
+                             else "must be >= 10"),
+        "pev_seed": Field("int", default=20260925),
         "factorization": Field("str", default="auto", choices=("auto", "ldl", "superlu"),
                                doc="Sparse direct factor: ABP's LDL' with minimum-degree ordering "
                                    "('auto' when the compiled kernel is present) or SuperLU."),
@@ -499,8 +504,8 @@ def validate_spec_dict(raw: dict) -> dict:
             why = "relationship = 'single_step'"
         elif d["variances"]["mode"] != "known":
             why = "variances.mode = 'known' (REML needs log|H| and traces)"
-        elif d["solver"]["pev"] != "none":
-            why = "solver.pev = 'none' (PEV needs diag(C^-1))"
+        elif d["solver"]["pev"] == "exact":
+            why = "solver.pev = 'none' or 'sampled' (exact PEV needs diag(C^-1))"
         elif d["solver"]["method"] not in ("auto", "pcg"):
             why = "solver.method = 'auto' or 'pcg'"
         elif len(d["model"]["traits"]) != 1:
@@ -512,6 +517,9 @@ def validate_spec_dict(raw: dict) -> dict:
             why = "no [metafounders], [upg] or [validation] section"
         if why:
             raise _err("genomic.single_step_mode", f"'matrix_free' needs {why}")
+    if d["solver"]["pev"] == "sampled" and d["genomic"]["single_step_mode"] != "matrix_free":
+        raise _err("solver.pev", "'sampled' is available with genomic.single_step_mode = "
+                                 "'matrix_free' (other paths compute exact PEV)")
     if d["genomic"]["frequency_source"] == "file" and d["data"]["allele_frequencies"] is None:
         raise _err("data.allele_frequencies", "required when genomic.frequency_source = 'file'")
     v = d["variances"]

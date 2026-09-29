@@ -66,16 +66,24 @@ class A22InverseOperator:
 
 
 class DenseInverseOperator:
-    """``G*^{-1} v`` with an explicit dense inverse (small ``n2``)."""
+    """``G*^{-1} v`` with an explicit dense inverse (small ``n2``); ``g_chol`` (lower
+    Cholesky factor of ``G*``) enables :meth:`sample`."""
 
-    def __init__(self, g_inv: np.ndarray):
+    def __init__(self, g_inv: np.ndarray, g_chol: np.ndarray | None = None):
         self.g_inv = np.asarray(g_inv, dtype=np.float64)
+        self.g_chol = g_chol
 
     def __call__(self, v: np.ndarray) -> np.ndarray:
         return self.g_inv @ v
 
     def diag(self) -> np.ndarray:
         return np.diag(self.g_inv).copy()
+
+    def sample(self, rng) -> np.ndarray:
+        """A draw from ``N(0, G*)``."""
+        if self.g_chol is None:
+            raise ABPError("UNSUPPORTED_COMBINATION", "sampling needs the Cholesky factor of G*")
+        return self.g_chol @ rng.standard_normal(self.g_chol.shape[0])
 
 
 class APYOperator:
@@ -92,6 +100,7 @@ class APYOperator:
             raise ABPError("RELATIONSHIP_SINGULAR", f"APY: G_cc ({self.core.size} core animals) "
                            "is not positive definite; choose fewer core animals or a "
                            "blend/ridge policy", n_core=int(self.core.size)) from None
+        self.L_cc = L
         self.gcc_inv = sla.cho_solve((L, True), np.eye(self.core.size))
         self.gcc_inv = 0.5 * (self.gcc_inv + self.gcc_inv.T)
         self.P = self.gcc_inv @ g_cn                                  # c x n
@@ -111,6 +120,14 @@ class APYOperator:
         out[self.non] = -w
         return out
 
+    def sample(self, rng) -> np.ndarray:
+        """A draw from ``N(0, G_APY)``: core from ``G_cc``, non-core by the APY
+        regression on the core plus independent residuals with variances ``m``."""
+        u = np.empty(self.n2)
+        u[self.core] = self.L_cc @ rng.standard_normal(self.core.size)
+        u[self.non] = self.P.T @ u[self.core] + np.sqrt(self.m) * rng.standard_normal(self.non.size)
+        return u
+
     def diag(self) -> np.ndarray:
         d = np.empty(self.n2)
         d[self.core] = np.diag(self.gcc_inv) + np.einsum("ij,ij->i", self.P, self.P / self.m)
@@ -128,6 +145,7 @@ class SingleStepHInverse:
     g_op: object
     a22_op: A22InverseOperator
     meta: dict = field(default_factory=dict)
+    ped: object = None               # abp.core.pedigree.Pedigree, needed by :meth:`sample`
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -150,6 +168,25 @@ class SingleStepHInverse:
 
     def matvec(self, u: np.ndarray) -> np.ndarray:
         return self.a_inv @ u + self.correction(u)
+
+    def sample(self, rng) -> np.ndarray:
+        """A draw from ``N(0, H)`` without forming ``H``: ``a ~ N(0, A)`` by gene
+        dropping (``a = T D^{1/2} z``), ``u_2 ~ N(0, G*)``, and for the other animals
+        ``u_1 = a_1 + A_12 A22^{-1} (u_2 - a_2)`` (conditioning), which has the single-step
+        covariances ``H_11`` and ``H_12`` (Legarra et al. 2009)."""
+        from scipy.sparse.linalg import spsolve_triangular
+        ped = self.ped
+        if ped is None:
+            raise ABPError("UNSUPPORTED_COMBINATION", "sampling from H needs the pedigree")
+        g = self.geno_index
+        a = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())
+                               * rng.standard_normal(ped.n), lower=True, unit_diagonal=True)
+        u2 = self.g_op.sample(rng)
+        x = np.zeros(ped.n)
+        x[g] = self.a22_op(u2 - a[g])
+        u = a + ped.a_times(x)
+        u[g] = u2
+        return u
 
 
 def apy_blocks_from_genotypes(Wc: np.ndarray, scale_d: float, core: np.ndarray,
@@ -178,3 +215,17 @@ def apy_blocks_from_genotypes(Wc: np.ndarray, scale_d: float, core: np.ndarray,
         g_cc = g_cc + ridge * np.eye(core.size)
         g_nn = g_nn + ridge
     return g_cc, g_cn, g_nn
+
+
+def a_block(ped, rows: np.ndarray, cols: np.ndarray, block: int = 256) -> np.ndarray:
+    """``A[rows][:, cols]`` by Colleau products in blocks of ``block`` columns, keeping
+    only ``rows`` (memory ``len(rows) x len(cols)`` instead of ``n x len(cols)``)."""
+    rows = np.asarray(rows, dtype=np.int64)
+    cols = np.asarray(cols, dtype=np.int64)
+    out = np.empty((rows.size, cols.size))
+    for start in range(0, cols.size, block):
+        c = cols[start:start + block]
+        E = np.zeros((ped.n, c.size))
+        E[c, np.arange(c.size)] = 1.0
+        out[:, start:start + c.size] = ped.a_times(E)[rows]
+    return out

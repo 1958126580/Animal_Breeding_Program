@@ -110,3 +110,78 @@ def test_spec_rules_for_matrix_free(tmp_path):
     (tmp_path / "bad.toml").write_text(bad, encoding="utf-8")
     with pytest.raises(ABPError, match="pev"):
         load_spec(tmp_path / "bad.toml")
+
+
+def test_h_sampler_has_the_single_step_covariance():
+    from abp.core.genomic import single_step
+    from abp.core.ssop import DenseInverseOperator, SingleStepHInverse
+    ped, rng = _ped(n=80, seed=9)
+    g = np.sort(rng.choice(ped.n, 25, replace=False))
+    M = rng.integers(0, 3, (g.size, 300)).astype(float)
+    p = M.mean(axis=0) / 2
+    W = centered(M, p)
+    G = W @ W.T / scaling_d(p)
+    A22 = ped.a_submatrix(g)
+    Gs, _ = apply_g_policy(G, "blend", "none", A22, 0.05, 0.01)
+    H = np.linalg.inv(single_step(ped, g, Gs, a22=A22).h_inv.toarray())
+    op = SingleStepHInverse(ped.ainv().tocsr(), g,
+                            DenseInverseOperator(np.linalg.inv(Gs), np.linalg.cholesky(Gs)),
+                            A22InverseOperator(ped.ainv(), g), ped=ped)
+    S = np.array([op.sample(rng) for _ in range(40000)])
+    emp = S.T @ S / S.shape[0]
+    # Monte-Carlo SE of a covariance entry: sqrt((H_ii H_jj + H_ij^2) / N)
+    se = np.sqrt((np.outer(np.diag(H), np.diag(H)) + H ** 2) / S.shape[0])
+    z = (emp - H) / se
+    assert np.abs(z).max() < 5.5 and abs(z.mean()) < 0.05 and 0.9 < z.std() < 1.1
+
+
+def test_apy_sampler_has_the_apy_covariance():
+    ped, rng = _ped()
+    g = np.sort(rng.choice(ped.n, 60, replace=False))
+    M = rng.integers(0, 3, (g.size, 400)).astype(float)
+    p = M.mean(axis=0) / 2
+    W = centered(M, p)
+    d = scaling_d(p)
+    core = np.sort(rng.choice(g.size, 20, replace=False))
+    Gs, _ = apply_g_policy(W @ W.T / d, "ridge", "none", None, 0.05, 0.01, check_pd=False)
+    ref = apy_inverse(Gs, core).g_apy
+    gcc, gcn, gnn = apy_blocks_from_genotypes(W, d, core, "ridge", 0.05, 0.01, None, None)
+    op = APYOperator(gcc, gcn, gnn, core, g.size)
+    S = np.array([op.sample(rng) for _ in range(30000)])
+    emp = S.T @ S / S.shape[0]
+    se = np.sqrt((np.outer(np.diag(ref), np.diag(ref)) + ref ** 2) / S.shape[0])
+    z = (emp - ref) / se
+    assert np.abs(z).max() < 5.5 and abs(z.mean()) < 0.05 and 0.9 < z.std() < 1.1
+
+
+@pytest.mark.parametrize("apy", [0, 150])
+def test_sampled_reliabilities_agree_with_exact_ones(tmp_path, apy):
+    from abp.workflows.evaluate import run_evaluation
+    g = f"apy_core_size = {apy}\n"
+    ex_spec = _spec(tmp_path, g, "ex")
+    ex_spec.write_text(ex_spec.read_text(encoding="utf-8").replace('pev = "none"', 'pev = "exact"'),
+                       encoding="utf-8")
+    ex = run_evaluation(ex_spec, tmp_path / "ex", console=False)
+    mf_spec = _spec(tmp_path, g + 'single_step_mode = "matrix_free"\n', "mf")
+    mf_spec.write_text(mf_spec.read_text(encoding="utf-8").replace(
+        'pev = "none"', 'pev = "sampled"\npev_samples = 300'), encoding="utf-8")
+    mf = run_evaluation(mf_spec, tmp_path / "mf", console=False)
+
+    def rel(out, col):
+        with open(out.out_dir / "ebv_wwt.csv", encoding="utf-8") as fh:
+            return {r["animal"]: float(r[col]) for r in csv.DictReader(fh)}
+    r_ex = rel(ex, "reliability")
+    r_mf = rel(mf, "reliability")
+    se = rel(mf, "reliability_mc_se")
+    keys = [k for k in r_ex if se[k] > 0]
+    z = np.array([(r_mf[k] - r_ex[k]) / se[k] for k in keys])
+    # the Monte-Carlo SE is calibrated (spread of z ~ 1); the mean of z is not used because
+    # every SE is estimated from the same samples as its estimate (self-normalised statistics
+    # have a small mean shift) and all animals share the samples; bias is checked on the
+    # reliability scale instead
+    assert 0.8 < z.std() < 1.25
+    assert abs(np.mean([r_mf[k] - r_ex[k] for k in keys])) < 0.15 * np.mean([se[k] for k in keys])
+    # and its size matches the observed errors: E|diff| = sqrt(2/pi) SE for normal errors
+    diff = np.array([r_mf[k] - r_ex[k] for k in keys])
+    expected = np.sqrt(2 / np.pi) * np.mean([se[k] for k in keys])
+    assert 0.8 * expected < np.abs(diff).mean() < 1.25 * expected

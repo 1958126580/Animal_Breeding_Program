@@ -489,6 +489,24 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
         log.info("%s: PEV including variance-estimation uncertainty (Kackar-Harville): mean "
                  "increase %.4g (%.1f%%)", trait, float(delta.mean()),
                  100.0 * float(delta.mean() / g.pev.mean()))
+    if sol["pev"] == "sampled":                 # matrix-free single step (spec rule)
+        from ..solvers.blup import TermResult
+        from ..solvers.pev_sampling import sampled_pev
+        smp = sampled_pev(model.y.size, model.fixed.X, active_terms, vc_active,
+                          model.genetic_term, n_samples=sol["pev_samples"], seed=sol["pev_seed"],
+                          tol=max(sol["tol"], 1e-8), max_iter=sol["max_iter"])
+        g = res.terms[model.genetic_term]
+        res.terms[model.genetic_term] = TermResult(g.name, g.labels, g.solution, smp.pev,
+                                                   smp.reliability, 0)
+        vc_extra = dict(vc_extra or {})
+        vc_extra["reliability_mc_se"] = smp.reliability_se
+        manifest["diagnostics"].setdefault(trait, {})["pev_sampling"] = {
+            "method": "simulation (Garcia-Cortes et al. 1995), ratio estimator",
+            "n_samples": smp.n_samples, "seed": smp.seed,
+            "mean_pcg_iterations": float(np.mean(smp.pcg_iterations)),
+            "mean_reliability_mc_se": float(smp.reliability_se.mean())}
+        log.info("%s: PEV by %d simulations (seed %d); mean Monte-Carlo SE of reliability %.4f",
+                 trait, smp.n_samples, smp.seed, float(smp.reliability_se.mean()))
     groups = None
     mf_info = None
     contrast = None

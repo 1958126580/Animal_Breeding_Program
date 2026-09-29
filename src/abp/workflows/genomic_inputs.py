@@ -179,7 +179,7 @@ def _matrix_free_single_step(spec: AnalysisSpec, ped: PedigreeData | None,
     ``A22``, ``A22^{-1}`` or ``n x n2`` block is formed, and with APY no ``G``."""
     from ..core.genomic import centered, scaling_d
     from ..core.ssop import (A22InverseOperator, APYOperator, DenseInverseOperator,
-                             SingleStepHInverse, apy_blocks_from_genotypes)
+                             SingleStepHInverse, a_block, apy_blocks_from_genotypes)
     from .manifest import sha256_array
     cfg = spec["genomic"]
     if ped is None:
@@ -217,7 +217,7 @@ def _matrix_free_single_step(spec: AnalysisSpec, ped: PedigreeData | None,
         core = np.sort(np.random.default_rng(cfg["apy_seed"]).choice(n2, n_core, replace=False))
         a22_cols = a22_diag = None
         if pol == "blend":
-            a22_cols = P.a_columns(g_index[core])[g_index]            # n2 x c
+            a22_cols = a_block(P, g_index, g_index[core])             # n2 x c, in blocks
             a22_diag = 1.0 + P.inbreeding()[g_index]
         gcc, gcn, gnn = apy_blocks_from_genotypes(Wc, d, core, pol, cfg["blend_alpha"],
                                                   cfg["ridge"], a22_cols, a22_diag)
@@ -234,8 +234,12 @@ def _matrix_free_single_step(spec: AnalysisSpec, ped: PedigreeData | None,
         A22 = P.a_submatrix(g_index) if pol == "blend" else None
         Gs, rec = apply_g_policy(G, pol, "none", A22, cfg["blend_alpha"], cfg["ridge"])
         meta["g_policy"] = rec.__dict__
-        g_op = DenseInverseOperator(spd_inverse_and_logdet(Gs, "G*")[0])
+        chol = None
+        if spec["solver"]["pev"] == "sampled":
+            import scipy.linalg as sla
+            chol = sla.cholesky(Gs, lower=True)
+        g_op = DenseInverseOperator(spd_inverse_and_logdet(Gs, "G*")[0], chol)
     a22_op = A22InverseOperator(P.ainv(), g_index)
-    h = SingleStepHInverse(P.ainv().tocsr(), g_index, g_op, a22_op, meta)
+    h = SingleStepHInverse(P.ainv().tocsr(), g_index, g_op, a22_op, meta, ped=P)
     # diag(H) is not computed on this path; reliabilities are refused by the spec rules
     return GeneticStructure("single_step", P.ids, h, np.full(P.n, np.nan), None, meta)
