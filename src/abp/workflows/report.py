@@ -72,6 +72,16 @@ def render_report(results: dict, manifest: dict) -> str:
                         "matrix; not valid at a boundary): "
                         + ", ".join(f"{k} = {_f(v, 4)}" for k, v in (r.get('se') or {}).items())
                         if r.get("se") else "Standard errors not reported (see status)."))
+            if r.get("genetic_correlations"):
+                tr_ = r["traits"]
+                L.append("")
+                L.append("Multi-trait REML (joint for all traits): genetic correlations "
+                         + ", ".join(f"{tr_[a]}-{tr_[b]} {_f(r['genetic_correlations'][a][b])}"
+                                     for a in range(len(tr_)) for b in range(a + 1, len(tr_)))
+                         + "; residual correlations "
+                         + ", ".join(f"{tr_[a]}-{tr_[b]} {_f(r['residual_correlations'][a][b])}"
+                                     for a in range(len(tr_)) for b in range(a + 1, len(tr_)))
+                         + ".")
             if r.get("boundary"):
                 L.append("")
                 L.append(f"Boundary: {', '.join(r['boundary'])} estimated at zero (boundary "

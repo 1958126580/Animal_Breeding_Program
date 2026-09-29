@@ -37,7 +37,11 @@ scenarios are scored on the contrast with the metafounder (``ebv_vs_base``,
 ratio for the absolute EBVs, whose PEV includes the unknown base level.
 
 Usage: python benchmarks/calibration_study.py [--replicates 50] [--workers 4]
-       [--out docs/validation/calibration_study.json]
+       [--design default|qtl_like_snp|no_blend|dense_markers|random_selection]
+       [--scenarios ...] [--out docs/validation/calibration_study.json]
+
+``--design`` changes one factor of the generator or of the genomic configuration
+(F6 factor study, see ``DESIGNS``); ``default`` reproduces the main study.
 """
 
 from __future__ import annotations
@@ -120,20 +124,47 @@ SCENARIOS = {
 }
 
 
+GMF_NOBLEND = ('[genomic]\nfrequency_source = "fixed_0.5"\ntuning = "none"'
+               '\nsingular_policy = "error"')
+
+# Designs of the F6 factor study: each changes one factor against the default generator.
+# "sim" goes to SheepSimConfig; "gmf" replaces the [genomic] block of metafounder scenarios.
+DESIGNS = {
+    "default": {"sim": {}, "gmf": None,
+                "what": "default generator (SNP p ~ U(0.05, 0.95), QTL p ~ U(0.02, 0.98), "
+                        "2,000 SNPs, rams selected on own weaning weight), 5% blend"},
+    "qtl_like_snp": {"sim": {"qtl_freq_range": (0.05, 0.95)}, "gmf": None,
+                     "what": "QTL base frequencies drawn like the SNPs (U(0.05, 0.95))"},
+    "no_blend": {"sim": {}, "gmf": GMF_NOBLEND,
+                 "what": "G05 used without the 5% A22 blend (singular_policy = error)"},
+    "dense_markers": {"sim": {"snp_per_chrom": 1000}, "gmf": None,
+                      "what": "10,000 SNPs instead of 2,000"},
+    "random_selection": {"sim": {"random_ram_selection": True}, "gmf": None,
+                         "what": "rams chosen at random (no selection)"},
+}
+DESIGN = "default"                   # set by main(); inherited by forked workers
+ACTIVE = list(SCENARIOS)             # scenarios run in this invocation
+
+
 def _read(p):
     with open(p, encoding="utf-8") as fh:
         return list(csv.DictReader(fh))
 
 
 def replicate(seed: int, work: Path) -> dict:
-    write_sheep_example(work / "sheep", seed=seed, force=True)
+    from abp.examples.sheep import SheepSimConfig
+    d = DESIGNS[DESIGN]
+    write_sheep_example(work / "sheep", seed=seed, force=True,
+                        cfg=SheepSimConfig(seed=seed, **d["sim"]))
     tbv = {r["id"]: float(r["tbv_wwt"]) for r in _read(work / "sheep" / "truth" / "tbv.csv")}
     ped = {r["id"]: r["birth_date"] for r in _read(work / "sheep" / "data" / "pedigree.csv")}
     last = max(d[:4] for d in ped.values())
     out = {"seed": seed}
     gamma = None
-    for name, kw in SCENARIOS.items():
-        kw = dict(kw)
+    for name in ACTIVE:
+        kw = dict(SCENARIOS[name])
+        if kw["mf"] and d["gmf"] is not None:
+            kw["genomic"] = d["gmf"]
         if kw["variances"] is None:
             kw["variances"] = MF_TRUE.format(sa=repr(4.0 / (1.0 - gamma / 2.0)))
         spec = work / f"{name}.toml"
@@ -178,12 +209,12 @@ def _run_seed(seed: int) -> dict:
 def _print(r: dict) -> None:
     print(f"seed {r['seed']:3d}: " + "  ".join(
         f"{k}: slope {r[k]['slope']:.3f} bias {r[k]['bias']:+.3f} cov {r[k]['coverage95']:.3f}"
-        for k in SCENARIOS), flush=True)
+        for k in ACTIVE), flush=True)
 
 
 def summarize(reps: list[dict]) -> dict:
     summary = {}
-    for name in SCENARIOS:
+    for name in ACTIVE:
         s = {}
         for key in ("slope", "bias", "realized_accuracy", "model_accuracy", "pev_ratio",
                     "coverage95", "sigma_a2", "gamma", "sigma_a2_conventional",
@@ -201,8 +232,15 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--replicates", type=int, default=50)
     ap.add_argument("--workers", type=int, default=1)
+    ap.add_argument("--design", choices=sorted(DESIGNS), default="default")
+    ap.add_argument("--scenarios", nargs="+", choices=list(SCENARIOS), default=list(SCENARIOS))
     ap.add_argument("--out", default=str(ROOT / "docs" / "validation" / "calibration_study.json"))
     args = ap.parse_args()
+    global DESIGN, ACTIVE
+    DESIGN = args.design
+    ACTIVE = [s for s in SCENARIOS if s in args.scenarios]       # keep dependency order
+    if "single_step_mf_true" in ACTIVE and "single_step_mf_reml" not in ACTIVE:
+        ap.error("single_step_mf_true needs single_step_mf_reml (it supplies gamma)")
     t0 = time.time()
     seeds = list(range(1, args.replicates + 1))
     if args.workers > 1:
@@ -221,7 +259,9 @@ def main():
     doc = {"study": "EBV calibration for last-season candidates, weaning weight",
            "workers": args.workers,
            "replicates": args.replicates, "seeds": f"1..{args.replicates}",
-           "generator": "abp.examples.sheep default configuration",
+           "design": args.design, "design_description": DESIGNS[args.design]["what"],
+           "generator": "abp.examples.sheep, SheepSimConfig(**" + repr(
+               DESIGNS[args.design]["sim"]) + ")",
            "true_variances": {"animal": 4.0, "residual": 12.25},
            "wall_seconds": time.time() - t0, "summary": summary, "replicate_results": reps}
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)

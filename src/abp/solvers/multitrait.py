@@ -74,9 +74,21 @@ class MTResult:
     n_obs: int
 
 
-def build_and_solve(data: MTData, k_inv, k_diag: np.ndarray, G0: np.ndarray, R0: np.ndarray,
-                    method: str = "auto", compute_pev: bool = True, tol: float = 1e-10,
-                    max_iter: int = 10000, memory_budget_bytes: int = 4 * 2**30) -> MTResult:
+@dataclass
+class MTSystem:
+    """Assembled multi-trait MME plus the bookkeeping REML needs."""
+
+    system: object                    # abp.solvers.mme.MixedModelSystem
+    rec_idx: np.ndarray               # record of each observation (record-major)
+    trait_idx: np.ndarray             # trait of each observation
+    p_off: np.ndarray                 # fixed-effect column offsets per trait
+    q: int
+    t: int
+    n_rec: int
+
+
+def assemble_multitrait(data: MTData, k_inv, G0: np.ndarray, R0: np.ndarray) -> MTSystem:
+    """Build the unscaled multi-trait MME for given ``G0`` and ``R0`` (no solve)."""
     Y = np.asarray(data.Y, dtype=np.float64)
     n_rec, t = Y.shape
     q = k_inv.shape[0]
@@ -131,6 +143,15 @@ def build_and_solve(data: MTData, k_inv, k_diag: np.ndarray, G0: np.ndarray, R0:
     kin = sp.csr_matrix(k_inv) if not sp.issparse(k_inv) else k_inv.tocsr()
     precision = sp.kron(kin, sp.csr_matrix(g0_inv), format="csr")
     system = assemble(y, X, [RandomEffect("animal", Z, precision, list(range(q * t)))], rinv)
+    return MTSystem(system, rec_idx, trait_idx, p_off, q, t, n_rec)
+
+
+def build_and_solve(data: MTData, k_inv, k_diag: np.ndarray, G0: np.ndarray, R0: np.ndarray,
+                    method: str = "auto", compute_pev: bool = True, tol: float = 1e-10,
+                    max_iter: int = 10000, memory_budget_bytes: int = 4 * 2**30) -> MTResult:
+    mts = assemble_multitrait(data, k_inv, G0, R0)
+    system, p_off, q, t, n_obs = mts.system, mts.p_off, mts.q, mts.t, mts.rec_idx.size
+    G0 = check_covariance(G0, "genetic covariance matrix G0")
     res = solve_system(system, method=method, need_inverse=compute_pev, tol=tol,
                        max_iter=max_iter, memory_budget_bytes=memory_budget_bytes)
     a0, _ = system.offsets["animal"]

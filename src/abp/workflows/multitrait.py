@@ -46,10 +46,7 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
     m = d["model"]
     traits = list(m["traits"])
     t = len(traits)
-    vals = d["variances"]["values"]
     add_name = next(r["name"] for r in m["random"] if r["kind"] == "additive")
-    G0 = np.array(vals[add_name], dtype=np.float64)
-    R0 = np.array(vals["residual"], dtype=np.float64)
     Y = np.column_stack([records.traits[tr] for tr in traits])
     keep = ~np.all(np.isnan(Y), axis=1)
     rec = np.flatnonzero(keep)
@@ -75,8 +72,24 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
         X_blocks.append(fd.X)
         fixed_labels.append(fd)
     animal_col = np.array([structure.index[a] for a in animals], dtype=np.int64)
+    mt_data = MTData(Y, X_blocks, animal_col)
+    reml_info = None
+    if d["variances"]["mode"] == "reml":
+        from ..solvers.multitrait_reml import mt_reml_fit
+        fit = mt_reml_fit(mt_data, structure.k_inv, structure.logdet_k, d["reml"],
+                          memory_budget_bytes=budget)
+        G0, R0 = fit.G0, fit.R0
+        reml_info = fit.to_dict(traits)
+        log.info("multi-trait REML %s after %d iterations (%s); logL %.6f", fit.status,
+                 fit.iterations, fit.trace_method, fit.loglik)
+        variance_source = "reml (multi-trait AI-REML with EM fallback)"
+    else:
+        vals = d["variances"]["values"]
+        G0 = np.array(vals[add_name], dtype=np.float64)
+        R0 = np.array(vals["residual"], dtype=np.float64)
+        variance_source = "known (multi-trait covariance matrices)"
     sol = d["solver"]
-    res = build_and_solve(MTData(Y, X_blocks, animal_col), structure.k_inv, structure.k_diag,
+    res = build_and_solve(mt_data, structure.k_inv, structure.k_diag,
                           G0, R0, method=sol["method"], compute_pev=(sol["pev"] == "exact"),
                           tol=sol["tol"], max_iter=sol["max_iter"], memory_budget_bytes=budget)
     s = res.solve
@@ -130,10 +143,10 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
             "unit": records.units.get(tr, ""),
             "n_records": int((~np.isnan(Y[:, j])).sum()),
             "n_animals_evaluated": len(structure.labels),
-            "variance_source": "known (multi-trait covariance matrices)",
+            "variance_source": variance_source,
             "variance_components": {add_name: float(G0[j, j]), "residual": float(R0[j, j])},
             "heritability": float(G0[j, j] / (G0[j, j] + R0[j, j])),
-            "reml": None,
+            "reml": reml_info,
             "genetic_term": add_name,
             "solver": {"method": s.method, "selection_reason": s.selection_reason,
                        "n_equations": int(s.solution.size), "relative_residual": s.rel_residual,
@@ -157,6 +170,7 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
         "traits": traits, "stacking_order": STACKING_ORDER, "n_observations": res.n_obs,
         "genetic_covariance": G0.tolist(), "genetic_correlation": _corr(G0),
         "residual_covariance": R0.tolist(), "residual_correlation": _corr(R0),
+        "variance_source": variance_source, "reml": reml_info,
         "solver": out[traits[0]]["solver"]}
     state = EvalState(structure.labels, traits, res.ebv, res.pev_blocks, G0, structure.k_diag,
                       True, sex)

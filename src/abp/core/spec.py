@@ -479,13 +479,13 @@ def validate_spec_dict(raw: dict) -> dict:
             if t > 1 and not (isinstance(val, list) and len(val) == t):
                 raise _err(f"variances.values.{k}", f"multi-trait models need a {t}x{t} matrix")
     elif v["mode"] == "reml":
-        if t > 1:
-            raise _err("variances.mode", "multi-trait REML is not implemented in this version; "
-                                         "use mode = 'known'")
+        if t > 1 and d["reml"]["start"] is not None:
+            raise _err("reml.start", "multi-trait REML starts from a data-based heuristic; "
+                                     "reml.start is for single-trait models")
         if v["values"] is not None:
             raise _err("variances.values", "not used with mode = 'reml' (use reml.start)")
         start = d["reml"]["start"]
-        if start is not None and set(start) != expected:
+        if t == 1 and start is not None and set(start) != expected:
             raise _err("reml.start", f"must give exactly {sorted(expected)}")
     elif v["values"] is not None:
         raise _err("variances.values", "not used with mode = 'bayes' (variances are sampled)")

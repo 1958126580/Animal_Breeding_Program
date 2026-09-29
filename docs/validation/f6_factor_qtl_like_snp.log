@@ -1,0 +1,54 @@
+seed   1: pedigree_true: slope 0.921 bias +0.411 cov 0.970  single_step_mf_reml: slope 0.854 bias +0.333 cov 0.977  single_step_mf_true: slope 0.912 bias +0.499 cov 0.972
+seed   2: pedigree_true: slope 0.931 bias +0.440 cov 0.977  single_step_mf_reml: slope 0.997 bias +0.703 cov 0.948  single_step_mf_true: slope 0.929 bias +0.508 cov 0.968
+seed   3: pedigree_true: slope 1.051 bias +0.106 cov 0.979  single_step_mf_reml: slope 1.056 bias +0.345 cov 0.965  single_step_mf_true: slope 0.975 bias +0.149 cov 0.981
+seed   4: pedigree_true: slope 0.918 bias +0.590 cov 0.947  single_step_mf_reml: slope 0.895 bias +0.403 cov 0.960  single_step_mf_true: slope 0.917 bias +0.477 cov 0.950
+seed   5: pedigree_true: slope 0.816 bias +0.203 cov 0.942  single_step_mf_reml: slope 1.061 bias +0.838 cov 0.826  single_step_mf_true: slope 0.796 bias +0.287 cov 0.926
+seed   6: pedigree_true: slope 0.925 bias +0.012 cov 0.962  single_step_mf_reml: slope 0.738 bias -0.740 cov 0.969  single_step_mf_true: slope 0.890 bias -0.128 cov 0.962
+seed   7: pedigree_true: slope 0.862 bias -0.461 cov 0.928  single_step_mf_reml: slope 1.351 bias +0.034 cov 0.903  single_step_mf_true: slope 0.990 bias -0.473 cov 0.938
+seed   8: pedigree_true: slope 0.841 bias -0.225 cov 0.955  single_step_mf_reml: slope 0.736 bias -0.020 cov 0.950  single_step_mf_true: slope 0.695 bias -0.225 cov 0.939
+seed   9: pedigree_true: slope 1.293 bias +0.316 cov 0.927  single_step_mf_reml: slope 1.096 bias -0.003 cov 0.945  single_step_mf_true: slope 1.227 bias +0.342 cov 0.920
+seed  10: pedigree_true: slope 1.019 bias -0.414 cov 0.956  single_step_mf_reml: slope 1.020 bias -0.365 cov 0.946  single_step_mf_true: slope 0.999 bias -0.424 cov 0.956
+seed  11: pedigree_true: slope 1.059 bias +0.314 cov 0.965  single_step_mf_reml: slope 1.327 bias +0.943 cov 0.879  single_step_mf_true: slope 1.070 bias +0.402 cov 0.962
+seed  12: pedigree_true: slope 0.946 bias +0.358 cov 0.918  single_step_mf_reml: slope 0.846 bias -0.261 cov 0.945  single_step_mf_true: slope 0.977 bias +0.308 cov 0.911
+seed  13: pedigree_true: slope 0.661 bias +0.823 cov 0.913  single_step_mf_reml: slope 0.636 bias +0.876 cov 0.898  single_step_mf_true: slope 0.643 bias +0.950 cov 0.881
+seed  14: pedigree_true: slope 0.920 bias +0.298 cov 0.966  single_step_mf_reml: slope 0.927 bias +0.331 cov 0.960  single_step_mf_true: slope 0.917 bias +0.305 cov 0.968
+seed  15: pedigree_true: slope 1.169 bias +0.091 cov 0.938  single_step_mf_reml: slope 1.225 bias +0.323 cov 0.923  single_step_mf_true: slope 1.149 bias +0.160 cov 0.925
+seed  16: pedigree_true: slope 1.143 bias -0.145 cov 0.959  single_step_mf_reml: slope 1.205 bias +0.167 cov 0.955  single_step_mf_true: slope 1.170 bias +0.089 cov 0.965
+seed  17: pedigree_true: slope 0.889 bias +0.241 cov 0.962  single_step_mf_reml: slope 0.907 bias +0.287 cov 0.948  single_step_mf_true: slope 0.864 bias +0.171 cov 0.960
+seed  18: pedigree_true: slope 0.927 bias -0.073 cov 0.954  single_step_mf_reml: slope 0.956 bias +0.036 cov 0.952  single_step_mf_true: slope 0.921 bias -0.087 cov 0.949
+seed  19: pedigree_true: slope 0.997 bias -0.653 cov 0.948  single_step_mf_reml: slope 0.928 bias -0.782 cov 0.941  single_step_mf_true: slope 1.001 bias -0.512 cov 0.944
+seed  20: pedigree_true: slope 1.106 bias +0.110 cov 0.933  single_step_mf_reml: slope 1.137 bias +0.137 cov 0.933  single_step_mf_true: slope 1.086 bias +0.001 cov 0.931
+seed  21: pedigree_true: slope 1.219 bias -0.454 cov 0.926  single_step_mf_reml: slope 1.224 bias -0.459 cov 0.924  single_step_mf_true: slope 1.181 bias -0.548 cov 0.910
+seed  22: pedigree_true: slope 0.829 bias +0.387 cov 0.958  single_step_mf_reml: slope 0.743 bias +0.127 cov 0.977  single_step_mf_true: slope 0.824 bias +0.440 cov 0.956
+seed  23: pedigree_true: slope 0.891 bias -0.010 cov 0.972  single_step_mf_reml: slope 1.049 bias +0.576 cov 0.910  single_step_mf_true: slope 0.811 bias -0.010 cov 0.957
+seed  24: pedigree_true: slope 1.199 bias +1.044 cov 0.897  single_step_mf_reml: slope 1.190 bias +1.187 cov 0.856  single_step_mf_true: slope 1.181 bias +1.168 cov 0.856
+seed  25: pedigree_true: slope 1.001 bias +0.047 cov 0.967  single_step_mf_reml: slope 1.203 bias +0.609 cov 0.885  single_step_mf_true: slope 0.987 bias +0.062 cov 0.965
+seed  26: pedigree_true: slope 0.918 bias +0.357 cov 0.942  single_step_mf_reml: slope 1.052 bias +0.716 cov 0.883  single_step_mf_true: slope 0.925 bias +0.336 cov 0.936
+seed  27: pedigree_true: slope 0.950 bias +0.718 cov 0.942  single_step_mf_reml: slope 0.978 bias +0.986 cov 0.882  single_step_mf_true: slope 0.914 bias +0.787 cov 0.923
+seed  28: pedigree_true: slope 1.045 bias -0.075 cov 0.957  single_step_mf_reml: slope 1.023 bias -0.130 cov 0.948  single_step_mf_true: slope 0.982 bias -0.244 cov 0.960
+seed  29: pedigree_true: slope 1.021 bias +0.865 cov 0.921  single_step_mf_reml: slope 0.924 bias +0.537 cov 0.965  single_step_mf_true: slope 1.056 bias +0.979 cov 0.928
+seed  30: pedigree_true: slope 1.087 bias +0.995 cov 0.900  single_step_mf_reml: slope 1.187 bias +1.368 cov 0.808  single_step_mf_true: slope 1.061 bias +1.020 cov 0.890
+seed  31: pedigree_true: slope 1.039 bias +0.095 cov 0.981  single_step_mf_reml: slope 1.057 bias +0.478 cov 0.953  single_step_mf_true: slope 1.030 bias +0.407 cov 0.965
+seed  32: pedigree_true: slope 1.081 bias +0.159 cov 0.972  single_step_mf_reml: slope 0.969 bias -0.055 cov 0.979  single_step_mf_true: slope 1.047 bias +0.200 cov 0.970
+seed  33: pedigree_true: slope 0.938 bias -0.826 cov 0.946  single_step_mf_reml: slope 0.900 bias -0.637 cov 0.944  single_step_mf_true: slope 0.880 bias -0.692 cov 0.952
+seed  34: pedigree_true: slope 1.034 bias +0.522 cov 0.941  single_step_mf_reml: slope 1.008 bias +0.654 cov 0.919  single_step_mf_true: slope 0.953 bias +0.491 cov 0.936
+seed  35: pedigree_true: slope 0.910 bias -0.264 cov 0.956  single_step_mf_reml: slope 0.913 bias -0.204 cov 0.958  single_step_mf_true: slope 0.930 bias -0.160 cov 0.956
+seed  36: pedigree_true: slope 1.026 bias -0.160 cov 0.971  single_step_mf_reml: slope 1.084 bias +0.202 cov 0.943  single_step_mf_true: slope 0.921 bias -0.269 cov 0.964
+seed  37: pedigree_true: slope 0.870 bias -0.185 cov 0.979  single_step_mf_reml: slope 0.924 bias -0.050 cov 0.956  single_step_mf_true: slope 0.848 bias -0.276 cov 0.968
+seed  38: pedigree_true: slope 1.201 bias +0.392 cov 0.930  single_step_mf_reml: slope 1.203 bias +0.457 cov 0.925  single_step_mf_true: slope 1.179 bias +0.407 cov 0.925
+seed  39: pedigree_true: slope 1.018 bias -0.179 cov 0.964  single_step_mf_reml: slope 1.292 bias +0.564 cov 0.869  single_step_mf_true: slope 0.958 bias -0.090 cov 0.956
+seed  40: pedigree_true: slope 0.921 bias -0.049 cov 0.927  single_step_mf_reml: slope 0.856 bias +0.167 cov 0.892  single_step_mf_true: slope 0.808 bias +0.004 cov 0.911
+seed  41: pedigree_true: slope 0.863 bias -0.009 cov 0.963  single_step_mf_reml: slope 0.954 bias +0.123 cov 0.949  single_step_mf_true: slope 0.887 bias -0.047 cov 0.960
+seed  42: pedigree_true: slope 0.974 bias +0.174 cov 0.978  single_step_mf_reml: slope 1.104 bias +0.661 cov 0.916  single_step_mf_true: slope 0.945 bias +0.284 cov 0.965
+seed  43: pedigree_true: slope 0.846 bias -0.437 cov 0.950  single_step_mf_reml: slope 0.894 bias -0.222 cov 0.955  single_step_mf_true: slope 0.829 bias -0.416 cov 0.948
+seed  44: pedigree_true: slope 1.126 bias -0.365 cov 0.951  single_step_mf_reml: slope 1.149 bias -0.223 cov 0.941  single_step_mf_true: slope 1.101 bias -0.326 cov 0.947
+seed  45: pedigree_true: slope 1.125 bias +0.162 cov 0.939  single_step_mf_reml: slope 1.312 bias +0.577 cov 0.888  single_step_mf_true: slope 1.103 bias +0.249 cov 0.930
+seed  46: pedigree_true: slope 0.759 bias -0.624 cov 0.942  single_step_mf_reml: slope 0.851 bias -0.500 cov 0.951  single_step_mf_true: slope 0.814 bias -0.609 cov 0.948
+seed  47: pedigree_true: slope 1.192 bias -0.501 cov 0.925  single_step_mf_reml: slope 1.143 bias -0.481 cov 0.925  single_step_mf_true: slope 1.109 bias -0.553 cov 0.932
+seed  48: pedigree_true: slope 0.737 bias -1.190 cov 0.804  single_step_mf_reml: slope 0.570 bias -1.419 cov 0.732  single_step_mf_true: slope 0.597 bias -1.234 cov 0.752
+seed  49: pedigree_true: slope 0.955 bias +0.428 cov 0.968  single_step_mf_reml: slope 1.078 bias +0.800 cov 0.921  single_step_mf_true: slope 0.972 bias +0.512 cov 0.961
+seed  50: pedigree_true: slope 0.998 bias +0.085 cov 0.968  single_step_mf_reml: slope 0.870 bias -0.226 cov 0.970  single_step_mf_true: slope 0.944 bias +0.054 cov 0.962
+pedigree_true {'slope': '0.983 +- 0.019', 'bias': '0.069 +- 0.065', 'realized_accuracy': '0.599 +- 0.009', 'model_accuracy': '0.622 +- 0.002', 'pev_ratio': '1.029 +- 0.034', 'coverage95': '0.947 +- 0.004', 'sigma_a2': '4.000 +- 0.000'}
+single_step_mf_reml {'slope': '1.012 +- 0.025', 'bias': '0.195 +- 0.078', 'realized_accuracy': '0.601 +- 0.010', 'model_accuracy': '0.630 +- 0.005', 'pev_ratio': '1.218 +- 0.052', 'coverage95': '0.925 +- 0.007', 'sigma_a2': '5.133 +- 0.159', 'gamma': '0.539 +- 0.001', 'sigma_a2_conventional': '3.748 +- 0.115', 'pev_ratio_absolute': '0.573 +- 0.026'}
+single_step_mf_true {'slope': '0.958 +- 0.019', 'bias': '0.095 +- 0.068', 'realized_accuracy': '0.602 +- 0.010', 'model_accuracy': '0.644 +- 0.001', 'pev_ratio': '1.086 +- 0.040', 'coverage95': '0.940 +- 0.005', 'sigma_a2': '5.476 +- 0.005', 'gamma': '0.539 +- 0.001', 'sigma_a2_conventional': '4.000 +- 0.000', 'pev_ratio_absolute': '0.510 +- 0.018'}
+wrote docs/validation/f6_factor_qtl_like_snp.json
