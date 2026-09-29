@@ -1,0 +1,58 @@
+# Example 14: number of lambs born (1, 2 or 3 per lambing) analysed with a
+# threshold (ordered probit) repeatability model instead of the linear model of
+# example 03.
+#
+# The model works on the liability scale: residual variance fixed at 1,
+# thresholds estimated (the first is 0 because the model has an intercept).
+# Liability variances must be known.  Here they are the generator's values
+# rescaled so that the residual SD is 1 (genetic SD 0.30, permanent
+# environment SD 0.30, residual SD 0.90 -> 0.09/0.81 = 0.1111 each); in real
+# use take them from a published or separately estimated source and record it.
+schema_version = "1"
+
+[project]
+name = "sheep_nlb_threshold"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, ewes lambing 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "founders born 2018-2019 (unknown parents): unrelated, non-inbred, mean 0"
+applicability = "demonstration only; liability-scale EBVs"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "../sheep_data/data/lambing.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[data.phenotype_columns]
+record_id = "record_id"
+
+[[traits]]
+name = "nlb"
+unit = "lambs"
+min = 1.0
+max = 3.0
+type = "categorical"
+description = "number of lambs born per lambing (ordered categories)"
+
+[model]
+traits = ["nlb"]
+fixed = [
+  { column = "flock", type = "factor" },
+  { column = "year", type = "factor" },
+  { column = "parity", type = "factor" },
+]
+random = [
+  { name = "animal", kind = "additive", relationship = "pedigree" },
+  { name = "pe", kind = "iid" },
+]
+
+[variances]
+mode = "known"
+values = { animal = 0.1111, pe = 0.1111, residual = 1.0 }

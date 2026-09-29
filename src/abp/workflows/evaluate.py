@@ -410,6 +410,10 @@ def _limitations(d: dict, structure: GeneticStructure) -> list[str]:
     else:
         lim.append("No unknown-parent groups or metafounders: all unknown parents are treated "
                    "as unrelated, non-inbred base animals.")
+    if any(t["type"] == "categorical" and t["name"] in d["model"]["traits"] for t in d["traits"]):
+        lim.append("Categorical traits: EBVs are on the liability scale of a threshold (probit) "
+                   "model with residual variance 1 and known liability variances; PEV and "
+                   "reliabilities are Laplace approximations at the posterior mode.")
     if d["project"]["synthetic_data"]:
         lim.insert(0, "SYNTHETIC DATA: results illustrate the method only and carry no "
                       "information about any real population.")
@@ -425,6 +429,8 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
                       stage: OutputStage, manifest: dict, budget: int, resume: bool) -> dict:
     d = spec.data
     model = build_single_trait(records, trait, d, structure)
+    if next(t["type"] for t in d["traits"] if t["name"] == trait) == "categorical":
+        return _run_threshold_trait(spec, model, structure, ped_data, stage, manifest, budget)
     log.info("%s: %d records, %d fixed columns kept (%d constrained), random terms %s",
              trait, model.y.size, model.fixed.rank, len(model.fixed.constrained_labels),
              [t.name for t in model.terms])
@@ -534,6 +540,82 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
                           np.array([[vc[model.genetic_term]]]), contrast["k_factor"], False, sex)
         return out, state
     state = EvalState(tuple(gen.labels), [trait], gen.solution[:, None], pev_idx,
+                      np.array([[vc[model.genetic_term]]]), k_diag, False, sex)
+    return out, state
+
+
+def _run_threshold_trait(spec: AnalysisSpec, model: SingleTraitModel,
+                         structure: GeneticStructure, ped_data: PedigreeData | None,
+                         stage: OutputStage, manifest: dict, budget: int) -> tuple[dict, Any]:
+    """Ordered categorical trait: threshold (probit) model on the liability scale."""
+    from types import SimpleNamespace
+
+    from ..solvers.threshold import threshold_blup
+    from .multitrait import EvalState
+    d = spec.data
+    trait = model.trait
+    vc = {k: float(v) for k, v in d["variances"]["values"].items()}
+    sol = d["solver"]
+    res = threshold_blup(model.y, model.fixed.X, model.terms, vc,
+                         intercept=d["model"]["intercept"], compute_pev=(sol["pev"] == "exact"),
+                         memory_budget_bytes=budget)
+    log.info("%s: threshold model, %d categories, converged in %d Newton iterations "
+             "(largest last step %.1e); thresholds %s", trait, res.categories.size,
+             res.iterations, res.max_step, np.round(res.thresholds, 4).tolist())
+    files = _write_single_trait_outputs(stage, model, SimpleNamespace(
+        terms=res.terms, fixed_solution=res.fixed_solution), ped_data)
+    name = f"thresholds_{trait}.csv"
+    write_csv(stage.path(name), ["threshold", "between_category", "and_category", "value", "status"],
+              [[k + 1, float(res.categories[k]), float(res.categories[k + 1]), float(tv),
+                "fixed_at_zero_for_identifiability" if (k == 0 and d["model"]["intercept"])
+                else "estimated"] for k, tv in enumerate(res.thresholds)])
+    files["thresholds"] = name
+    gen = res.terms[model.genetic_term]
+    order = np.argsort(-gen.solution, kind="stable")[:d["output"]["top_n"]]
+    sex = ped_data.sex if ped_data else {}
+    total = sum(vc.values())
+    out = {
+        "unit": "liability (residual SD = 1)",
+        "n_records": int(model.y.size),
+        "n_animals_evaluated": len(gen.labels),
+        "variance_source": "known (liability scale; residual variance fixed at 1)",
+        "variance_components": vc,
+        "heritability": vc[model.genetic_term] / total,
+        "reml": None,
+        "genetic_term": model.genetic_term,
+        "solver": {"method": f"threshold model, Newton-Raphson ({res.solver})",
+                   "selection_reason": "categorical trait", "n_equations": res.n_equations,
+                   "relative_residual": None, "iterations": res.iterations,
+                   "wall_seconds": None, "pev": ("laplace_approximation" if sol["pev"] == "exact"
+                                                 else "none")},
+        "fixed_effects": _fixed_rows(model, SimpleNamespace(fixed_solution=res.fixed_solution)),
+        "n_fixed_constrained": len(model.fixed.constrained_labels),
+        "upg": None,
+        "metafounders": None,
+        "threshold_model": {"categories": res.categories.tolist(),
+                            "thresholds": res.thresholds.tolist(),
+                            "log_posterior": res.log_posterior, "file": name,
+                            "note": "EBVs, PEV and reliabilities are on the liability scale; "
+                                    "PEV is a Laplace approximation (inverse Hessian at the "
+                                    "posterior mode)"},
+        "top": [{"rank": r + 1, "animal": gen.labels[k], "sex": sex.get(gen.labels[k], "U"),
+                 "ebv": float(gen.solution[k]),
+                 "reliability": None if gen.reliability is None else float(gen.reliability[k]),
+                 "sep": None if gen.pev is None else float(np.sqrt(gen.pev[k])),
+                 "n_records": model.n_records_per_animal.get(gen.labels[k], 0)}
+                for r, k in enumerate(order)],
+        "reliability_summary": None if gen.reliability is None else {
+            "mean": float(gen.reliability.mean()), "min": float(gen.reliability.min()),
+            "max": float(gen.reliability.max()), "n_rounding_clamped": gen.n_reliability_clamped},
+        "ebv_summary": {"mean": float(gen.solution.mean()), "sd": float(gen.solution.std()),
+                        "min": float(gen.solution.min()), "max": float(gen.solution.max())},
+        "files": files,
+    }
+    manifest["diagnostics"][trait] = {"solver": out["solver"],
+                                      "threshold_model": out["threshold_model"]}
+    k_diag = np.asarray(structure.k_diag)[:len(gen.labels)]
+    state = EvalState(tuple(gen.labels), [trait], gen.solution[:, None],
+                      None if gen.pev is None else gen.pev[:, None, None],
                       np.array([[vc[model.genetic_term]]]), k_diag, False, sex)
     return out, state
 

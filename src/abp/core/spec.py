@@ -139,6 +139,9 @@ SCHEMA = Section({
         "min": Field("float", doc="Smallest valid value (inclusive)."),
         "max": Field("float", doc="Largest valid value (inclusive)."),
         "description": Field("str", default=""),
+        "type": Field("str", default="continuous", choices=("continuous", "categorical"),
+                      doc="'categorical': ordered categories (integer codes) analysed with a "
+                          "threshold (probit) model on the liability scale."),
     }), required=True, min_items=1),
     "model": Section({
         "traits": Field("str_list", required=True, doc="Traits analysed jointly (1 = single-trait)."),
@@ -546,6 +549,22 @@ def validate_spec_dict(raw: dict) -> dict:
                                "unknown-parent groups is not implemented; use random groups")
         if u["prefix"] in d["data"]["unknown_parent_values"]:
             raise _err("upg.prefix", "must differ from every data.unknown_parent_values code")
+    cat = [tr["name"] for tr in d["traits"] if tr["type"] == "categorical"
+           and tr["name"] in m["traits"]]
+    if cat:
+        if len(m["traits"]) > 1:
+            raise ABPError("UNSUPPORTED_COMBINATION", "categorical (threshold) traits are "
+                           "implemented for single-trait models only in this version")
+        if v["mode"] != "known":
+            raise _err("variances.mode", "the threshold model needs known variances on the "
+                       "liability scale (mode = 'known')")
+        if abs(float(v["values"]["residual"]) - 1.0) > 1e-12:
+            raise _err("variances.values.residual", "the threshold model fixes the residual "
+                       "variance of the liability at 1; give the other variances on that scale")
+        for sec in ("upg", "metafounders", "validation"):
+            if raw.get(sec) is not None:
+                raise ABPError("UNSUPPORTED_COMBINATION", f"categorical (threshold) traits "
+                               f"cannot be combined with [{sec}] in this version")
     if raw.get("metafounders") is None:
         d["metafounders"] = None
     else:

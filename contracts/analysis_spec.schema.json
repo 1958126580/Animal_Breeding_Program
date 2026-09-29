@@ -208,6 +208,15 @@
           "description": {
             "type": "string",
             "default": ""
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "continuous",
+              "categorical"
+            ],
+            "default": "continuous",
+            "description": "'categorical': ordered categories (integer codes) analysed with a threshold (probit) model on the liability scale."
           }
         },
         "required": [

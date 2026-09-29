@@ -139,6 +139,13 @@ def render_report(results: dict, manifest: dict) -> str:
                  "individual fixed-effect solutions are not estimable functions and should not "
                  "be interpreted on their own).")
         L.append("")
+        if t.get("threshold_model"):
+            th = t["threshold_model"]
+            L.append(f"Categorical trait analysed with a threshold (probit) model: categories "
+                     f"{', '.join(_f(c, 4) for c in th['categories'])}, thresholds "
+                     f"{', '.join(_f(v, 4) for v in th['thresholds'])} (`{th['file']}`). "
+                     + th["note"] + ".")
+            L.append("")
         if t.get("metafounders"):
             mfi = t["metafounders"]
             L.append(f"Genetic base: metafounders {', '.join(mfi['metafounders'])} "
