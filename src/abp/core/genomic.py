@@ -42,13 +42,24 @@ from ..errors import ABPError
 from .pedigree import Pedigree
 
 
+COLUMN_BLOCK = 4096     #: markers processed at a time (bounds float64 temporaries)
+
+
 def allele_frequencies(M: np.ndarray, missing: np.ndarray | None = None) -> np.ndarray:
-    """Counted-allele frequency per marker from non-missing dosages."""
-    if missing is None:
-        return M.mean(axis=0) / 2.0
-    obs = ~missing
-    n = obs.sum(axis=0)
-    s = np.where(obs, M, 0.0).sum(axis=0)
+    """Counted-allele frequency per marker from non-missing dosages (``M`` may be float or
+    ``int8``; computed in column blocks so no full float copy is made)."""
+    m = M.shape[1]
+    s = np.zeros(m)
+    n = np.zeros(m)
+    for j0 in range(0, m, COLUMN_BLOCK):
+        Mb = M[:, j0:j0 + COLUMN_BLOCK]
+        if missing is None:
+            s[j0:j0 + Mb.shape[1]] = Mb.sum(axis=0, dtype=np.float64)
+            n[j0:j0 + Mb.shape[1]] = Mb.shape[0]
+        else:
+            obs = ~missing[:, j0:j0 + COLUMN_BLOCK]
+            s[j0:j0 + Mb.shape[1]] = np.where(obs, Mb, 0).sum(axis=0, dtype=np.float64)
+            n[j0:j0 + Mb.shape[1]] = obs.sum(axis=0)
     with np.errstate(invalid="ignore", divide="ignore"):
         p = s / (2.0 * n)
     return np.where(n > 0, p, np.nan)
@@ -81,8 +92,13 @@ def vanraden_g(M: np.ndarray, p: np.ndarray, missing: np.ndarray | None = None) 
     if np.any(~np.isfinite(p)) or np.any((p < 0) | (p > 1)):
         raise ABPError("GENOTYPE_ALLELE_MISMATCH", "allele frequencies must be finite and in [0, 1]")
     d = scaling_d(p)
-    W = centered(M, p, missing)
-    G = (W @ W.T) / d
+    n = M.shape[0]
+    G = np.zeros((n, n))
+    for j0 in range(0, M.shape[1], COLUMN_BLOCK):       # W = M - 2p, one block of markers
+        cols = slice(j0, j0 + COLUMN_BLOCK)
+        Wb = centered(M[:, cols], p[cols], None if missing is None else missing[:, cols])
+        G += Wb @ Wb.T
+    G /= d
     return 0.5 * (G + G.T), d
 
 

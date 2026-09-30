@@ -222,6 +222,10 @@ SCHEMA = Section({
                                    "Core animals are drawn at random among the genotyped with "
                                    "apy_seed; the list is written to apy_core.csv."),
         "apy_seed": Field("int", default=20260925),
+        "genotype_storage": Field("str", default="float64", choices=("float64", "int8"),
+                                  doc="'int8': dosages held as 1-byte integers (-1 = missing) "
+                                      "instead of 8-byte floats; integer dosages only (PLINK "
+                                      "input, or dosage files without imputed values)."),
         "single_step_mode": Field("str", default="explicit", choices=("explicit", "matrix_free"),
                                   doc="'matrix_free': H^-1 is applied as an operator inside PCG "
                                       "(A22^-1 from sparse blocks of A^-1, G^-1 dense or APY); "

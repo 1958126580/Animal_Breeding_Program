@@ -57,6 +57,23 @@ class GenotypeData:
     sha256: dict[str, str]
 
 
+def to_int8(g: GenotypeData) -> GenotypeData:
+    """Compact storage: ``int8`` dosages with -1 for missing calls (1 byte instead of 8).
+    Refused when fractional (imputed) dosages are present - they cannot be stored exactly."""
+    from ..errors import ABPError
+    M = g.dosage
+    if M.dtype == np.int8:
+        return g
+    frac = (M != np.round(M)) & ~g.missing
+    if np.any(frac):
+        raise ABPError("UNSUPPORTED_COMBINATION", f"{int(frac.sum())} fractional (imputed) "
+                       "dosages cannot be stored as int8; use genomic.genotype_storage = "
+                       "'float64'")
+    C = np.where(g.missing, -1, M).astype(np.int8)
+    return GenotypeData(g.ids, g.markers, C, g.missing, g.assembly, g.counted_allele, g.qc,
+                        g.sha256)
+
+
 def load_genotypes(geno: Table, mapt: Table, missing_tokens: set[str]) -> GenotypeData:
     qc = QCReport("genotypes")
     for c in MAP_COLUMNS:

@@ -15,6 +15,10 @@ are simulated by gene dropping ``f = T D^{1/2} z``, ``u = f lambda'`` (exactly
                   coverage of nominal 95% intervals per trait;
 * ``rank1_true``  the same BLUP with the true lambda and R0 (reference).
 
+Round 7: every replicate also records the rank chosen by AIC (from the two fits
+above, ``n_parameters`` 6 and 5), and ``--g0 full`` simulates a full-rank G0
+(genetic correlation 0.595) to measure how often AIC wrongly reduces the rank.
+
 Means +- Monte-Carlo SE over replicates.  Truth is used only for scoring.
 
 Usage: python benchmarks/rr_calibration_study.py [--replicates 100] [--workers 4]
@@ -48,6 +52,8 @@ LAM = np.array([[1.4], [0.6]])
 G0 = LAM @ LAM.T
 R0 = np.array([[3.0, 0.9], [0.9, 2.0]])
 N_ANIMALS = 1000
+G0_FULL = np.array([[1.96, 0.5], [0.5, 0.36]])
+G0_MODE = "rank1"                     # set by main(); inherited by forked workers
 
 
 def simulate(seed: int, n: int):
@@ -65,9 +71,14 @@ def simulate(seed: int, n: int):
             sires.append(ids[rng.choice(np.flatnonzero(male[:i]))])
             dams.append(ids[rng.choice(np.flatnonzero(~male[:i]))])
     ped = Pedigree.from_parent_ids(ids, sires, dams)
-    f = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d()) * rng.standard_normal(n),
-                           lower=True, unit_diagonal=True)
-    U = f[:, None] * LAM[:, 0][None, :]                     # pedigree order, n x 2
+    if G0_MODE == "rank1":
+        f = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())
+                               * rng.standard_normal(n), lower=True, unit_diagonal=True)
+        U = f[:, None] * LAM[:, 0][None, :]                 # pedigree order, n x 2
+    else:
+        F = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())[:, None]
+                               * rng.standard_normal((n, 2)), lower=True, unit_diagonal=True)
+        U = F @ np.linalg.cholesky(G0_FULL).T
     E = rng.standard_normal((n, 2)) @ np.linalg.cholesky(R0).T
     Y = 10.0 + U + E
     Y[rng.random(n) < 0.3, 1] = np.nan
@@ -94,7 +105,7 @@ def replicate(seed: int) -> dict:
     out = {"seed": seed}
     try:
         fr = mt_reml_fit(data, ped.ainv(), ped.logdet_a(), cfg)
-        out["full_rank"] = {"status": "converged", "G0": fr.G0.tolist(),
+        out["full_rank"] = {"status": "converged", "G0": fr.G0.tolist(), "loglik": fr.loglik,
                             "rG": float(fr.G0[0, 1] / np.sqrt(fr.G0[0, 0] * fr.G0[1, 1]))}
     except ABPError as exc:
         out["full_rank"] = {"status": exc.code}
@@ -103,11 +114,21 @@ def replicate(seed: int) -> dict:
         res = build_and_solve(data, ped.ainv(), kd, None, rr.R0, method="dense",
                               loadings=rr.loadings)
         out["rank1_reml"] = {"status": "converged", "G0": rr.G0.tolist(), "R0": rr.R0.tolist(),
+                             "loglik": rr.loglik,
                              "evaluations": rr.evaluations, **_scores(res, U)}
     except ABPError as exc:
         out["rank1_reml"] = {"status": exc.code}
-    res_t = build_and_solve(data, ped.ainv(), kd, None, R0, method="dense", loadings=LAM)
-    out["rank1_true"] = _scores(res_t, U)
+    aic = {}
+    if out["full_rank"]["status"] == "converged":
+        aic[2] = -2 * out["full_rank"]["loglik"] + 2 * 6
+    if out["rank1_reml"]["status"] == "converged":
+        aic[1] = -2 * out["rank1_reml"]["loglik"] + 2 * 5
+    out["aic_choice"] = min(aic, key=aic.get) if aic else None
+    if G0_MODE == "rank1":
+        res_t = build_and_solve(data, ped.ainv(), kd, None, R0, method="dense", loadings=LAM)
+    else:
+        res_t = build_and_solve(data, ped.ainv(), kd, G0_FULL, R0, method="dense")
+    out["rank1_true" if G0_MODE == "rank1" else "true_parameters"] = _scores(res_t, U)
     return out
 
 
@@ -118,14 +139,16 @@ def _ms(v):
 
 
 def main():
-    global N_ANIMALS
+    global N_ANIMALS, G0_MODE
     ap = argparse.ArgumentParser()
     ap.add_argument("--replicates", type=int, default=100)
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--animals", type=int, default=1000)
+    ap.add_argument("--g0", choices=("rank1", "full"), default="rank1")
     ap.add_argument("--out", default=str(ROOT / "docs" / "validation" / "rr_calibration_study.json"))
     a = ap.parse_args()
     N_ANIMALS = a.animals
+    G0_MODE = a.g0
     t0 = time.time()
     seeds = list(range(1, a.replicates + 1))
     if a.workers > 1:
@@ -137,19 +160,25 @@ def main():
     for r in reps:
         print(r["seed"], r["full_rank"]["status"], r["rank1_reml"]["status"], flush=True)
     ok = [r for r in reps if r["rank1_reml"]["status"] == "converged"]
+    choice = {}
+    for r in reps:
+        choice[str(r["aic_choice"])] = choice.get(str(r["aic_choice"]), 0) + 1
     Gs = np.array([r["rank1_reml"]["G0"] for r in ok])
     Rs = np.array([r["rank1_reml"]["R0"] for r in ok])
     fr_status = {}
     for r in reps:
         fr_status[r["full_rank"]["status"]] = fr_status.get(r["full_rank"]["status"], 0) + 1
-    summary = {"full_rank_status_counts": fr_status,
+    summary = {"g0": G0_MODE, "aic_choice_counts": choice,
+               "full_rank_status_counts": fr_status,
                "rank1_converged": len(ok),
-               "rank1_G0": {f"G0[{i},{j}]": {**_ms(Gs[:, i, j]), "true": float(G0[i, j])}
+               "rank1_G0": {f"G0[{i},{j}]": {**_ms(Gs[:, i, j]), "true": float(
+                   (G0 if G0_MODE == "rank1" else G0_FULL)[i, j])}
                             for i in range(2) for j in range(i, 2)},
                "rank1_R0": {f"R0[{i},{j}]": {**_ms(Rs[:, i, j]), "true": float(R0[i, j])}
                             for i in range(2) for j in range(i, 2)}}
+    ref = "rank1_true" if G0_MODE == "rank1" else "true_parameters"
     for sc, rows in (("rank1_reml", [r["rank1_reml"] for r in ok]),
-                     ("rank1_true", [r["rank1_true"] for r in reps])):
+                     (ref, [r[ref] for r in reps])):
         summary[sc] = {tr: {k: _ms([row[tr][k] for row in rows])
                             for k in ("pev_ratio", "coverage95", "realized_accuracy")}
                        for tr in ("trait1", "trait2")}
@@ -158,7 +187,8 @@ def main():
         summary["full_rank_converged_rG"] = _ms(conv)
     doc = {"study": "reduced-rank multi-trait REML, true G0 of rank 1",
            "replicates": a.replicates, "seeds": f"1..{a.replicates}", "animals": N_ANIMALS,
-           "true": {"lambda": LAM[:, 0].tolist(), "G0": G0.tolist(), "R0": R0.tolist()},
+           "true": ({"lambda": LAM[:, 0].tolist(), "G0": G0.tolist()} if G0_MODE == "rank1"
+                    else {"G0": G0_FULL.tolist()}) | {"R0": R0.tolist()},
            "wall_seconds": time.time() - t0, "summary": summary, "replicate_results": reps}
     Path(a.out).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=1))

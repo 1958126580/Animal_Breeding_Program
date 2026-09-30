@@ -18,12 +18,17 @@ from ..qc.pedigree import PedigreeData
 
 def load_genotype_inputs(spec: AnalysisSpec) -> GenotypeData:
     data = spec["data"]
+    storage = spec["genomic"]["genotype_storage"]
     if data["plink"] is not None:
         from ..io.plink import load_plink
-        return load_plink(spec.resolve(data["plink"]), data["genotype_assembly"])
+        return load_plink(spec.resolve(data["plink"]), data["genotype_assembly"], storage)
     geno = read_table(spec.resolve(data["genotypes"]), data["delimiter"])
     mapt = read_table(spec.resolve(data["marker_map"]), data["delimiter"])
-    return load_genotypes(geno, mapt, set(data["missing_values"]))
+    g = load_genotypes(geno, mapt, set(data["missing_values"]))
+    if storage == "int8":
+        from ..qc.genotype import to_int8
+        g = to_int8(g)
+    return g
 
 
 def _training_rows(ids: list[str], animals_with_records: set[str]) -> np.ndarray:
@@ -119,6 +124,7 @@ def genomic_structure(spec: AnalysisSpec, ped: PedigreeData | None, relationship
             "candidate_genotype_use": "transductive_unsupervised" if transductive else "none",
             "missing_dosage_policy": "set to 2p (centred value 0) at the reference frequency",
             "n_genotyped": len(geno.ids), "n_markers": len(geno.markers), "scaling_d": d,
+            "genotype_storage": str(geno.dosage.dtype),
             "assembly": geno.assembly,
             "counted_allele": ("A1 of the PLINK .bim file" if dat["plink"] is not None
                                else "per-marker counted_allele column of the marker map"),
@@ -179,7 +185,8 @@ def _matrix_free_single_step(spec: AnalysisSpec, ped: PedigreeData | None,
     ``A22``, ``A22^{-1}`` or ``n x n2`` block is formed, and with APY no ``G``."""
     from ..core.genomic import centered, scaling_d
     from ..core.ssop import (A22InverseOperator, APYOperator, DenseInverseOperator,
-                             SingleStepHInverse, a_block, apy_blocks_from_genotypes)
+                             SingleStepHInverse, a_block, apy_blocks_from_dosage,
+                             apy_blocks_from_genotypes)
     from .manifest import sha256_array
     cfg = spec["genomic"]
     if ped is None:
@@ -193,13 +200,15 @@ def _matrix_free_single_step(spec: AnalysisSpec, ped: PedigreeData | None,
     g_index = P.index_of(geno.ids)
     n2 = len(geno.ids)
     d = scaling_d(p)
-    Wc = centered(geno.dosage, p, geno.missing)
+    compact = geno.dosage.dtype == np.int8
+    Wc = None if compact else centered(geno.dosage, p, geno.missing)
     meta = {"method": "VanRaden (2008) method 1: G = WW'/(2 sum p(1-p))",
             "frequency_source": cfg["frequency_source"], "frequency_note": prep.freq_note,
             "candidate_genotype_use": ("transductive_unsupervised" if prep.transductive
                                        else "none"),
             "missing_dosage_policy": "set to 2p (centred value 0) at the reference frequency",
             "n_genotyped": n2, "n_markers": len(geno.markers), "scaling_d": d,
+            "genotype_storage": str(geno.dosage.dtype),
             "assembly": geno.assembly,
             "g_policy": {"singular_policy": cfg["singular_policy"], "tuning": "none",
                          "blend_alpha": (cfg["blend_alpha"] if cfg["singular_policy"] == "blend"
@@ -219,8 +228,12 @@ def _matrix_free_single_step(spec: AnalysisSpec, ped: PedigreeData | None,
         if pol == "blend":
             a22_cols = a_block(P, g_index, g_index[core])             # n2 x c, in blocks
             a22_diag = 1.0 + P.inbreeding()[g_index]
-        gcc, gcn, gnn = apy_blocks_from_genotypes(Wc, d, core, pol, cfg["blend_alpha"],
-                                                  cfg["ridge"], a22_cols, a22_diag)
+        if compact:
+            gcc, gcn, gnn = apy_blocks_from_dosage(geno.dosage, p, core, pol, cfg["blend_alpha"],
+                                                   cfg["ridge"], a22_cols, a22_diag)
+        else:
+            gcc, gcn, gnn = apy_blocks_from_genotypes(Wc, d, core, pol, cfg["blend_alpha"],
+                                                      cfg["ridge"], a22_cols, a22_diag)
         g_op = APYOperator(gcc, gcn, gnn, core, n2)
         ids = [geno.ids[k] for k in core]
         meta["apy"] = {"method": "APY (Misztal, Legarra & Aguilar 2014), applied as an operator",
@@ -229,8 +242,7 @@ def _matrix_free_single_step(spec: AnalysisSpec, ped: PedigreeData | None,
                        "core_selection": f"random, seed {cfg['apy_seed']}",
                        "core_ids_sha256": sha256_array(ids), "core_ids": ids}
     else:
-        G = (Wc @ Wc.T) / d
-        G = 0.5 * (G + G.T)
+        G = vanraden_g(geno.dosage, p, geno.missing)[0]
         A22 = P.a_submatrix(g_index) if pol == "blend" else None
         Gs, rec = apply_g_policy(G, pol, "none", A22, cfg["blend_alpha"], cfg["ridge"])
         meta["g_policy"] = rec.__dict__

@@ -564,6 +564,15 @@
           "type": "integer",
           "default": 20260925
         },
+        "genotype_storage": {
+          "type": "string",
+          "enum": [
+            "float64",
+            "int8"
+          ],
+          "default": "float64",
+          "description": "'int8': dosages held as 1-byte integers (-1 = missing) instead of 8-byte floats; integer dosages only (PLINK input, or dosage files without imputed values)."
+        },
         "single_step_mode": {
           "type": "string",
           "enum": [

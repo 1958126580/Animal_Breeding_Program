@@ -213,3 +213,17 @@ def test_a_block_equals_columns_of_a():
     cols = np.sort(rng.choice(ped.n, 40, replace=False))
     np.testing.assert_allclose(a_block(ped, rows, cols, block=7),
                                ped.a_columns(cols)[rows], atol=1e-13)
+
+
+@pytest.mark.parametrize("mode", ["explicit", "matrix_free"])
+def test_int8_genotype_storage_gives_identical_ebvs(tmp_path, mode):
+    from abp.workflows.evaluate import run_evaluation
+    g = 'apy_core_size = 150\n' + ('single_step_mode = "matrix_free"\n' if mode == "matrix_free"
+                                   else "")
+    a = run_evaluation(_spec(tmp_path, g, "f64"), tmp_path / "f64", console=False)
+    b = run_evaluation(_spec(tmp_path, g + 'genotype_storage = "int8"\n', "i8"), tmp_path / "i8",
+                       console=False)
+    e1, e2 = _ebv(a), _ebv(b)
+    x = np.array([e1[k] for k in e1])
+    np.testing.assert_allclose(np.array([e2[k] for k in e1]), x, atol=1e-8 * np.abs(x).max())
+    assert b.manifest["relationship"]["genotype_storage"] == "int8"
