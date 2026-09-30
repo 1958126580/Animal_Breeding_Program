@@ -291,14 +291,23 @@ SCHEMA = Section({
         "rhat_max": Field("float", default=1.01, check=_positive),
         "ess_min": Field("float", default=400.0, check=_positive),
         "max_iterations": Field("int", default=30000, check=_positive),
-        "variance_prior": Field("str", default="uniform", choices=("uniform", "scaled_inv_chi2"),
+        "variance_prior": Field("str", default="uniform",
+                                choices=("uniform", "scaled_inv_chi2", "inverse_wishart"),
                                 doc="method = 'threshold' only: prior of each liability "
-                                    "variance; 'scaled_inv_chi2' uses bayes.nu degrees of "
-                                    "freedom and the scale from bayes.prior_variances."),
+                                    "variance; 'scaled_inv_chi2' (single trait) uses bayes.nu "
+                                    "degrees of freedom and the scale from "
+                                    "bayes.prior_variances; 'inverse_wishart' (multi-trait "
+                                    "threshold model) uses IW(nu, nu G_prior) with G_prior "
+                                    "from bayes.prior_covariance."),
         "prior_variances": Field("float_map",
                                  doc="method = 'threshold' with variance_prior = "
                                      "'scaled_inv_chi2': prior scale (a guess of the liability "
                                      "variance) for every random term."),
+        "prior_covariance": Field("number_or_matrix_map",
+                                  doc="multi-trait threshold model with variance_prior = "
+                                      "'inverse_wishart': prior guess G_prior of the genetic "
+                                      "covariance matrix (traits in model.traits order; "
+                                      "liability scale for the categorical trait)."),
     }),
     "validation": Section({
         "method": Field("str", required=True, choices=("lr",),
@@ -587,12 +596,52 @@ def validate_spec_dict(raw: dict) -> dict:
         raise _err("bayes", "variances.mode = 'bayes' and a [bayes] section go together")
     if raw.get("bayes") is None:
         d["bayes"] = None
+    elif d["bayes"]["method"] == "threshold" and t > 1:
+        cat_traits = {tr["name"] for tr in d["traits"] if tr["type"] == "categorical"}
+        n_cat = sum(1 for x in m["traits"] if x in cat_traits)
+        if n_cat != 1:
+            raise _err("bayes.method", "the multi-trait threshold model needs exactly one "
+                                       "categorical trait (the others continuous)")
+        if len(m["random"]) != 1 or m["random"][0]["kind"] != "additive":
+            raise ABPError("UNSUPPORTED_COMBINATION", "the multi-trait threshold model has one "
+                           "additive genetic term (no other random terms) in this version")
+        if not m["intercept"]:
+            raise _err("model.intercept", "the threshold model needs an intercept (the first "
+                                          "threshold is fixed at 0)")
+        bz = d["bayes"]
+        add = m["random"][0]["name"]
+        if bz["variance_prior"] == "inverse_wishart":
+            pc = bz["prior_covariance"] or {}
+            gp = pc.get(add)
+            if set(pc) != {add} or not isinstance(gp, list) or len(gp) != t:
+                raise _err("bayes.prior_covariance", f"give a {t} x {t} prior matrix for "
+                                                     f"{add!r}")
+            import numpy as np
+            G = np.array(gp, dtype=np.float64)
+            if G.shape != (t, t) or not np.allclose(G, G.T) or np.linalg.eigvalsh(G)[0] <= 0:
+                raise _err("bayes.prior_covariance", "must be symmetric positive definite")
+            if not bz["nu"] > t - 1:
+                raise _err("bayes.nu", f"an inverse Wishart prior needs nu > {t - 1}")
+        elif bz["variance_prior"] != "uniform":
+            raise _err("bayes.variance_prior", "multi-trait threshold models use 'uniform' or "
+                                               "'inverse_wishart'")
+        elif bz["prior_covariance"] is not None:
+            raise _err("bayes.prior_covariance", "only used with variance_prior = "
+                                                 "'inverse_wishart'")
+        if bz["prior_variances"] is not None:
+            raise _err("bayes.prior_variances", "single-trait threshold models only (use "
+                                                "bayes.prior_covariance)")
+        if bz["burn_in"] >= bz["iterations"]:
+            raise _err("bayes.burn_in", "must be smaller than bayes.iterations")
     elif d["bayes"]["method"] == "threshold":
         cat_traits = {tr["name"] for tr in d["traits"] if tr["type"] == "categorical"}
         if t > 1 or m["traits"][0] not in cat_traits:
             raise _err("bayes.method", "'threshold' needs a single categorical trait")
         bz = d["bayes"]
         names = {r["name"] for r in m["random"]}
+        if bz["variance_prior"] == "inverse_wishart" or bz["prior_covariance"] is not None:
+            raise _err("bayes.variance_prior", "'inverse_wishart' and prior_covariance are for "
+                                               "multi-trait threshold models")
         if bz["variance_prior"] == "scaled_inv_chi2":
             pv = bz["prior_variances"] or {}
             if set(pv) != names or any(not float(x) > 0 for x in pv.values()):
@@ -609,9 +658,10 @@ def validate_spec_dict(raw: dict) -> dict:
                                                       "in this version")
         if any(tr["type"] == "categorical" and tr["name"] in m["traits"] for tr in d["traits"]):
             raise _err("bayes.method", "categorical traits use bayes.method = 'threshold'")
-        if d["bayes"]["variance_prior"] != "uniform" or d["bayes"]["prior_variances"] is not None:
-            raise _err("bayes.variance_prior", "variance_prior and prior_variances are for "
-                                               "method = 'threshold'")
+        if (d["bayes"]["variance_prior"] != "uniform" or d["bayes"]["prior_variances"] is not None
+                or d["bayes"]["prior_covariance"] is not None):
+            raise _err("bayes.variance_prior", "variance_prior, prior_variances and "
+                                               "prior_covariance are for method = 'threshold'")
         if len(m["random"]) != 1 or m["random"][0]["relationship"] != "genomic":
             raise _err("model.random", "Bayesian marker models need exactly one additive term "
                                        "with relationship = 'genomic'")
@@ -660,9 +710,11 @@ def validate_spec_dict(raw: dict) -> dict:
     cat = [tr["name"] for tr in d["traits"] if tr["type"] == "categorical"
            and tr["name"] in m["traits"]]
     if cat:
-        if len(m["traits"]) > 1:
-            raise ABPError("UNSUPPORTED_COMBINATION", "categorical (threshold) traits are "
-                           "implemented for single-trait models only in this version")
+        if len(m["traits"]) > 1 and not (v["mode"] == "bayes" and
+                                         (raw.get("bayes") or {}).get("method") == "threshold"):
+            raise ABPError("UNSUPPORTED_COMBINATION", "multi-trait models with a categorical "
+                           "trait need variances.mode = 'bayes' and bayes.method = 'threshold' "
+                           "(Gibbs sampler of the multi-trait threshold model)")
         if v["mode"] == "bayes" and (raw.get("bayes") or {}).get("method") != "threshold":
             raise _err("bayes.method", "categorical traits use bayes.method = 'threshold' "
                        "(Gibbs sampler of the threshold model)")

@@ -43,6 +43,9 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
                    ped_data: PedigreeData | None, stage: OutputStage, manifest: dict,
                    budget: int) -> tuple[dict, EvalState]:
     d = spec.data
+    if d["variances"]["mode"] == "bayes":           # multi-trait threshold model
+        from .mt_threshold import run_mt_threshold
+        return run_mt_threshold(spec, records, structure, ped_data, stage, manifest)
     m = d["model"]
     traits = list(m["traits"])
     t = len(traits)

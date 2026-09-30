@@ -748,10 +748,11 @@
           "type": "string",
           "enum": [
             "uniform",
-            "scaled_inv_chi2"
+            "scaled_inv_chi2",
+            "inverse_wishart"
           ],
           "default": "uniform",
-          "description": "method = 'threshold' only: prior of each liability variance; 'scaled_inv_chi2' uses bayes.nu degrees of freedom and the scale from bayes.prior_variances."
+          "description": "method = 'threshold' only: prior of each liability variance; 'scaled_inv_chi2' (single trait) uses bayes.nu degrees of freedom and the scale from bayes.prior_variances; 'inverse_wishart' (multi-trait threshold model) uses IW(nu, nu G_prior) with G_prior from bayes.prior_covariance."
         },
         "prior_variances": {
           "type": "object",
@@ -759,6 +760,26 @@
             "type": "number"
           },
           "description": "method = 'threshold' with variance_prior = 'scaled_inv_chi2': prior scale (a guess of the liability variance) for every random term."
+        },
+        "prior_covariance": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            ]
+          },
+          "description": "multi-trait threshold model with variance_prior = 'inverse_wishart': prior guess G_prior of the genetic covariance matrix (traits in model.traits order; liability scale for the categorical trait)."
         }
       },
       "required": [

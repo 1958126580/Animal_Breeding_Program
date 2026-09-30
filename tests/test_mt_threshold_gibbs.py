@@ -34,15 +34,26 @@ def _ped(n, seed, founders):
     return Pedigree.from_parent_ids(ids, s, d), rng
 
 
-def _dense_c(P, R0, G0):
-    """C and W'(I (x) R0^-1) from the model definition, animal-major ordering."""
-    t = P.t
-    B = P.B.toarray()
-    W = np.kron(B, np.eye(t))                         # (n t) x ((p + q) t)
-    Rinv = np.kron(np.eye(P.n), np.linalg.inv(R0))
-    Kinv = P.k_inv.toarray() if sp.issparse(P.k_inv) else P.k_inv
-    prior = np.zeros((P.n_eq, P.n_eq))
-    prior[P.p * t:, P.p * t:] = np.kron(Kinv, np.linalg.inv(G0))
+def _dense_c(Y, X, Kinv, R0, G0):
+    """C and W'R^-1 from the model definition (independent of the module): unknowns
+    (beta_1 .. beta_t, u animal-major), observations record-major over the observed
+    (record, trait) pairs, residual block R0[o, o]^-1 per record; X shared by the
+    traits, one record per animal (record r = animal r)."""
+    X = np.asarray(X.toarray() if sp.issparse(X) else X)
+    n, t = Y.shape
+    p, q = X.shape[1], Kinv.shape[0]
+    obs = [(r, j) for r in range(n) for j in range(t) if not np.isnan(Y[r, j])]
+    W = np.zeros((len(obs), p * t + q * t))
+    for i, (r, j) in enumerate(obs):
+        W[i, j * p:(j + 1) * p] = X[r]
+        W[i, p * t + r * t + j] = 1.0
+    Rinv = np.zeros((len(obs), len(obs)))
+    for r in range(n):
+        idx = [i for i, (rr, _) in enumerate(obs) if rr == r]
+        tr = [obs[i][1] for i in idx]
+        Rinv[np.ix_(idx, idx)] = np.linalg.inv(R0[np.ix_(tr, tr)])
+    prior = np.zeros((W.shape[1], W.shape[1]))
+    prior[p * t:, p * t:] = np.kron(Kinv, np.linalg.inv(G0))
     return W.T @ Rinv @ W + prior, W.T @ Rinv
 
 
@@ -50,16 +61,18 @@ def test_location_draw_has_the_exact_conditional_mean_and_covariance():
     ped, rng = _ped(10, 1, 4)
     n = ped.n
     Y = np.column_stack([rng.integers(1, 3, n).astype(float), rng.normal(5, 2, n)])
-    X = sp.csr_matrix(np.column_stack([np.ones(n), rng.integers(0, 2, n)]))
-    P = MT.MTProblem(Y, 0, X, sp.identity(n, format="csr"), ped.ainv())
+    Y[[2, 7], 1] = np.nan                                       # two missing values
+    Y[4, 0] = np.nan
+    X = sp.csr_matrix(np.column_stack([np.ones(n), np.arange(n) % 2]))
+    P = MT.MTProblem(Y, 0, MT.split_design(X, Y), np.arange(n), ped.ainv())
     G0 = np.array([[0.4, 0.3], [0.3, 1.5]])
     R0 = np.array([[1.0, 0.5], [0.5, 3.0]])
-    L = rng.normal(0, 1, (n, 2))
-    C, WR = _dense_c(P, R0, G0)
-    mean = np.linalg.solve(C, WR @ L.ravel())
+    yobs = rng.normal(0, 1, P.n_obs)
+    C, WR = _dense_c(Y, X, ped.ainv().toarray(), R0, G0)
+    mean = np.linalg.solve(C, WR @ yobs)
     cov = np.linalg.inv(C)
-    fac = SparseLDL(P.coefficient(np.linalg.inv(R0), np.linalg.inv(G0)))
-    D = np.array([MT.draw_location(P, fac, L, R0, G0, rng) for _ in range(40000)])
+    fac = SparseLDL(P.coefficient(P.rinv(R0), np.linalg.inv(G0)))
+    D = np.array([MT.draw_location(P, fac, yobs, R0, G0, rng) for _ in range(40000)])
     se_m = np.sqrt(np.diag(cov) / D.shape[0])
     assert np.max(np.abs(D.mean(axis=0) - mean) / se_m) < 5.0
     emp = np.cov(D.T)
@@ -160,24 +173,23 @@ def test_g0_step_matches_an_independent_metropolis_sampler():
     assert np.all(np.abs(got - ref) < 0.03 * np.abs(ref) + 0.01), (got, ref)
 
 
-def _log_post(theta, P, R0, G0, Kinv):
+def _log_post(theta, Y, R0, G0, Kinv):
     """log p(theta | y) up to a constant, liabilities integrated out (binary trait
-    first, one continuous trait; flat prior on beta)."""
-    t, c = P.t, P.c
-    eta = P.B @ theta.reshape(-1, t)
-    U = theta[P.p * t:].reshape(P.q, t)
+    first, one continuous trait, one intercept per trait, record r = animal r;
+    flat prior on beta).  theta = (beta_1, beta_2, u animal-major)."""
+    n = Y.shape[0]
+    U = theta[2:].reshape(n, 2)
+    eta = theta[:2][None, :] + U
     lp = -0.5 * np.trace(np.linalg.solve(G0, U.T @ Kinv @ U))
-    o = 1
-    ob_o = P.obs[:, o]
-    r = P.Y[:, o] - eta[:, o]
-    lp += -0.5 * np.sum(r[ob_o] ** 2) / R0[o, o]
-    m = eta[:, c].copy()
-    s = np.ones(P.n)
-    m[ob_o] += R0[c, o] / R0[o, o] * r[ob_o]
-    s[ob_o] = math.sqrt(1.0 - R0[c, o] ** 2 / R0[o, o])
-    z = m / s
-    sign = np.where(P.yk == 1, 1.0, -1.0)            # category 2: l > 0, category 1: l <= 0
-    lp += np.sum(log_ndtr(sign * z))
+    ob_o = ~np.isnan(Y[:, 1])
+    r = Y[:, 1] - eta[:, 1]
+    lp += -0.5 * np.sum(r[ob_o] ** 2) / R0[1, 1]
+    m = eta[:, 0].copy()
+    s = np.ones(n)
+    m[ob_o] += R0[0, 1] / R0[1, 1] * r[ob_o]
+    s[ob_o] = math.sqrt(1.0 - R0[0, 1] ** 2 / R0[1, 1])
+    sign = np.where(Y[:, 0] == 2, 1.0, -1.0)         # category 2: l > 0, category 1: l <= 0
+    lp += np.sum(log_ndtr(sign * m / s))
     return lp
 
 
@@ -187,19 +199,17 @@ def test_posterior_with_fixed_covariances_equals_importance_sampling():
     Y = np.column_stack([np.array([1, 2, 2, 1, 2, 1, 2, 2], float),
                          np.array([3.1, 4.0, np.nan, 2.2, 5.3, 2.9, np.nan, 4.4])])
     X = sp.csr_matrix(np.ones((n, 1)))
-    Z = sp.identity(n, format="csr")
     G0 = np.array([[0.5, 0.4], [0.4, 1.0]])
     R0 = np.array([[1.0, 0.5], [0.5, 1.2]])
     cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=40000, burn_in=2000, thin=2,
                                     max_iterations=40000, seed=11, start_G0=G0, start_R0=R0,
                                     fix_covariances=True)
-    res = MT.mt_threshold_gibbs(Y, 0, X, Z, ped.ainv(), cfg)
-    P = MT.MTProblem(Y, 0, X, Z, ped.ainv())
+    res = MT.mt_threshold_gibbs(Y, 0, X, np.arange(n), ped.ainv(), cfg)
     Kinv = ped.ainv().toarray()
     # proposal: multivariate t around the sampler's moments (IS is consistent for any
     # proposal with heavier tails; the estimate does not rely on the sampler)
-    theta_m = np.concatenate([res.fixed_mean.ravel(), res.ebv.ravel()])
-    C, _ = _dense_c(P, R0, G0)
+    theta_m = np.concatenate([np.concatenate(res.fixed_mean), res.ebv.ravel()])
+    C, _ = _dense_c(Y, X, Kinv, R0, G0)
     V = 2.0 * np.linalg.inv(C + 1e-9 * np.eye(C.shape[0]))
     Lc = np.linalg.cholesky(V)
     N, df = 400000, 5
@@ -207,7 +217,7 @@ def test_posterior_with_fixed_covariances_equals_importance_sampling():
     chi = rng.chisquare(df, N) / df
     T = theta_m + (zz @ Lc.T) / np.sqrt(chi)[:, None]
     logq = -0.5 * (df + theta_m.size) * np.log1p(np.sum(zz ** 2, axis=1) / chi / df)
-    logp = np.array([_log_post(th, P, R0, G0, Kinv) for th in T])
+    logp = np.array([_log_post(th, Y, R0, G0, Kinv) for th in T])
     lw = logp - logq
     w = np.exp(lw - lw.max())
     w /= w.sum()
@@ -215,8 +225,8 @@ def test_posterior_with_fixed_covariances_equals_importance_sampling():
     assert ess > 5000
     is_mean = w @ T
     is_var = w @ (T - is_mean) ** 2
-    u_is = is_mean[P.p * 2:].reshape(n, 2)
-    sd_u = np.sqrt(is_var[P.p * 2:].reshape(n, 2))
+    u_is = is_mean[2:].reshape(n, 2)
+    sd_u = np.sqrt(is_var[2:].reshape(n, 2))
     # MC error of the sampler mean: sd / sqrt(effective draws); generous bound 0.05 sd
     assert np.max(np.abs(res.ebv - u_is) / sd_u) < 0.05, np.max(np.abs(res.ebv - u_is) / sd_u)
     np.testing.assert_allclose(res.pev, sd_u ** 2, rtol=0.06)
@@ -232,12 +242,13 @@ def test_uncorrelated_traits_reduce_to_single_trait_models():
     Y = np.column_stack([yc, yo])
     X = sp.csr_matrix(np.ones((n, 1)))
     Z = sp.identity(n, format="csr")
+    anim = np.arange(n)
     G0 = np.diag([0.4, 2.0])
     R0 = np.diag([1.0, 3.0])
     cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=12000, burn_in=2000, thin=2,
                                     max_iterations=12000, seed=5, start_G0=G0, start_R0=R0,
                                     fix_covariances=True)
-    mt = MT.mt_threshold_gibbs(Y, 0, X, Z, ped.ainv(), cfg)
+    mt = MT.mt_threshold_gibbs(Y, 0, X, anim, ped.ainv(), cfg)
     term = [RandomTerm("animal", Z, ped.ainv(), ped.ids, True, k_diag=1 + ped.inbreeding())]
     st = threshold_gibbs(yc, X, term, True, ThresholdGibbsConfig(
         chains=4, iterations=12000, burn_in=2000, thin=2, max_iterations=12000, seed=6,
@@ -258,30 +269,45 @@ def test_refusals():
     ped, rng = _ped(20, 1, 5)
     n = ped.n
     X = sp.csr_matrix(np.ones((n, 1)))
-    Z = sp.identity(n, format="csr")
+    anim = np.arange(n)
     Y = np.column_stack([np.ones(n), rng.normal(size=n)])
+
+    def prob(Y, X=X):
+        return MT.MTProblem(Y, 0, MT.split_design(X, Y), anim, ped.ainv())
     with pytest.raises(ABPError) as e:
-        MT.MTProblem(Y, 0, X, Z, ped.ainv())                   # one category only
+        prob(Y)                                                # one category only
     assert e.value.code == "ABP-E300"
     Y[:, 0] = np.linspace(0, 1, n)
     with pytest.raises(ABPError):
-        MT.MTProblem(Y, 0, X, Z, ped.ainv())                   # not integer codes
+        prob(Y)                                                # not integer codes
     Y[:, 0] = rng.integers(1, 3, n)
     Y[3] = np.nan
     with pytest.raises(ABPError):
-        MT.MTProblem(Y, 0, X, Z, ped.ainv())                   # empty record
+        prob(Y)                                                # empty record
     Y[3] = [1.0, 0.0]
     cfg = MT.MTThresholdGibbsConfig(chains=2, iterations=10, burn_in=5, max_iterations=10,
                                     start_R0=np.diag([2.0, 1.0]))
     with pytest.raises(ABPError):
-        MT.mt_threshold_gibbs(Y, 0, X, Z, ped.ainv(), cfg)      # R0[c, c] must be 1
+        MT.mt_threshold_gibbs(Y, 0, X, anim, ped.ainv(), cfg)   # R0[c, c] must be 1
+    # extreme category: a 0/1 column whose categorical records are all in category 1
+    Y[:, 0] = np.where(np.arange(n) < 5, 1.0, rng.integers(1, 3, n))
+    X2 = sp.csr_matrix(np.column_stack([np.ones(n), np.arange(n) < 5]).astype(float))
+    with pytest.raises(ABPError) as e:
+        prob(Y, X2)
+    assert "extreme category" in e.value.message
+    # a level without records of one trait: not estimable for that trait
+    Y[:5, 1] = np.nan
+    Y[:, 0] = rng.integers(1, 3, n)
+    with pytest.raises(ABPError) as e:
+        prob(Y, X2)
+    assert "full column rank" in e.value.message
 
 
-def test_scale_move_leaves_the_posterior_unchanged():
+def test_expansion_moves_leave_the_posterior_unchanged():
     """With unknown G0 and R0 (proper inverse Wishart prior on G0: one categorical
     record per animal makes the flat-prior posterior improper), the chains with and
-    without the parameter-expanded move target the same posterior: their posterior
-    means agree within Monte-Carlo error; the move improves the mixing."""
+    without the parameter-expanded moves (scale and shear) target the same posterior:
+    their posterior means agree within Monte-Carlo error; the moves improve mixing."""
     ped, rng = _ped(100, 21, 20)
     n = ped.n
     from scipy.sparse.linalg import spsolve_triangular
@@ -294,18 +320,19 @@ def test_scale_move_leaves_the_posterior_unchanged():
     Y[:, 0] = np.digitize(L[:, 0], [-0.4, 0.5]) + 1
     Y[rng.random(n) < 0.2, 1] = np.nan
     X = sp.csr_matrix(np.ones((n, 1)))
-    Z = sp.identity(n, format="csr")
     out = {}
     for move in (True, False):
         cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=3000, burn_in=500, thin=2,
                                         max_iterations=3000, seed=31 if move else 32,
-                                        scale_move=move, prior_nu=6.0,
+                                        scale_move=move, shear_moves=move, prior_nu=6.0,
                                         prior_G0=np.diag([0.3, 1.5]))
-        r = MT.mt_threshold_gibbs(Y, 0, X, Z, ped.ainv(), cfg)
+        r = MT.mt_threshold_gibbs(Y, 0, X, np.arange(n), ped.ainv(), cfg)
         out[move] = r
     for key in ("G0_0_0", "G0_0_1", "G0_1_1", "R0_0_1", "R0_1_1"):
         a, b = out[True].summaries[key], out[False].summaries[key]
         diff = abs(a["mean"] - b["mean"])
         assert diff < 4.0 * math.hypot(a["mcse_mean"], b["mcse_mean"]), (key, a, b)
-    # the move improves the mixing of the categorical trait's genetic variance
-    assert out[True].summaries["G0_0_0"]["ess_bulk"] > out[False].summaries["G0_0_0"]["ess_bulk"]
+    # the moves improve the mixing of the categorical trait's genetic variance and of
+    # the genetic correlation
+    for key in ("G0_0_0", "rG_0_1"):
+        assert out[True].summaries[key]["ess_bulk"] > 1.3 * out[False].summaries[key]["ess_bulk"]
