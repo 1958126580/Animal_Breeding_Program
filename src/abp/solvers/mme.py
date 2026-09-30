@@ -215,6 +215,8 @@ class SparseLU:
     kind = "sparse_direct"
 
     def __init__(self, C: sp.csr_matrix, memory_budget_bytes: int = 4 * 2**30):
+        from .cholesky import _symmetric_pattern
+        C = _symmetric_pattern(C)        # selected inversion assumes a symmetric pattern
         self.C = C
         self.memory_budget_bytes = memory_budget_bytes
         self._selinv = None

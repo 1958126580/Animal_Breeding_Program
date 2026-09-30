@@ -121,3 +121,20 @@ def test_numerically_symmetric_matrix_with_asymmetric_pattern():
     b = rng.standard_normal(60)
     Cs = 0.5 * (C + C.T).toarray()
     np.testing.assert_allclose(f.solve(b), np.linalg.solve(Cs, b), rtol=1e-10, atol=1e-12)
+
+
+def test_superlu_selected_inverse_with_asymmetric_pattern(monkeypatch):
+    """Same regression for the SuperLU path (used without the native kernel): the
+    matrix of the rank-2 reduced-rank REML start that exposed the defect."""
+    import numpy as np
+    from abp.solvers import multitrait_reml as MR
+    from abp.solvers.mme import SparseLU
+    from tests.test_multitrait_reml import _problem
+    monkeypatch.setattr(MR, "make_sparse_factor", lambda C, budget: SparseLU(C, budget))
+    ped, data, A = _problem()
+    G0s, R0s = MR.default_start(data)
+    w, V = np.linalg.eigh(G0s)
+    lam = V[:, ::-1] * np.sqrt(w[::-1])
+    ev = MR.ReducedRankEvaluator(data, ped.ainv(), ped.logdet_a(), 2)
+    f, g = ev.value_and_gradient(MR._rr_pack(lam, R0s))
+    assert np.isfinite(f) and np.all(np.isfinite(g))

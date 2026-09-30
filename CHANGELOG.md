@@ -22,7 +22,7 @@ Sixth development round. Evidence and gaps: `docs/validation_report.md`.
 - `bayes.method` accepts `threshold`; categorical traits with `mode = "bayes"` require it, marker models refuse categorical traits.
 
 ### Fixed
-- `SparseLDL` failed ("entry outside the symbolic pattern") on matrices that are symmetric only to rounding but have an asymmetric sparsity pattern (a product that cancels to ~1e-17 on one side and to 0 on the other). The matrix is now symmetrised before ordering. Found by the rank-2 reduced-rank fit; regression test and self-test T16.
+- `SparseLDL` failed ("entry outside the symbolic pattern") on matrices that are symmetric only to rounding but have an asymmetric sparsity pattern (a product that cancels to ~1e-17 on one side and to 0 on the other). The matrix is now symmetrised before ordering, in ABP's LDL' and in the SuperLU path used without the native kernel (whose selected inversion failed the same way). Found by the rank-2 reduced-rank fit (native) and by the local pure-Python-kernel test run (SuperLU; the CI runner's rounding did not produce the one-sided entry); regression tests for both paths and self-test T16.
 
 ## [0.5.0] - 2026-09-29
 
