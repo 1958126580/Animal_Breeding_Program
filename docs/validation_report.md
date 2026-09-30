@@ -142,7 +142,8 @@ Round 7: CI was checked after every push. The runs for commits f5a2835,
 and 4c06e84
 ([36673772284](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36673772284))
 succeeded on all 7 jobs (Windows and Ubuntu × Python 3.11–3.13, pure-Python
-kernels). The release commit's run is listed in the HANDOFF.
+kernels), as did the release commit 329f8d5 (ABP 0.7.0):
+[36681792730](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36681792730).
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer

@@ -74,7 +74,9 @@ Round 7: full test suites (native 297 passed; pure-Python kernels
 (sections 18–26), threshold prior study (30 replicates × 2 priors), rank
 studies with rank-1 and full-rank truths (100 each; the rank-1 study also
 scores the reduced-rank Kackar–Harville PEV), workflow-level large run; CI
-after every push (validation report §3, §3a, §7.11).
+after every push, all green; release commit 329f8d5 (ABP 0.7.0): run
+[36681792730](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36681792730),
+7 of 7 jobs succeeded (validation report §3, §3a, §7.11).
 
 Round 6: full test suites (native 285 passed; pure-Python kernels 280 passed,
 5 native-only skipped), self-test
