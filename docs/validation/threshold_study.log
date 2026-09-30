@@ -2,7 +2,12 @@ n_replicates_both_models 27
 linear_reml {'n_withheld': 3, 'realized_accuracy': '0.447±0.011', 'model_accuracy': '0.374±0.027', 'ratio_model_to_realized': '0.827±0.054'}
 threshold_true {'n_withheld': 0, 'realized_accuracy': '0.451±0.011', 'model_accuracy': '0.443±0.001', 'ratio_model_to_realized': '1.001±0.031'}
 threshold_laplace {'n_withheld': 6, 'realized_accuracy': '0.443±0.011', 'model_accuracy': '0.359±0.028', 'ratio_model_to_realized': '0.802±0.057'}
+threshold_gibbs {'n_withheld': 0, 'realized_accuracy': '0.450±0.010', 'model_accuracy': '0.423±0.012', 'ratio_model_to_realized': '0.948±0.029'}
 paired_difference_realized_accuracy_threshold_minus_linear 0.0036±0.0008
 laplace_estimate_animal 0.0853±0.0133
 laplace_estimate_pe 0.1301±0.0121
+gibbs_estimate_animal 0.1077±0.0090
+gibbs_median_animal 0.1004±0.0094
+gibbs_estimate_pe 0.1378±0.0101
+gibbs_median_pe 0.1315±0.0105
 wrote /home/user/Animal_Breeding_Program/docs/validation/threshold_study.json
