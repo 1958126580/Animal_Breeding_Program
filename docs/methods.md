@@ -31,7 +31,8 @@ Contents: [1 Estimands](#1-estimands) · [2 Pedigree](#2-pedigree-relationships)
 [26 Matrix-free single step](#26-matrix-free-single-step) ·
 [27 Threshold Gibbs](#27-gibbs-sampler-for-the-threshold-model) ·
 [28 Multi-trait PEV with REML uncertainty](#28-pev-including-reml-uncertainty-for-multi-trait-models) ·
-[29 Sampled PEV](#29-sampled-pev-for-the-matrix-free-single-step)
+[29 Sampled PEV](#29-sampled-pev-for-the-matrix-free-single-step) ·
+[30 Compact genotype storage](#30-compact-genotype-storage)
 
 ---
 
@@ -1117,6 +1118,30 @@ of 100 with `G0` and `R0` within 2 Monte-Carlo SE of the truth; BLUP with the
 estimates had MSE/PEV 1.021 ± 0.011 and 1.076 ± 0.031 (coverage 0.947 and
 0.940), with the true parameters 0.997.
 
+**Rank selection (round 7).** `reml.rank_selection = "aic"`
+(`select_rank`) fits the full-rank model and every rank `1..t−1`, and computes
+`AIC = −2 log L + 2 n_par` with `n_par = t r − r(r−1)/2 + t(t+1)/2` (Akaike
+1974). A likelihood-ratio test is not used, because the null of a reduced
+rank lies on the boundary of the parameter space, where the χ² reference
+distribution does not hold (Self & Liang 1987). Fits that stop (boundary,
+non-convergence) are listed with their error and excluded. The rule is
+conservative: the choice starts at the highest fitted rank, and a lower rank
+replaces it only when its AIC is smaller by at least 2 (`AIC_MARGIN`).
+*Why the margin* (`rr_calibration_study.json` for true rank 1,
+`rr_calibration_full.json` for a true full-rank `G0` with `r_G` 0.595; 100
+replicates each, 1,000 animals). Plain minimum AIC chose rank 1 in 97/100 and
+19/100 of these data sets. The 19 wrong reductions matter: a rank-1 fit
+forces `r_G = 1`, so trait-2 PEV was underestimated about fourfold (median
+MSE/PEV 4.3) and realized accuracy fell from 0.54 (true parameters) to 0.43.
+With the margin of 2 the counts are 58/100 and 0/100. The 58 are exactly the
+replicates where the full-rank fit stopped at the boundary; in the other 42
+the full-rank fit (`r_G` 0.94) is kept: a valid model that is over-parameterised
+for these data (the calibration of its EBVs was not scored in this study). The margin trades power to detect a true
+reduced rank for protection against a false one. **Tests.**
+`test_rank_selection_by_aic` (boundary data → rank 1; interior data → the
+margin rule), `test_rank_selection_margin_rule` (the rule at, below and above
+the margin), `test_workflow_rank_selection`.
+
 ## 26. Matrix-free single step
 
 Code: `abp/core/ssop.py`; `abp/solvers/mme.py` (`MixedModelSystem.extra`);
@@ -1200,6 +1225,18 @@ liability variance 0.108 ± 0.009 (true 0.111; Laplace 0.085 ± 0.013), permanen
 environment 0.138 ± 0.010 (true 0.111), 0 of 30 withheld, model/realized
 accuracy 0.948 ± 0.029.
 
+**Proper priors (round 7).** `bayes.variance_prior = "scaled_inv_chi2"` with
+`bayes.nu` and per-term `bayes.prior_variances` replaces the uniform prior
+(steps 3 and 4 then use `ν, s_k²`). A sensitivity study (30 replicates, `ν = 4`,
+`threshold_prior_study.json`) with prior scales deliberately below (0.05) and
+above (0.2) the true 0.111: genetic / permanent-environment variance 0.090 /
+0.104 and 0.125 / 0.140; model/realized accuracy 0.906 ± 0.025 and 1.012 ±
+0.026. With 2–3 records per animal the posterior follows the prior centre, so
+a proper prior moves the bias rather than removing it; the uniform prior stays
+the default and the permanent-environment variance remains weakly identified
+in such data (F13). **Tests.** `test_per_term_prior_scales_equal_the_scalar_prior`,
+`test_spec_rules_for_threshold_priors`, `test_workflow_threshold_gibbs_with_informative_prior`.
+
 ## 28. PEV including REML uncertainty for multi-trait models
 
 Code: `abp/solvers/vc_uncertainty.py::kackar_harville_delta_multitrait`;
@@ -1213,6 +1250,14 @@ symmetric pair), solved with the sparse factor. Columns
 in `ebv_multitrait.csv` (full-rank REML, not with metafounders).
 **Tests.** `test_multitrait_delta_equals_v_form_derivatives` (rtol 10⁻⁴),
 `test_example13_reports_multitrait_pev_including_vc_uncertainty`.
+
+*Reduced-rank fits (round 7).* `θ` is the parameter vector `x` of §25
+(lower-trapezoidal `Λ`, `chol R0` with log diagonal); `Σ_x = 2H⁻¹` with `H` the
+Hessian of `−2 log L` already formed for the Newton decrement; `J_i = ∂û_i/∂x`
+by central differences of the latent-factor BLUP
+(`kackar_harville_delta_reduced_rank`). The same columns are written for
+reduced-rank runs. **Test.** `test_reduced_rank_delta_equals_v_form_derivatives`
+(V-form `û = (A ⊗ ΛΛᵀ)ZᵀPy` differentiated in `x`, rtol 10⁻⁴).
 **Evidence** (50 replicates, `mt_calibration_kh.json`): MSE/PEV 1.087 → 1.025
 (wwt), 1.094 → 1.048 (fat), 1.129 → 1.058 (fec); coverage 0.940/0.939/0.935 →
 0.948/0.944/0.942.
@@ -1240,7 +1285,28 @@ of these z-scores is slightly positive because each SE is estimated from the
 same samples as its estimate), `test_apy_blocks_from_int8_dosage_equal_the_float_version`,
 `test_a_block_equals_columns_of_a`.
 
-## 30. References (additions)
+## 30. Compact genotype storage
+
+Code: `abp/io/plink.py` (`decode_bed(..., "int8")`), `abp/qc/genotype.py::to_int8`,
+`abp/core/genomic.py` (`allele_frequencies`, `vanraden_g`),
+`abp/core/ssop.py::apy_blocks_from_dosage`. Spec `genomic.genotype_storage`.
+
+With `"int8"` dosages are held as 1-byte integers with −1 for a missing call
+(9 bytes per call for float64 plus the missing mask become 2). PLINK input is
+decoded directly into int8; dosage files are converted after reading when all
+dosages are integers (fractional, imputed dosages are refused because they
+cannot be stored exactly). Allele frequencies and `G = WWᵀ/d` are computed in
+blocks of 4,096 markers (`W = M − 2p` formed per block), for either storage, so
+no full float copy of the genotypes is made; the matrix-free APY path builds
+its blocks from the int8 dosages. Paths that still need float genotypes (the
+Bayesian marker samplers, Γ estimation for metafounders) convert internally.
+Results are the same up to the order of floating-point summation.
+**Tests.** `test_int8_decoding_and_loader_equal_float`,
+`test_to_int8_refuses_fractional_dosages`,
+`test_int8_genotype_storage_gives_identical_ebvs` (explicit and matrix-free,
+example 05: EBVs equal to 10⁻⁸ relative), `test_apy_blocks_from_int8_dosage_equal_the_float_version`.
+
+## 31. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.
@@ -1281,3 +1347,5 @@ same samples as its estimate), `test_apy_blocks_from_int8_dosage_equal_the_float
 * Neal RM (2003) Ann Stat 31:705–767.
 * Papandreou G, Yuille AL (2010) Proc NIPS 23 (perturb-and-MAP sampling).
 * Sorensen DA, Andersen S, Gianola D, Korsgaard I (1995) Genet Sel Evol 27:229–249.
+* Akaike H (1974) IEEE Trans Autom Control 19:716–723.
+* Self SG, Liang K-Y (1987) J Am Stat Assoc 82:605–610.

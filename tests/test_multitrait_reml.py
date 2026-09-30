@@ -484,7 +484,10 @@ def test_rank_selection_by_aic():
     full = MR.mt_reml_fit(data2, ped2.ainv(), ped2.logdet_a(), cfg)
     assert rows2[2]["loglik"] == pytest.approx(full.loglik, abs=1e-9)
     assert rows2[1]["loglik"] <= rows2[2]["loglik"] + 1e-6       # nested models
-    assert sel2["chosen_rank"] == min(rows2, key=lambda k: rows2[k]["aic"])
+    # conservative rule: reduce the rank only if AIC is smaller by >= margin (2)
+    assert sel2["margin"] == MR.AIC_MARGIN == 2.0
+    assert sel2["chosen_rank"] == (1 if rows2[1]["aic"] < rows2[2]["aic"] - 2.0 else 2)
+    assert min(r["delta_aic"] for r in sel2["table"]) == 0.0
 
 
 def test_workflow_rank_selection(tmp_path):
@@ -511,3 +514,22 @@ def test_spec_refuses_rank_selection_with_stated_rank():
     assert validate_spec_dict(dict(base, reml={"rank_selection": "aic"}))
     with pytest.raises(ABPError, match="rank_selection"):
         validate_spec_dict(dict(base, reml={"rank_selection": "aic", "rank": 1}))
+
+
+def test_rank_selection_margin_rule(monkeypatch):
+    """The lower rank is chosen only if its AIC is smaller by at least the margin."""
+    class _Fit:
+        def __init__(self, loglik):
+            self.loglik = loglik
+    data = MTData(np.zeros((4, 2)), [None, None], np.arange(4))
+    # AIC2 = 200 + 12 = 212;  AIC1 = -2 ll1 + 10
+    for ll1, margin, expect in ((-99.9, 2.0, 1),       # AIC1 209.8 < 210: reduce
+                                (-100.0, 2.0, 2),      # AIC1 210, exactly 2 better: keep
+                                (-100.5, 2.0, 2),      # AIC1 211, only 1 better: keep
+                                (-100.5, 0.0, 1),      # plain minimum AIC reduces
+                                (-101.5, 0.0, 2)):     # AIC1 213 > 212: keep full
+        monkeypatch.setattr(MR, "mt_reml_fit", lambda *a, **k: _Fit(-100.0))
+        monkeypatch.setattr(MR, "mt_reml_fit_reduced_rank",
+                            lambda *a, ll=ll1, **k: _Fit(ll))
+        sel = MR.select_rank(data, None, None, {}, margin=margin)
+        assert sel["chosen_rank"] == expect, (ll1, margin)

@@ -15,8 +15,9 @@ are simulated by gene dropping ``f = T D^{1/2} z``, ``u = f lambda'`` (exactly
                   coverage of nominal 95% intervals per trait;
 * ``rank1_true``  the same BLUP with the true lambda and R0 (reference).
 
-Round 7: every replicate also records the rank chosen by AIC (from the two fits
-above, ``n_parameters`` 6 and 5), and ``--g0 full`` simulates a full-rank G0
+Round 7: every replicate also records the rank chosen by plain minimum AIC and
+by the conservative rule of ``select_rank`` (lower rank only if its AIC is smaller
+by >= 2), from the two fits above (``n_parameters`` 6 and 5), and ``--g0 full`` simulates a full-rank G0
 (genetic correlation 0.595) to measure how often AIC wrongly reduces the rank.
 
 Means +- Monte-Carlo SE over replicates.  Truth is used only for scoring.
@@ -123,7 +124,10 @@ def replicate(seed: int) -> dict:
         aic[2] = -2 * out["full_rank"]["loglik"] + 2 * 6
     if out["rank1_reml"]["status"] == "converged":
         aic[1] = -2 * out["rank1_reml"]["loglik"] + 2 * 5
-    out["aic_choice"] = min(aic, key=aic.get) if aic else None
+    out["aic_choice"] = min(aic, key=aic.get) if aic else None       # plain minimum AIC
+    # rule of abp select_rank (round 7): keep rank 2 unless AIC(1) < AIC(2) - 2
+    out["aic_margin2_choice"] = (None if not aic else 1 if 2 not in aic
+                                 else 1 if 1 in aic and aic[1] < aic[2] - 2.0 else 2)
     if G0_MODE == "rank1":
         res_t = build_and_solve(data, ped.ainv(), kd, None, R0, method="dense", loadings=LAM)
     else:
@@ -160,15 +164,18 @@ def main():
     for r in reps:
         print(r["seed"], r["full_rank"]["status"], r["rank1_reml"]["status"], flush=True)
     ok = [r for r in reps if r["rank1_reml"]["status"] == "converged"]
-    choice = {}
+    choice, choice2 = {}, {}
     for r in reps:
         choice[str(r["aic_choice"])] = choice.get(str(r["aic_choice"]), 0) + 1
+        c2 = str(r["aic_margin2_choice"])
+        choice2[c2] = choice2.get(c2, 0) + 1
     Gs = np.array([r["rank1_reml"]["G0"] for r in ok])
     Rs = np.array([r["rank1_reml"]["R0"] for r in ok])
     fr_status = {}
     for r in reps:
         fr_status[r["full_rank"]["status"]] = fr_status.get(r["full_rank"]["status"], 0) + 1
     summary = {"g0": G0_MODE, "aic_choice_counts": choice,
+               "aic_margin2_choice_counts": choice2,
                "full_rank_status_counts": fr_status,
                "rank1_converged": len(ok),
                "rank1_G0": {f"G0[{i},{j}]": {**_ms(Gs[:, i, j]), "true": float(
@@ -185,7 +192,8 @@ def main():
     conv = [r["full_rank"]["rG"] for r in reps if r["full_rank"]["status"] == "converged"]
     if conv:
         summary["full_rank_converged_rG"] = _ms(conv)
-    doc = {"study": "reduced-rank multi-trait REML, true G0 of rank 1",
+    doc = {"study": ("reduced-rank multi-trait REML, true G0 of rank 1" if G0_MODE == "rank1"
+                     else "rank selection, true G0 of full rank (rG 0.595)"),
            "replicates": a.replicates, "seeds": f"1..{a.replicates}", "animals": N_ANIMALS,
            "true": ({"lambda": LAM[:, 0].tolist(), "G0": G0.tolist()} if G0_MODE == "rank1"
                     else {"G0": G0_FULL.tolist()}) | {"R0": R0.tolist()},

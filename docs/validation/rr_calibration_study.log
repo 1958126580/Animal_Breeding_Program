@@ -99,6 +99,15 @@
 99 ABP-E300 converged
 100 ABP-E300 converged
 {
+ "g0": "rank1",
+ "aic_choice_counts": {
+  "1": 97,
+  "2": 3
+ },
+ "aic_margin2_choice_counts": {
+  "1": 58,
+  "2": 42
+ },
  "full_rank_status_counts": {
   "ABP-E300": 58,
   "converged": 42

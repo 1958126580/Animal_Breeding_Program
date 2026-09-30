@@ -393,7 +393,7 @@
             "aic"
           ],
           "default": "none",
-          "description": "Multi-trait REML: 'aic' fits the full-rank model and every reduced rank and keeps the one with the smallest AIC."
+          "description": "Multi-trait REML: 'aic' fits the full-rank model and every reduced rank and moves to a lower rank only if its AIC is smaller by at least 2 (conservative rule)."
         },
         "rank": {
           "type": "integer",

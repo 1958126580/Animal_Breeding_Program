@@ -176,7 +176,8 @@ SCHEMA = Section({
                               "G0 = Lambda Lambda' of rank reml.rank)."),
         "rank_selection": Field("str", default="none", choices=("none", "aic"),
                                 doc="Multi-trait REML: 'aic' fits the full-rank model and every "
-                                    "reduced rank and keeps the one with the smallest AIC."),
+                                    "reduced rank and moves to a lower rank only if its AIC "
+                                    "is smaller by at least 2 (conservative rule)."),
         "rank": Field("int", check=_positive,
                       doc="Multi-trait REML: estimate G0 = Lambda Lambda' with this rank "
                           "directly (an assumption stated by the user; below the number of "

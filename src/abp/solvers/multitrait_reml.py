@@ -745,6 +745,9 @@ def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: 
                            "R0": R0f.tolist()}, dec, x.copy(), cov_x)
 
 
+AIC_MARGIN = 2.0                      # conservative rank reduction, see select_rank
+
+
 def n_parameters(t: int, rank: int) -> int:
     """Free covariance parameters: loadings of rank ``rank`` (``t r - r(r-1)/2``; equal to
     ``t(t+1)/2`` at full rank) plus ``t(t+1)/2`` for ``R0``."""
@@ -752,14 +755,23 @@ def n_parameters(t: int, rank: int) -> int:
 
 
 def select_rank(data: MTData, k_inv, logdet_k: float | None, cfg: dict,
-                memory_budget_bytes: int = 4 * 2**30) -> dict:
+                memory_budget_bytes: int = 4 * 2**30, margin: float = AIC_MARGIN) -> dict:
     """Fit the full-rank model (AI-REML) and every reduced rank ``1..t-1`` and choose
-    the rank with the smallest AIC ``-2 logL + 2 n_par`` (Akaike 1974).  AIC is used
-    instead of a likelihood-ratio test because a rank reduction puts the null
-    hypothesis on the boundary of the parameter space, where the chi-square reference
-    does not hold (Self & Liang 1987).  Fits that stop (boundary, non-convergence)
-    are listed with their error and excluded.  Returns ``{"table", "chosen_rank",
-    "fits"}``; ``fits[r]`` is an ``MTREMLFit`` (``r = t``) or a ``ReducedRankFit``."""
+    a rank by AIC ``-2 logL + 2 n_par`` (Akaike 1974).  AIC is used instead of a
+    likelihood-ratio test because a rank reduction puts the null hypothesis on the
+    boundary of the parameter space, where the chi-square reference does not hold
+    (Self & Liang 1987).
+
+    The rule is conservative: start at the highest rank that could be fitted and
+    move to a lower rank only when its AIC is smaller than the current choice by at
+    least ``margin`` (default 2).  Plain minimum AIC wrongly reduced a full-rank G0
+    (rG 0.6, 1,000 animals) to rank 1 in 19 of 100 replicates, with a fourfold
+    underestimate of trait-2 PEV; with the margin of 2 it did so in 0 of 100
+    (``docs/validation/rr_calibration_full.json``).  Fits that stop (boundary,
+    non-convergence) are listed with their error and excluded - when the full-rank
+    fit stops at the boundary the lower rank is chosen whatever the margin.
+    Returns ``{"table", "chosen_rank", "fits", "criterion", "margin"}``;
+    ``fits[r]`` is an ``MTREMLFit`` (``r = t``) or a ``ReducedRankFit``."""
     t = int(np.asarray(data.Y).shape[1])
     table, fits = [], {}
     for rank in range(1, t + 1):
@@ -781,5 +793,11 @@ def select_rank(data: MTData, k_inv, logdet_k: float | None, cfg: dict,
     best = min(ok, key=lambda r_: r_["aic"])
     for r_ in ok:
         r_["delta_aic"] = r_["aic"] - best["aic"]
-    return {"table": table, "chosen_rank": best["rank"], "fits": fits,
-            "criterion": "AIC = -2 logL + 2 n_parameters (REML likelihoods, same fixed effects)"}
+    chosen = max(ok, key=lambda r_: r_["rank"])
+    for r_ in sorted(ok, key=lambda r_: -r_["rank"]):
+        if r_["aic"] < chosen["aic"] - margin:
+            chosen = r_
+    return {"table": table, "chosen_rank": chosen["rank"], "fits": fits, "margin": margin,
+            "criterion": ("AIC = -2 logL + 2 n_parameters (REML likelihoods, same fixed "
+                          f"effects); a lower rank is chosen only if its AIC is smaller by "
+                          f">= {margin:g}")}

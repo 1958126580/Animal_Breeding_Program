@@ -78,8 +78,9 @@ def render_report(results: dict, manifest: dict) -> str:
                 L.append("")
             if r.get("rank_selection"):
                 rs = r["rank_selection"]
-                L.append("Rank of the genetic covariance matrix chosen by AIC (smallest "
-                         f"-2 logL + 2 n_parameters): **rank {rs['chosen_rank']}**. "
+                L.append("Rank of the genetic covariance matrix chosen by AIC "
+                         "(-2 logL + 2 n_parameters; a lower rank only if its AIC is smaller "
+                         f"by at least {rs.get('margin', 2.0):g}): **rank {rs['chosen_rank']}**. "
                          + "; ".join(f"rank {x['rank']}: " + (
                              f"logL {x['loglik']:.4f}, {x['n_parameters']} parameters, "
                              f"ΔAIC {x['delta_aic']:.2f}" if "aic" in x
