@@ -1,6 +1,6 @@
 # ABP Python API
 
-Version 0.7.0. Every snippet below is taken from `examples/api_example.py`,
+Version 0.8.0. Every snippet below is taken from `examples/api_example.py`,
 which the test suite runs (`tests/test_examples.py::test_api_example_script_runs`).
 The mathematics behind each function is in [`methods.md`](methods.md).
 
@@ -494,8 +494,10 @@ smp.pev, smp.reliability, smp.reliability_se
 ```
 
 `sampled_pev(n, X, terms, variances, genetic_term, n_samples=200, seed=..., tol,
-max_iter)`: terms must be a matrix-free single-step term (with `ped` set) or iid
-terms.
+max_iter, estimator="orthogonal")`: terms must be a matrix-free single-step term
+(with `ped` set) or iid terms. `estimator="orthogonal"` (default since 0.8):
+reliability `mean h² / (mean h² + mean d²)` minus its second-order bias;
+`"ratio"`: the 0.6 estimator `1 − mean d² / mean u*²` (kept for comparison).
 
 ## 26. Reduced-rank REML gradient
 
@@ -534,3 +536,30 @@ the `q × t × t` correction to add to the PEV blocks; `ReducedRankFit.x` and
 scaled inverse-χ² prior (`s2` a number for all terms or a dict per term); the default
 `nu=-2, s2=0` is the uniform prior. In a spec: `bayes.variance_prior`,
 `bayes.nu`, `bayes.prior_variances`.
+
+## 29. Multi-trait threshold model: `abp.solvers.mt_threshold_gibbs`
+
+```python
+from abp.solvers.mt_threshold_gibbs import MTThresholdGibbsConfig, mt_threshold_gibbs
+mtt = mt_threshold_gibbs(Ymt, 1, Xmt, np.arange(ped2.n), ped2.ainv(), MTThresholdGibbsConfig(
+    chains=2, iterations=300, burn_in=100, thin=1, max_iterations=300, seed=1, prior_nu=5.0,
+    prior_G0=np.array([[1.0, 0.0], [0.0, 0.3]])))
+```
+
+`mt_threshold_gibbs(Y, cat, X, animal_col, k_inv, cfg)`: `Y` is `n × t` (NaN =
+missing, column `cat` integer categories), `X` a list of per-trait fixed designs
+(rows = records where the trait is observed; each with an intercept) or one design
+shared by the traits, `animal_col` the column of each record's animal in `K`.
+`MTThresholdGibbsConfig(chains, iterations, burn_in, thin, seed, rhat_max, ess_min,
+max_iterations, start_G0, start_R0, fix_covariances, scale_move, shear_moves,
+prior_nu, prior_G0)`; `prior_nu=None, prior_G0=None` is the flat prior on `G0`.
+Returns `MTThresholdGibbsResult` (`ebv`, `pev` (`q × t`), `pev_blocks` (`q × t × t`),
+`fixed_mean` per trait, `thresholds_mean`, `G0`/`R0` summaries (`mean`, `sd`,
+`q025`, `q975`), `derived` (heritabilities `h2_j`, genetic correlations `rG_i_j`),
+`summaries` (R-hat, ESS per scalar), `ebv_diagnostics`, `converged`, `traces`).
+Building blocks (tested separately): `MTProblem`, `draw_location`, `draw_R0`,
+`draw_G0`, `split_design`.
+
+`SparseLDL.refactor_values(data)` (round 8) refactorises from values stored on
+exactly the pattern of `SparseLDL.C` (no sparse re-assembly);
+`Pedigree.a_times` uses the compiled Colleau kernel when available.

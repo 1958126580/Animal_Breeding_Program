@@ -218,3 +218,38 @@ decisions on individual animals. The first run of this benchmark found a
 manifest defect (validation report §9); the numbers above are from the rerun
 after the fix (first run: 255 s, 7.39 GB).
 
+
+## Round 8: speed-ups and the multi-trait threshold sampler
+
+**Colleau product `A x`** (`_native.colleau_times`: the two pedigree recursions in C++
+over contiguous rows; the SuperLU triangular solves remain the reference): 120,000
+animals × 256 columns in 1.7 s instead of 8.3 s on a loaded machine (identical to
+9e-16 relative).
+
+**Workflow-level single step** (`benchmarks/ssmf_workflow_large.py`, same data as in
+round 7; `benchmarks/results/ssmf_workflow_large_r8.json`, `.log`):
+
+| Phase | Round 7 | Round 8 |
+|---|---:|---:|
+| reading, pedigree and phenotype QC | 5 s | 5 s |
+| PLINK (int8), genotype QC, frequencies, A22 core columns, APY blocks, A22⁻¹ operator | 182 s | 130 s |
+| PCG solve (120,400 equations) | 5.5 s | 5.1 s |
+| sampled PEV, 10 simulations | 65 s | 64 s |
+| **total** / peak memory | **261 s** / 7.38 GB | **206 s** / 7.37 GB |
+| mean Monte-Carlo SE of a reliability | 0.21 | 0.10 |
+
+**Library-level single step at 200,000 animals** (`benchmarks/ssmf_large.py`, same
+data as round 6; `benchmarks/results/ssmf_large_r8.json`, `.log`): A22 core columns
+(Colleau products) 30.6 s instead of 119.6 s; the other steps unchanged within
+run-to-run variation (inbreeding 44.7 s, APY blocks 84.5 s, A22⁻¹ operator 36.7 s,
+PCG 14.7 s, 20 PEV simulations 178 s); peak memory 6.73 GB (6.75). Mean Monte-Carlo
+SE of the sampled reliabilities 0.086 instead of 0.151 with the same 20 simulations.
+The inbreeding computation (Meuwissen–Luo, 44 s for 20 generations) and the dense
+`G_cn` product of APY are now the largest steps before the solve.
+
+**Multi-trait threshold sampler.** Per iteration and chain: one numeric sparse LDL′
+of the multi-trait equations; the coefficient values come from two precomputed
+sparse maps (no re-assembly). Example 15 (2,108 animals, 4,300 equations): 20,000
+iterations × 4 chains in 899 s on a machine shared with a 4-worker study before the
+coefficient maps, 454 s after them (with the test suite running alongside). Study (800 animals, 12,000 iterations × 4 chains): 391 s per
+replicate with 4 replicates in parallel.

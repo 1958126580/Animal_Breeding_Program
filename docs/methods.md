@@ -32,7 +32,8 @@ Contents: [1 Estimands](#1-estimands) · [2 Pedigree](#2-pedigree-relationships)
 [27 Threshold Gibbs](#27-gibbs-sampler-for-the-threshold-model) ·
 [28 Multi-trait PEV with REML uncertainty](#28-pev-including-reml-uncertainty-for-multi-trait-models) ·
 [29 Sampled PEV](#29-sampled-pev-for-the-matrix-free-single-step) ·
-[30 Compact genotype storage](#30-compact-genotype-storage)
+[30 Compact genotype storage](#30-compact-genotype-storage) ·
+[31 Multi-trait threshold model](#31-multi-trait-threshold-model-categorical-and-continuous-traits)
 
 ---
 
@@ -1142,6 +1143,25 @@ reduced rank for protection against a false one. **Tests.**
 margin rule), `test_rank_selection_margin_rule` (the rule at, below and above
 the margin), `test_workflow_rank_selection`.
 
+*What the chosen model's EBVs are worth (round 8,*
+`benchmarks/rank_selection_study.py`, `rank_selection_study.json`; 100
+replicates per scenario, 1,000 animals; BLUP of the model the rule chooses,
+PEV plug-in / Kackar–Harville (KH), MSE/PEV ± MC SE):
+
+| Truth | Chosen rank | Trait 1 (KH) | Trait 2 (KH) | Trait 3 (KH) |
+|---|---|---:|---:|---:|
+| 2 traits, rank 1 | 1: 58, 2: 42 | 1.006 ± 0.010 | 0.960 ± 0.029 | – |
+| 2 traits, full (r_G 0.595) | 2: 100 | 1.020 ± 0.013 | 1.136 ± 0.045 | – |
+| 3 traits, rank 2 | 2: 65, 3: 35 | 1.035 ± 0.014 | 1.012 ± 0.023 | 1.016 ± 0.027 |
+| 3 traits, full | 3: 100 | 1.043 ± 0.013 | 1.135 ± 0.040 | 1.174 ± 0.069 |
+
+(with the true parameters all 0.99–1.01). The full-rank fits kept for a rank-1
+truth are conservative for trait 2 (0.844 ± 0.029) and lose little accuracy
+(0.737 vs 0.746). The optimism of the low-heritability traits of the full-rank
+scenarios (h² 0.15–0.25, 30% missing: 1.14–1.17 even with KH) is not caused by the
+rank choice - it is the full-rank REML fit itself: the first-order KH correction
+is not enough when the covariances are this poorly determined (finding F16).
+
 ## 26. Matrix-free single step
 
 Code: `abp/core/ssop.py`; `abp/solvers/mme.py` (`MixedModelSystem.extra`);
@@ -1276,9 +1296,26 @@ drawn exactly without forming `H`: `a = T D^{1/2} z ~ N(0, A)` (gene dropping),
 regression plus independent residuals with variances `m`), and
 `u₁ = a₁ + A₁₂A22⁻¹(u₂ − a₂)` through the `A22⁻¹` operator and a Colleau
 product (Legarra et al. 2009 give `H₁₁` and `H₁₂` as these conditional
-moments). Reported: `PEV_i = mean d²`, `reliability_i = 1 − mean d²/mean u*²`
-(a ratio estimator that needs no `diag(H)`) and its delta-method Monte-Carlo
-SE (`reliability_mc_se`); relative SE of PEV `≈ √(2/N)`.
+moments). Reported: `PEV_i = mean d²` and, since round 8,
+
+    reliability_i = mean h² / (mean h² + mean d²) − (H v_D − D v_H) / T³,   h = û*,
+
+with `H`, `D` the two means, `v` their sampling variances and `T = H + D`
+(`estimator = "orthogonal"`). Because `h` and `d` are independent under BLUP,
+`Var(u) = Var(h) + PEV` and `r = Var(h)/Var(u)`; the round-6 estimator
+`1 − mean d²/mean u*²` contains `mean u*² = mean h² + mean d² + 2 mean(hd)`,
+whose cross term has expectation 0 but adds noise. For Gaussian draws the delta
+method gives `SE(ratio) ≈ 2(1 − r)√r/√N` and `SE(orthogonal) ≈ 2r(1 − r)/√N`:
+a reduction by `√r` at no cost. The second term removes the `O(1/N)` bias of the
+ratio of means (`≈ 2r(1 − r)(1 − 2r)/N`). Delta-method Monte-Carlo SE in
+`reliability_mc_se`; relative SE of PEV `≈ √(2/N)`. **Evidence**
+(`benchmarks/pev_estimator_study.py`, small single step with exact
+reliabilities, 300 seeds × 40 simulations, mean reliability 0.32): SD of the
+error 0.064 (orthogonal) vs 0.111 (ratio), ratio 0.575 against the predicted
+0.574 — the precision of about three times as many simulations; mean error
+−0.0002 ± 0.0004 vs −0.0088 ± 0.0007; the reported SE is about 8% below the
+observed spread. **Test.**
+`test_orthogonal_reliability_estimator_is_unbiased_and_less_noisy`.
 **Tests.** `test_h_sampler_has_the_single_step_covariance` (40,000 draws vs
 the explicit `H`), `test_apy_sampler_has_the_apy_covariance`,
 `test_sampled_reliabilities_agree_with_exact_ones` (dense G and APY: the
@@ -1308,7 +1345,83 @@ Results are the same up to the order of floating-point summation.
 `test_int8_genotype_storage_gives_identical_ebvs` (explicit and matrix-free,
 example 05: EBVs equal to 10⁻⁸ relative), `test_apy_blocks_from_int8_dosage_equal_the_float_version`.
 
-## 31. References (additions)
+## 31. Multi-trait threshold model (categorical and continuous traits)
+
+Code: `abp/solvers/mt_threshold_gibbs.py`, `abp/workflows/mt_threshold.py`. Registry
+id `threshold.gibbs_multitrait`. Spec: `variances.mode = "bayes"`,
+`bayes.method = "threshold"`, exactly one categorical trait among `model.traits`.
+
+Model: the multi-trait animal model of §8 on the liability scale — each trait with
+its own fixed design, missing traits, `u ~ N(0, K ⊗ G0)`, `e_r ~ N(0, R0)` — with
+`l_rc` the liability of the categorical trait, `y_rc = k ⇔ τ_{k−1} < l_rc ≤ τ_k`,
+`R0[c, c] = 1` and `τ_1 = 0`. Priors: flat on the fixed effects and free
+thresholds; `G0 ~ IW(ν, ν G_prior)` (`bayes.variance_prior = "inverse_wishart"`,
+`bayes.nu`, `bayes.prior_covariance`; for `t = 1` the scaled inverse χ² of §27) or
+flat over the positive-definite matrices (`ν = −(t + 1)`, the default); for `R0`
+the parameterisation of Korsgaard et al. (2003) with the categorical trait first,
+`e_c ~ N(0, 1)`, `e_o | e_c ~ N(b e_c, S)`, `R0 = [[1, b′], [b, S + bb′]]`, flat on
+`(b, S)`.
+
+Sampler (state: `θ = (β, u)`, liabilities of the observed categorical records, `τ`,
+residuals `e_m` of the missing traits, `G0`, `R0`); steps 1–2 condition on the
+observed data with `e_m` integrated out and `e_m` is drawn right after them from its
+exact conditional (a partially collapsed Gibbs sampler, valid because the
+marginalised block is redrawn before it is used):
+
+1. thresholds and liabilities (Cowles MH step as in §27) with the conditional
+   distribution of `l_rc` given the record's observed continuous traits,
+   `N(m_r, s_r²)`, `m_r = η_rc + R0_co R0_oo⁻¹(y_ro − η_ro)`;
+2. `θ` in one block from the observed-data mixed-model equations (`R⁻¹` with a
+   block `R0[o_r, o_r]⁻¹` per record, as in §8) by perturbation, the sparse LDL′
+   pattern reused (`refactor` accepts exact zeros on the stored pattern);
+2b. scale move for the categorical trait (`u_c → g u_c`, `G0 → DG0D`) and
+2c. shear moves for every ordered pair of traits (`u_i → u_i + h u_j`,
+   `G0 → S G0 S′`, `S = I + h e_i e_j′`): generalised Gibbs steps (Liu & Sabatti
+   2000). For the shear the Jacobian is 1 and `h` has an exact normal conditional
+   (precision `w′R⁻¹w + (G0⁻¹)_ii Ψ_jj`, linear term `w′R⁻¹r + (ΨG0⁻¹)_ji`,
+   `Ψ = ν G_prior`);
+3. `e_m | e_o` from the conditional normal per record;
+4. `G0 | u ~ IW(U′K⁻¹U + ν G_prior, q + ν)`;
+5. `S ~ IW(E_o′E_o − E_o′e_c e_c′E_o / e_c′e_c, n − t − 1)`, then
+   `b | S ~ N(E_o′e_c / e_c′e_c, S / e_c′e_c)` (an exact draw of `(b, S)`).
+
+Output: posterior means (EBVs), posterior variances and `t × t` covariance blocks
+(PEV; include the uncertainty of all parameters), reliabilities
+`1 − PEV_jj/(K_ii Ḡ0_jj)`, posterior summaries of `G0`, `R0`, heritabilities and
+genetic correlations, thresholds; R-hat/ESS gating as in §27.
+
+**Improper posterior with one categorical record per animal.** With a flat prior on
+the genetic variance of the categorical trait, the likelihood tends to a positive
+constant as that variance grows (the probability that the liabilities of related
+animals fall in the observed orthants), so the posterior is improper; the chains
+drift (observed in the single-trait sampler as well: variance 10 and rising on a
+200-animal test set). Repeated records (§27) avoid it; otherwise a proper prior is
+needed and its influence must be reported (F13, F17).
+
+**Identifiability checks** (refused with `ABP-E300`): every trait's fixed design of
+full column rank on that trait's records; no 0/1 fixed-effect column whose
+categorical records are all in one extreme category.
+
+**Tests** (`tests/test_mt_threshold_gibbs.py`, `tests/test_mt_threshold_workflow.py`):
+the location draw against the exact conditional mean and covariance (dense algebra
+from the model definition, with missing values); the `R0` step against 2-D
+quadrature (two traits) and closed-form moments (three traits); the `G0` step
+against an independent random-walk Metropolis sampler (flat and inverse-Wishart
+prior); the posterior with fixed covariances against importance sampling of the
+closed-form posterior (liabilities integrated out analytically; 400,000 draws); with
+uncorrelated traits, the reduction to the single-trait threshold sampler and to
+BLUP; invariance of the posterior under the scale and shear moves (means within
+Monte-Carlo error, ESS of the genetic variance and correlation raised);
+the workflow outputs, withholding and spec rules; the linear coefficient maps against
+direct assembly. **Evidence**: `benchmarks/mt_threshold_study.py` (30 replicates,
+800 animals, 360 single categorical records): categorical EBVs more accurate than
+with the single-trait threshold model (+0.039 ± 0.010), MSE/PEV 1.03, coverage
+0.945; variances close to the truth; the genetic correlation follows the prior's
+centre (0.27 with prior covariance 0, 0.51 with the prior at the true 0.5; F18).
+`benchmarks/mt_threshold_crosscheck.py`: agreement with the first implementation
+(imputation of missing observations) within 1.5 MC SE.
+
+## 32. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.
@@ -1351,3 +1464,5 @@ example 05: EBVs equal to 10⁻⁸ relative), `test_apy_blocks_from_int8_dosage_
 * Sorensen DA, Andersen S, Gianola D, Korsgaard I (1995) Genet Sel Evol 27:229–249.
 * Akaike H (1974) IEEE Trans Autom Control 19:716–723.
 * Self SG, Liang K-Y (1987) J Am Stat Assoc 82:605–610.
+* Korsgaard IR, Lund MS, Sorensen D, Gianola D, Madsen P, Jensen J (2003) Genet Sel
+  Evol 35:159–183.

@@ -4,6 +4,22 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.8.0] - 2026-09-30
+
+Eighth development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Multi-trait threshold model: one ordered categorical trait together with continuous traits (`variances.mode = "bayes"`, `bayes.method = "threshold"`, more than one model trait), own fixed effects per trait, missing traits; Gibbs sampler with conditional categorical liabilities, exact block draws, scale and shear parameter-expansion moves, `G0` flat or inverse Wishart (`bayes.variance_prior = "inverse_wishart"`, `bayes.nu`, `bayes.prior_covariance`), `R0` with the categorical residual variance fixed at 1 (Korsgaard et al. 2003); outputs `ebv_multitrait.csv`, `mcmc_diagnostics_multitrait.json`, `mcmc_trace_multitrait.csv`; unconverged chains withheld (`abp.solvers.mt_threshold_gibbs`, `abp.workflows.mt_threshold`). Example 15.
+- `benchmarks/rank_selection_study.py` (BLUP of the model chosen by the AIC rule, 2 and 3 traits), `benchmarks/mt_threshold_study.py`, `benchmarks/pev_estimator_study.py`.
+- Native Colleau product `A x` (`_native.colleau_times`), used by `Pedigree.a_times`; `SparseLDL.refactor_values`; self-test T18.
+- API section 29, methods §31, validation report §7.12.
+
+### Changed
+- **[results]** Sampled reliabilities (`solver.pev = "sampled"`) use the estimator `mean h² / (mean h² + mean d²)` with its second-order bias removed instead of `1 − mean d² / mean u*²`: about three times fewer simulations for the same precision at a reliability of 0.32; `sampled_pev(..., estimator="ratio")` keeps the old one. The manifest records the estimator.
+- `SparseLDL.refactor` accepts a matrix whose entries lie on the stored pattern (exact zeros this time).
+- Genotype QC makes no full copies of the dosage and missing matrices when nothing is excluded; APY centring works in place.
+- Categorical traits in multi-trait models are accepted with the threshold Gibbs sampler (previously refused).
+
 ## [0.7.0] - 2026-09-30
 
 Seventh development round. Evidence and gaps: `docs/validation_report.md`.

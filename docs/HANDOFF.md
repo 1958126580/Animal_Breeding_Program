@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-09-30, ABP 0.7.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-09-30, ABP 0.8.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -51,6 +51,11 @@ method in `docs/method_registry.toml`):
   (`genomic.genotype_storage`, blockwise G and frequencies); workflow-level
   run with 120,000 animals / 30,000 genotyped (261 s, 7.38 GB); manifest fix
   for the sampled-PEV record; self-test T17;
+* **round 8**: multi-trait threshold model (one categorical + continuous traits,
+  Gibbs sampler with scale and shear moves, IW prior, example 15); variance-reduced
+  sampled reliabilities (about 3x fewer simulations); rank-selection study scoring
+  the EBVs of the chosen model (2 and 3 traits, F16); native Colleau product and
+  direct coefficient maps (speed); fewer genotype copies; self-test T18;
 * single-trait BLUP (animal, repeatability), dense/sparse/PCG solvers, PEV,
   reliability; **exact PEV at any size whose factor fits in memory by sparse
   selected inversion** (round 3; Takahashi equations on the symbolic Cholesky
@@ -65,9 +70,18 @@ method in `docs/method_registry.toml`):
 * optimal contribution selection and mating plans (`abp mate`, proposals
   only);
 * workflow with atomic outputs, manifests and reports; CLI; launchers;
-  synthetic sheep generator; 14 examples; documentation; self-test T01–T17.
+  synthetic sheep generator; 15 examples; documentation; self-test T01–T18.
 
 ## 2. Commands that were run (Linux) and their results
+
+Round 8: full test suites (native 311 passed; pure-Python kernels 306 passed,
+5 native-only skipped), self-test T01–T18 with both kernels, all 18 example runs
+(including example 15) and the API example (sections 18–27), the estimator study
+(300 seeds), the rank-selection study (4 × 100), the multi-trait threshold study
+(30 replicates × 12,000 iterations, plus 3,000-iteration and true-prior runs), the
+cross-check against the first implementation, and the workflow-level (120,000
+animals) and library-level (200,000 animals) benchmarks after the speed-ups; CI
+after every push (validation report §3, §3a, §7.12).
 
 Round 7: full test suites (native 297 passed; pure-Python kernels
 292 passed, 5 native-only skipped), self-test T01–T17 with both kernels, all examples and the API example
@@ -111,9 +125,11 @@ on 7 jobs (run 36447242937: 211 passed on Windows and Linux).
 Windows performance measurements (functional tests only, in CI), CUDA (no
 implementation), real-data validation and comparison software (no data or
 licenses), LR population accuracy (erratum not verifiable), posterior SBC,
-calibration of the full-rank EBVs kept by the rank-selection rule (not scored
-in the rank studies), a workflow-level run at 200,000 animals (the workflow
-run used 120,000).
+threshold models with several categorical traits or extra random terms,
+fixing a residual covariance at zero, a second-order Kackar–Harville correction
+(F16), a workflow-level run at 200,000 animals (the 200,000-animal runs are
+library-level), and a study of the multi-trait threshold model with repeated
+categorical records.
 
 ## 4. Open scientific and engineering risks
 
@@ -134,6 +150,13 @@ See `docs/validation_report.md` §8. The most important:
   move the estimates towards their centre (round-7 study). Remedy: more
   records per animal or known variances. **F14**: sampled reliabilities carry
   Monte-Carlo error (SE 0.21 with 10 simulations at 120,000 animals).
+* **F16 (new)**: full-rank multi-trait REML on small data: low-h² traits stay
+  14–17% optimistic even with the Kackar–Harville PEV.
+* **F17 (new)**: one categorical record per animal + flat variance prior = improper
+  posterior (chains drift, results withheld); use a proper prior and report it.
+* **F18 (new)**: the genetic correlation between a single-record categorical
+  trait and a continuous trait follows the prior's centre (0.27 vs 0.51 for
+  prior 0 vs 0.5; truth 0.5): use published estimates for `prior_covariance`.
 * **F15 resolved**: plain minimum AIC reduced a full-rank G0 in 19% of data
   sets; the margin of 2 prevents it (0/100) at the cost of recognising a true
   rank 1 less often (58/100 instead of 97/100).
@@ -163,17 +186,18 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 7 completed tasks 1–4 listed here in round 6 (task 1 without
-multi-trait threshold models). Next:
+Round 8 completed tasks 1–4 listed here in round 7. Next:
 
-1. Multi-trait threshold/linear models (categorical and continuous traits
-   together), with a Gibbs sampler extending `threshold_gibbs`.
-2. Rank selection: score the calibration of the full-rank EBVs kept by the
-   margin rule, and study the rule with three or more traits.
-3. Sampled PEV: variance reduction (e.g. control variates from a
-   block-diagonal approximation) so that fewer simulations reach SE ≤ 0.05.
-4. Workflow-level run at 200,000+ animals and a profile of the genotype
-   loading / APY construction phase (182 s of 261 s at 120,000 animals).
+1. Multi-trait threshold model: several categorical traits (joint liabilities with
+   a correlation-matrix step), extra random terms (permanent environment),
+   residual covariances fixed at zero, and faster mixing (the example needs 20,000
+   iterations).
+2. F16: a second-order Kackar–Harville correction or the Bayesian multi-trait
+   linear model (posterior PEV) for small data with low heritabilities.
+3. APY construction at scale: the dense `G_cn` product (float32 option with a
+   documented error bound) and parallel Colleau products.
+4. Sampled PEV: combine the orthogonal estimator with control variates from an
+   approximate reliability.
 5. Real-data validation (G5) and comparison software — blocked on the gaps
    in §5.
 
@@ -187,7 +211,8 @@ multi-trait threshold models). Next:
 | `src/abp/solvers/cholesky.py`, `multitrait_reml.py`, `threshold.py` | sparse LDL', multi-trait REML, threshold model (round 4); reduced-rank REML and Laplace REML (round 5) |
 | `src/abp/solvers/vc_uncertainty.py`, `src/abp/core/ssop.py` | Kackar–Harville PEV; matrix-free single-step operators (round 5) |
 | `src/abp/solvers/threshold_gibbs.py`, `src/abp/solvers/pev_sampling.py` | threshold Gibbs sampler; sampled PEV (round 6) |
-| `src/abp/_native.cpp` | C++20 kernels: inbreeding, Bayesian sweep, `ml_general`, `symbolic_cholesky`, `takahashi`, `mindegree_order`, `ldl_numeric`, `ldl_solve` |
+| `src/abp/solvers/mt_threshold_gibbs.py`, `src/abp/workflows/mt_threshold.py` | multi-trait threshold model (round 8) |
+| `src/abp/_native.cpp` | C++20 kernels: inbreeding, Bayesian sweep, `ml_general`, `symbolic_cholesky`, `takahashi`, `mindegree_order`, `ldl_numeric`, `ldl_solve`, `colleau_times` |
 | `tests/` | test suite; `tests/reference/` holds the independent dense references (incl. `tabular_a_metafounders`) |
 | `examples/` | runnable examples and synthetic data (`*/truth` folders are for validation only) |
 | `docs/` | manual, methods, API, validation, benchmarks, ADRs, requirements, registry, license inventory, error codes |

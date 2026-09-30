@@ -9,7 +9,9 @@ recorded on every non-founder; breeding values by gene dropping from
 residual ``R0 = [[1, 0.849], [0.849, 8]]`` (correlation 0.3).  Fitted:
 
 * ``mt``  multi-trait threshold model (``mt_threshold_gibbs``), inverse Wishart prior
-          ``IW(5, 5 G_prior)`` with ``G_prior = diag(0.2, 3.0)`` (near, not at, the truth);
+          ``IW(5, 5 G_prior)`` with ``G_prior = diag(0.2, 3.0)`` (near, not at, the truth;
+          ``--g-prior true``: ``G_prior = G0``, to measure the prior's pull on the
+          genetic covariance);
 * ``st``  single-trait threshold model on the categorical trait (``threshold_gibbs``),
           scaled inverse chi-square prior ``nu = 5, s2 = 0.2`` (the same marginal prior).
 
@@ -52,6 +54,7 @@ R0 = np.array([[1.0, 0.3 * np.sqrt(8.0)], [0.3 * np.sqrt(8.0), 8.0]])
 CUTS = [-0.3, 0.7]
 N_ANIMALS = 800
 ITER = 3000
+G_PRIOR = np.diag([0.2, 3.0])          # --g-prior diag (default) or true (= G0)
 
 
 def simulate(seed: int, n: int):
@@ -105,7 +108,7 @@ def replicate(seed: int) -> dict:
     t0 = time.time()
     mt = mt_threshold_gibbs(Yk, 0, Xs, rows, ped.ainv(), MTThresholdGibbsConfig(
         chains=4, iterations=it, burn_in=it // 5, thin=2, max_iterations=it, seed=seed,
-        prior_nu=5.0, prior_G0=np.diag([0.2, 3.0])))
+        prior_nu=5.0, prior_G0=G_PRIOR))
     Gm = np.array(mt.G0["mean"])
     out["mt"] = {"converged": mt.converged, "wall_s": time.time() - t0,
                  "G0": mt.G0["mean"], "R0": mt.R0["mean"],
@@ -135,15 +138,18 @@ def _ms(v):
 
 
 def main():
-    global N_ANIMALS, ITER
+    global N_ANIMALS, ITER, G_PRIOR
     ap = argparse.ArgumentParser()
     ap.add_argument("--replicates", type=int, default=30)
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--animals", type=int, default=800)
     ap.add_argument("--iterations", type=int, default=3000)
+    ap.add_argument("--g-prior", choices=("diag", "true"), default="diag")
     ap.add_argument("--out", default=str(ROOT / "docs" / "validation" / "mt_threshold_study.json"))
     a = ap.parse_args()
     N_ANIMALS, ITER = a.animals, a.iterations
+    if a.g_prior == "true":
+        G_PRIOR = G0.copy()
     t0 = time.time()
     seeds = list(range(1, a.replicates + 1))
     if a.workers > 1:
@@ -168,6 +174,7 @@ def main():
     doc = {"study": "multi-trait threshold model vs single-trait threshold model",
            "replicates": a.replicates, "seeds": f"1..{a.replicates}", "animals": N_ANIMALS,
            "iterations": ITER, "true": {"G0": G0.tolist(), "R0": R0.tolist(), "cuts": CUTS},
+           "g_prior": G_PRIOR.tolist(),
            "wall_seconds": time.time() - t0, "summary": s, "replicate_results": reps}
     Path(a.out).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(s, indent=1))

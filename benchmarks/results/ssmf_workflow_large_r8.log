@@ -1,0 +1,24 @@
+{
+ "size": {
+  "animals": 120000,
+  "records": 110000,
+  "genotyped": 30000,
+  "markers": 20000,
+  "bed_bytes": 150000003
+ },
+ "abp_run_exit_status": 0,
+ "abp_run_wall_s": 205.90790768099941,
+ "abp_run_peak_rss_gb": 7.3697357177734375
+}
+status: passed
+outputs: /tmp/tmpz9tua4gw/out
+report: /tmp/tmpz9tua4gw/out/report.md
+2026-09-30T13:05:43 INFO ABP run 20260930T130543Z-b45e1282 started; spec /tmp/tmpz9tua4gw/a.toml (sha256 414e51d1a430)
+2026-09-30T13:05:44 INFO read 110000 phenotype rows and 120000 pedigree rows
+2026-09-30T13:05:48 INFO pedigree QC passed: 120000 animals, max generation 11, mean F 0.0029 (native_cpp_meuwissen_luo kernel)
+2026-09-30T13:05:48 INFO phenotype QC passed: 110000 records used, 0 excluded (listed in qc_excluded_records.csv)
+2026-09-30T13:07:58 INFO y: 110000 records, 400 fixed columns kept (1 constrained), random terms ['animal']
+2026-09-30T13:08:03 INFO y: solved 120400 equations with pcg (matrix-free single step: H^-1 applied as an operator); relative residual 9.80e-09; 5.06 s
+2026-09-30T13:09:07 INFO y: PEV by 10 simulations (seed 20260925); mean Monte-Carlo SE of reliability 0.1010
+2026-09-30T13:09:09 INFO run 20260930T130543Z-b45e1282 passed in 205.49 s
+wrote benchmarks/results/ssmf_workflow_large_r8.json

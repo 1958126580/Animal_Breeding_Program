@@ -174,7 +174,7 @@ end with
 `RESULT: PASS`. It also reports whether the native C++ kernel is in use.
 
 ```
-ABP 0.7.0 self-test (native kernel: True)
+ABP 0.8.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
@@ -193,6 +193,7 @@ ABP 0.7.0 self-test (native kernel: True)
   [PASS] T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)
   [PASS] T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix
   [PASS] T17 PLINK decoding to int8 and float64 (hand-derived byte)
+  [PASS] T18 Colleau product A x on a hand-derived inbred pedigree
 RESULT: PASS
 ```
 
@@ -632,8 +633,9 @@ set proper priors).
 | `seed` | 20260925 | master seed; each chain gets an independent stream |
 | `prior_r2` | 0.5 | share of the phenotypic variance expected to be genetic; sets the default prior scales |
 | `nu`, `nu_e` | 5.0, 5.0 | degrees of freedom of the scaled inverse-χ² priors (> 2) |
-| `variance_prior` | `"uniform"` | threshold model only: `"scaled_inv_chi2"` gives each random-term variance a scaled inverse-χ² prior with `nu` degrees of freedom |
+| `variance_prior` | `"uniform"` | threshold model only: `"scaled_inv_chi2"` gives each random-term variance a scaled inverse-χ² prior with `nu` degrees of freedom; `"inverse_wishart"` (multi-trait threshold model, §7.14) gives the genetic covariance matrix an inverse-Wishart prior IW(`nu`, `nu` × `prior_covariance`) |
 | `prior_variances` | – | threshold model with `variance_prior = "scaled_inv_chi2"`: **required**, the prior scale of each random term in liability units, for example `{ animal = 0.1, pe = 0.1 }` |
+| `prior_covariance` | – | multi-trait threshold model with `variance_prior = "inverse_wishart"`: **required**, the prior guess of the genetic covariance matrix (rows and columns in `model.traits` order; liability scale for the categorical trait), for example `{ animal = [[4.0, 0.0], [0.0, 0.1]] }`; `nu` must exceed traits − 1 |
 | `rhat_max` | 1.01 | convergence: split R-hat must be below it |
 | `ess_min` | 400 | convergence: bulk and tail ESS must reach it |
 | `max_iterations` | 30000 | the chains are doubled in length until the criteria pass or this budget is used |
@@ -1527,6 +1529,65 @@ times because REML put the genetic variance at zero. The threshold model's
 realized accuracy was higher by 0.004 ± 0.001 (paired). The threshold model
 used the true liability variances; the linear model estimated its own.
 
+**A categorical trait together with continuous traits.** With
+`variances.mode = "bayes"` and `bayes.method = "threshold"`, a model may contain
+one categorical trait and any number of continuous traits (example 15: weaning
+weight on all lambs and litter size at first lambing, 1/2/3, on the ewes):
+
+```toml
+[model]
+traits = ["wwt", "nlb1"]
+fixed = [
+  { column = "cg", type = "factor", traits = ["wwt"] },
+  { column = "lambing1_year", type = "factor", traits = ["nlb1"] },
+]
+random = [{ name = "animal", kind = "additive", relationship = "pedigree" }]
+
+[variances]
+mode = "bayes"
+
+[bayes]
+method = "threshold"
+variance_prior = "inverse_wishart"
+nu = 5.0
+prior_covariance = { animal = [[4.0, 0.0], [0.0, 0.1]] }
+```
+
+ABP samples the genetic and residual covariance matrices, the thresholds, the
+fixed effects and all breeding values jointly (Gibbs sampler; §31 of the methods
+document). Each trait keeps its own fixed effects; records may miss any trait.
+Results: `ebv_multitrait.csv` (the categorical trait on the liability scale),
+posterior summaries of the (co)variances, heritabilities and genetic
+correlations in `mcmc_diagnostics_multitrait.json`, traces in
+`mcmc_trace_multitrait.csv`. As for all samplers, results are withheld unless
+every variance, covariance, threshold and breeding value passes R-hat and ESS.
+
+Three cautions:
+
+* **One categorical record per animal needs a proper prior.** With a flat prior
+  the genetic variance of such a trait is not identified (the posterior is
+  improper) and the chains drift until ABP withholds the result. Give an
+  inverse-Wishart prior with a realistic `prior_covariance`; a small `nu` keeps it
+  weak. The prior then influences the result — report it.
+* **Little information about the categorical trait.** In example 15 (254 ewes
+  with a first litter) the posterior interval of the liability genetic variance is
+  0.06–1.24 and of the genetic correlation with weaning weight −0.73 to 0.18;
+  the simulation's values (about 0.1 and +0.1) lie inside, but the point estimates
+  (0.35, −0.36) are far from them.
+* **Residual covariances are always estimated.** A residual covariance that is
+  zero by design (a lamb trait and a later ewe trait) cannot be fixed at zero in
+  this version.
+
+In a 30-replicate study (validation report §7.12) the joint model gave more
+accurate breeding values for the categorical trait than the single-trait threshold
+model (realized accuracy higher by 0.04, and by 0.075 when the prior's
+covariance matched the truth) and its reliabilities were close to calibrated
+(squared error / PEV 1.03, coverage 0.945). The genetic correlation followed the
+prior: 0.27 with a prior centred at zero covariance and 0.51 with one centred at
+the true value 0.5 — choose `prior_covariance` from published estimates, not as a
+placeholder. It needs many iterations (12,000 for 800 animals; 20,000 for
+example 15).
+
 ### 7.15 Very many genotyped animals: APY
 
 Inverting G costs time proportional to the cube of the number of genotyped
@@ -1570,12 +1631,15 @@ path (it needs the inverse of the equations). With `solver.pev = "sampled"`
 ABP estimates PEV and reliabilities by simulating data from the model and
 solving again (`solver.pev_samples` times); `ebv_<trait>.csv` then has a
 `reliability_mc_se` column with the Monte-Carlo standard error of each
-reliability (about 0.04 with 300 samples on example 05). Also not available:
+reliability. Since version 0.8 the reliability is estimated from the variance of
+the simulated EBVs and of their errors, which are independent; this needs about
+three times fewer simulations than the earlier estimator for the same precision
+(at a reliability of 0.32; the gain is largest for animals with low reliability). Also not available:
 REML (variances must be known), several traits, genomic tuning, genetic
 groups, metafounders and LR validation. A run with 200,000 animals, 30,000
 genotyped and 20,000 SNPs needed 6.75 GB (the explicit method would need more
 than 45 GB); a complete `abp run` with 120,000 animals, 30,000 genotyped
-(PLINK input, `genomic.genotype_storage = "int8"`) took 261 s and 7.4 GB;
+(PLINK input, `genomic.genotype_storage = "int8"`) took 206 s and 7.4 GB;
 see `docs/benchmarks.md`.
 
 ---
