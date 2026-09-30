@@ -1,0 +1,225 @@
+1 ABP-E300 converged
+2 converged converged
+3 converged converged
+4 converged converged
+5 ABP-E300 converged
+6 converged converged
+7 converged converged
+8 ABP-E300 converged
+9 converged converged
+10 ABP-E300 converged
+11 converged converged
+12 converged converged
+13 ABP-E300 converged
+14 converged converged
+15 ABP-E300 converged
+16 ABP-E300 converged
+17 ABP-E300 converged
+18 ABP-E300 converged
+19 ABP-E300 converged
+20 converged converged
+21 converged converged
+22 converged converged
+23 ABP-E300 converged
+24 ABP-E300 converged
+25 ABP-E300 converged
+26 ABP-E300 converged
+27 converged converged
+28 converged converged
+29 converged converged
+30 ABP-E300 converged
+31 converged converged
+32 ABP-E300 converged
+33 ABP-E300 converged
+34 ABP-E300 converged
+35 converged converged
+36 ABP-E300 converged
+37 ABP-E300 converged
+38 ABP-E300 converged
+39 ABP-E300 converged
+40 converged converged
+41 ABP-E300 converged
+42 ABP-E300 converged
+43 ABP-E300 converged
+44 ABP-E300 converged
+45 ABP-E300 converged
+46 converged converged
+47 ABP-E300 converged
+48 converged converged
+49 ABP-E300 converged
+50 converged converged
+51 ABP-E300 converged
+52 converged converged
+53 converged converged
+54 ABP-E300 converged
+55 ABP-E300 converged
+56 converged converged
+57 converged converged
+58 converged converged
+59 ABP-E300 converged
+60 ABP-E300 converged
+61 ABP-E300 converged
+62 converged converged
+63 converged converged
+64 ABP-E300 converged
+65 converged converged
+66 ABP-E300 converged
+67 ABP-E300 converged
+68 converged converged
+69 ABP-E300 converged
+70 converged converged
+71 ABP-E300 converged
+72 ABP-E300 converged
+73 ABP-E300 converged
+74 ABP-E300 converged
+75 converged converged
+76 converged converged
+77 ABP-E300 converged
+78 converged converged
+79 converged converged
+80 ABP-E300 converged
+81 ABP-E300 converged
+82 converged converged
+83 ABP-E300 converged
+84 ABP-E300 converged
+85 converged converged
+86 ABP-E300 converged
+87 converged converged
+88 converged converged
+89 ABP-E300 converged
+90 converged converged
+91 ABP-E300 converged
+92 ABP-E300 converged
+93 converged converged
+94 ABP-E300 converged
+95 ABP-E300 converged
+96 ABP-E300 converged
+97 converged converged
+98 ABP-E300 converged
+99 ABP-E300 converged
+100 ABP-E300 converged
+{
+ "full_rank_status_counts": {
+  "ABP-E300": 58,
+  "converged": 42
+ },
+ "rank1_converged": 100,
+ "rank1_G0": {
+  "G0[0,0]": {
+   "mean": 1.987895296639005,
+   "mc_se": 0.030464830477758338,
+   "n": 100,
+   "true": 1.9599999999999997
+  },
+  "G0[0,1]": {
+   "mean": 0.8508578112777058,
+   "mc_se": 0.01459994858297102,
+   "n": 100,
+   "true": 0.84
+  },
+  "G0[1,1]": {
+   "mean": 0.3702789927744031,
+   "mc_se": 0.00965688822834709,
+   "n": 100,
+   "true": 0.36
+  }
+ },
+ "rank1_R0": {
+  "R0[0,0]": {
+   "mean": 3.005119564549058,
+   "mc_se": 0.02604687141872647,
+   "n": 100,
+   "true": 3.0
+  },
+  "R0[0,1]": {
+   "mean": 0.8813640826514461,
+   "mc_se": 0.015244734273670194,
+   "n": 100,
+   "true": 0.9
+  },
+  "R0[1,1]": {
+   "mean": 1.9728532814371915,
+   "mc_se": 0.012908026882230056,
+   "n": 100,
+   "true": 2.0
+  }
+ },
+ "rank1_reml": {
+  "trait1": {
+   "pev_ratio": {
+    "mean": 1.0211930165219523,
+    "mc_se": 0.010521813667731177,
+    "n": 100
+   },
+   "coverage95": {
+    "mean": 0.9470499999999998,
+    "mc_se": 0.0013412925320621335,
+    "n": 100
+   },
+   "realized_accuracy": {
+    "mean": 0.743877451666358,
+    "mc_se": 0.00236130142838762,
+    "n": 100
+   }
+  },
+  "trait2": {
+   "pev_ratio": {
+    "mean": 1.0761510040202211,
+    "mc_se": 0.031181910163135023,
+    "n": 100
+   },
+   "coverage95": {
+    "mean": 0.94033,
+    "mc_se": 0.0036155124537235795,
+    "n": 100
+   },
+   "realized_accuracy": {
+    "mean": 0.7438774516663578,
+    "mc_se": 0.0023613014283876263,
+    "n": 100
+   }
+  }
+ },
+ "rank1_true": {
+  "trait1": {
+   "pev_ratio": {
+    "mean": 0.9973657270684231,
+    "mc_se": 0.007144108175956869,
+    "n": 100
+   },
+   "coverage95": {
+    "mean": 0.9497699999999998,
+    "mc_se": 0.000941936003316272,
+    "n": 100
+   },
+   "realized_accuracy": {
+    "mean": 0.7456291373302448,
+    "mc_se": 0.002365222524098659,
+    "n": 100
+   }
+  },
+  "trait2": {
+   "pev_ratio": {
+    "mean": 0.9973657270684231,
+    "mc_se": 0.00714410817595687,
+    "n": 100
+   },
+   "coverage95": {
+    "mean": 0.9497699999999998,
+    "mc_se": 0.000941936003316272,
+    "n": 100
+   },
+   "realized_accuracy": {
+    "mean": 0.7456291373302448,
+    "mc_se": 0.002365222524098658,
+    "n": 100
+   }
+  }
+ },
+ "full_rank_converged_rG": {
+  "mean": 0.942069871319859,
+  "mc_se": 0.007858022201992112,
+  "n": 42
+ }
+}
+wrote /home/user/Animal_Breeding_Program/docs/validation/rr_calibration_study.json

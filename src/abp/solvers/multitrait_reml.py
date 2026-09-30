@@ -89,7 +89,7 @@ from .multitrait import MTData, assemble_multitrait, check_covariance
 DENSE_MAX = 2000    #: dense trace path up to this many equations (example 13, 6,390 equations:
                     #: dense 44.2 s, sparse selected inversion 7.9 s, identical logL)
 MIN_EIG_REL = 1e-8  #: smallest eigenvalue / largest of G0 or R0 accepted at convergence
-GRAD_TOL_RR = 1e-3  #: reduced rank: largest |d(-2 logL)/dx| accepted at convergence
+NEWTON_DEC_TOL_RR = 1e-6  #: reduced rank: Newton decrement g'H^-1 g of -2 logL at convergence
 
 
 def _vech_pairs(t: int) -> list[tuple[int, int]]:
@@ -653,6 +653,7 @@ class ReducedRankFit:
     status: str
     gradient_norm: float
     start: dict
+    newton_decrement: float | None = None
 
     def to_dict(self, traits: list[str]) -> dict:
         def corr(S):
@@ -667,6 +668,7 @@ class ReducedRankFit:
                 "genetic_correlations": corr(self.G0), "residual_correlations": corr(self.R0),
                 "heritabilities": dict(zip(traits, h2)), "loglik": self.loglik,
                 "iterations": self.evaluations, "se": None, "gradient_norm": self.gradient_norm,
+                "newton_decrement": self.newton_decrement,
                 "start": self.start, "trace_method": "none (derivative-free likelihood)",
                 "note": "REML estimates under a reduced-rank genetic covariance matrix; "
                         "the rank is an assumption, sampling errors are not reported."}
@@ -698,15 +700,30 @@ def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: 
             return float("inf"), np.zeros_like(x)
 
     res = minimize(fg, x0, jac=True, method="L-BFGS-B",
-                   options={"maxiter": int(cfg["max_iter"]), "gtol": max(tol, 1e-6) * 10,
-                            "ftol": 1e-14})
+                   options={"maxiter": int(cfg["max_iter"]), "gtol": 1e-7, "ftol": 1e-15})
     x = res.x
     f, g = fg(x)
     gnorm = float(np.max(np.abs(g)))
-    if not np.isfinite(f) or gnorm > GRAD_TOL_RR:
+    # convergence: Newton decrement g'H^-1 g (predicted remaining decrease of -2 logL), with
+    # H from central differences of the analytic gradient - scale-free, unlike |g|
+    dec = float("inf")
+    if np.isfinite(f):
+        hh = 1e-5
+        H = np.empty((x.size, x.size))
+        for i in range(x.size):
+            e = np.zeros_like(x)
+            e[i] = hh
+            H[:, i] = (fg(x + e)[1] - fg(x - e)[1]) / (2 * hh)
+        H = 0.5 * (H + H.T)
+        try:
+            np.linalg.cholesky(H)
+            dec = float(g @ np.linalg.solve(H, g))
+        except np.linalg.LinAlgError:
+            dec = float("inf")
+    if not np.isfinite(f) or not dec <= NEWTON_DEC_TOL_RR:
         raise ABPError("REML_NOT_CONVERGED", f"reduced-rank multi-trait REML (rank {r}) did "
-                       f"not converge (largest gradient element {gnorm:.2e}; {res.message})",
-                       gradient=gnorm)
+                       f"not converge (Newton decrement {dec:.2e}, largest gradient element "
+                       f"{gnorm:.2e}; {res.message})", gradient=gnorm, newton_decrement=dec)
     Lam, R0 = _rr_unpack(x, t, r)
     ev_r = np.linalg.eigvalsh(R0)
     if ev_r[0] <= MIN_EIG_REL * ev_r[-1]:
@@ -721,4 +738,4 @@ def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: 
     Lam0f, R0f = _rr_unpack(x0, t, r)
     return ReducedRankFit(Lam, Lam @ Lam.T, R0, r, -0.5 * f, ev.n_eval, "converged", gnorm,
                           {"source": source, "G0": (Lam0f @ Lam0f.T).tolist(),
-                           "R0": R0f.tolist()})
+                           "R0": R0f.tolist()}, dec)
