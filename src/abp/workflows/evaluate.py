@@ -694,7 +694,12 @@ def _run_threshold_trait(spec: AnalysisSpec, model: SingleTraitModel,
     manifest["diagnostics"].setdefault(trait, {}).update(
         {"solver": out["solver"], "reml": reml_info, "threshold_model": out["threshold_model"]})
     if d["variances"]["mode"] == "bayes":
+        bz_cfg = d["bayes"]
         out["bayes"] = {"method": "threshold", "converged": gibbs.converged,
+                        "variance_prior": (bz_cfg["variance_prior"] if bz_cfg["variance_prior"]
+                                           == "uniform" else
+                                           f"scaled inverse chi-square (nu = {bz_cfg['nu']:g}, "
+                                           f"scales {bz_cfg['prior_variances']})"),
                         "iterations": gibbs.iterations, "chains": d["bayes"]["chains"],
                         "summaries": {k: {m: v[m] for m in ("mean", "sd", "q05", "q95", "rhat",
                                                             "ess_bulk", "ess_tail", "mcse_mean")}
@@ -721,10 +726,14 @@ def _threshold_gibbs_step(spec: AnalysisSpec, model: SingleTraitModel, stage: Ou
     d = spec.data
     trait = model.trait
     b = d["bayes"]
+    informative = b["variance_prior"] == "scaled_inv_chi2"
     cfg = ThresholdGibbsConfig(chains=b["chains"], iterations=b["iterations"],
                                burn_in=b["burn_in"], thin=b["thin"], seed=b["seed"],
                                rhat_max=b["rhat_max"], ess_min=b["ess_min"],
-                               max_iterations=b["max_iterations"])
+                               max_iterations=b["max_iterations"],
+                               nu=float(b["nu"]) if informative else -2.0,
+                               s2=({k: float(v) for k, v in b["prior_variances"].items()}
+                                   if informative else 0.0))
     log.info("%s: threshold-model Gibbs sampler, %d chains, %d iterations (up to %d)", trait,
              cfg.chains, cfg.iterations, cfg.max_iterations)
     g = threshold_gibbs(model.y, model.fixed.X, model.terms, d["model"]["intercept"], cfg,
@@ -740,8 +749,10 @@ def _threshold_gibbs_step(spec: AnalysisSpec, model: SingleTraitModel, stage: Ou
             "variances": g.variances,
             "threshold_step": {"acceptance_after_burn_in": g.acceptance,
                                "proposal_sd": g.proposal_sd},
-            "priors": {"variances": "uniform on (0, inf) (scaled inverse chi-square, nu = -2, "
-                                    "s2 = 0)", "fixed_effects": "flat",
+            "priors": {"variances": (f"scaled inverse chi-square, nu = {cfg.nu:g}, scales "
+                                     f"{cfg.s2}" if informative else
+                                     "uniform on (0, inf) (scaled inverse chi-square, nu = -2, "
+                                     "s2 = 0)"), "fixed_effects": "flat",
                        "thresholds": "flat subject to ordering"},
             "trace_file": f"mcmc_trace_{trait}.csv"}
     atomic_write_json(stage.path(f"mcmc_diagnostics_{trait}.json"), diag)

@@ -283,6 +283,14 @@ SCHEMA = Section({
         "rhat_max": Field("float", default=1.01, check=_positive),
         "ess_min": Field("float", default=400.0, check=_positive),
         "max_iterations": Field("int", default=30000, check=_positive),
+        "variance_prior": Field("str", default="uniform", choices=("uniform", "scaled_inv_chi2"),
+                                doc="method = 'threshold' only: prior of each liability "
+                                    "variance; 'scaled_inv_chi2' uses bayes.nu degrees of "
+                                    "freedom and the scale from bayes.prior_variances."),
+        "prior_variances": Field("float_map",
+                                 doc="method = 'threshold' with variance_prior = "
+                                     "'scaled_inv_chi2': prior scale (a guess of the liability "
+                                     "variance) for every random term."),
     }),
     "validation": Section({
         "method": Field("str", required=True, choices=("lr",),
@@ -572,6 +580,16 @@ def validate_spec_dict(raw: dict) -> dict:
         cat_traits = {tr["name"] for tr in d["traits"] if tr["type"] == "categorical"}
         if t > 1 or m["traits"][0] not in cat_traits:
             raise _err("bayes.method", "'threshold' needs a single categorical trait")
+        bz = d["bayes"]
+        names = {r["name"] for r in m["random"]}
+        if bz["variance_prior"] == "scaled_inv_chi2":
+            pv = bz["prior_variances"] or {}
+            if set(pv) != names or any(not float(x) > 0 for x in pv.values()):
+                raise _err("bayes.prior_variances", f"give a positive prior scale for exactly "
+                                                    f"{sorted(names)}")
+        elif bz["prior_variances"] is not None:
+            raise _err("bayes.prior_variances", "only used with variance_prior = "
+                                                "'scaled_inv_chi2'")
         if d["bayes"]["burn_in"] >= d["bayes"]["iterations"]:
             raise _err("bayes.burn_in", "must be smaller than bayes.iterations")
     else:
@@ -580,6 +598,9 @@ def validate_spec_dict(raw: dict) -> dict:
                                                       "in this version")
         if any(tr["type"] == "categorical" and tr["name"] in m["traits"] for tr in d["traits"]):
             raise _err("bayes.method", "categorical traits use bayes.method = 'threshold'")
+        if d["bayes"]["variance_prior"] != "uniform" or d["bayes"]["prior_variances"] is not None:
+            raise _err("bayes.variance_prior", "variance_prior and prior_variances are for "
+                                               "method = 'threshold'")
         if len(m["random"]) != 1 or m["random"][0]["relationship"] != "genomic":
             raise _err("model.random", "Bayesian marker models need exactly one additive term "
                                        "with relationship = 'genomic'")

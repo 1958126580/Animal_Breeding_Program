@@ -101,8 +101,8 @@ def render_report(results: dict, manifest: dict) -> str:
         if t.get("bayes"):
             bz = t["bayes"]
             L.append("")
-            what = ("Threshold-model Gibbs sampler (liability scale; uniform priors on the "
-                    "variances)" if bz["method"] == "threshold" else
+            what = (f"Threshold-model Gibbs sampler (liability scale; variance prior: "
+                    f"{bz.get('variance_prior', 'uniform')})" if bz["method"] == "threshold" else
                     f"Bayesian marker regression ({bz['method']}")
             L.append(f"{what}, {bz['chains']} chains, {bz['iterations']} iterations"
                      + (f", kernel {bz['kernel']}" if bz.get("kernel") else "")

@@ -725,6 +725,22 @@
         "max_iterations": {
           "type": "integer",
           "default": 30000
+        },
+        "variance_prior": {
+          "type": "string",
+          "enum": [
+            "uniform",
+            "scaled_inv_chi2"
+          ],
+          "default": "uniform",
+          "description": "method = 'threshold' only: prior of each liability variance; 'scaled_inv_chi2' uses bayes.nu degrees of freedom and the scale from bayes.prior_variances."
+        },
+        "prior_variances": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "method = 'threshold' with variance_prior = 'scaled_inv_chi2': prior scale (a guess of the liability variance) for every random term."
         }
       },
       "required": [

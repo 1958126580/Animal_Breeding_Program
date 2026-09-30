@@ -300,3 +300,49 @@ def test_spec_rules_for_threshold_gibbs():
     cont = dict(base, traits=[{"name": "y", "unit": "c"}])
     with pytest.raises(ABPError, match="categorical"):
         validate_spec_dict(dict(cont, bayes={"method": "threshold"}))
+
+
+def test_per_term_prior_scales_equal_the_scalar_prior():
+    y, X, term, g = _tiny(seed=21, n=150, levels=3, K=3)
+    common = dict(chains=2, iterations=300, burn_in=100, thin=1, max_iterations=300, nu=4.0,
+                  seed=9)
+    a = threshold_gibbs(y, X, [term], True, ThresholdGibbsConfig(s2=0.5, **common))
+    b = threshold_gibbs(y, X, [term], True, ThresholdGibbsConfig(s2={"u": 0.5}, **common))
+    np.testing.assert_array_equal(a.traces["var_u"], b.traces["var_u"])
+
+
+def test_spec_rules_for_threshold_priors():
+    from abp.core.spec import validate_spec_dict
+    from abp.errors import ABPError
+    base = {"schema_version": "1",
+            "project": {"name": "t", "species": "sheep", "synthetic_data": True},
+            "analysis": {"task": "additive_ebv", "target_population": "x",
+                         "information_cutoff": "2024-12-31", "genetic_base": "x"},
+            "data": {"pedigree": "p.csv", "phenotypes": "y.csv"},
+            "traits": [{"name": "y", "unit": "c", "type": "categorical"}],
+            "model": {"traits": ["y"], "random": [{"name": "animal", "kind": "additive",
+                                                   "relationship": "pedigree"}]},
+            "variances": {"mode": "bayes"}}
+    ok = validate_spec_dict(dict(base, bayes={"method": "threshold",
+                                              "variance_prior": "scaled_inv_chi2",
+                                              "prior_variances": {"animal": 0.1}}))
+    assert ok["bayes"]["prior_variances"] == {"animal": 0.1}
+    for bad in ({"method": "threshold", "variance_prior": "scaled_inv_chi2"},
+                {"method": "threshold", "variance_prior": "scaled_inv_chi2",
+                 "prior_variances": {"pe": 0.1}},
+                {"method": "threshold", "prior_variances": {"animal": 0.1}}):
+        with pytest.raises(ABPError, match="prior_variances"):
+            validate_spec_dict(dict(base, bayes=bad))
+
+
+def test_workflow_threshold_gibbs_with_informative_prior(tmp_path):
+    import json
+    from abp.workflows.evaluate import run_evaluation
+    spec = _write_threshold_case(tmp_path, "iterations = 3000\nburn_in = 500\nthin = 2\n"
+                                           "max_iterations = 12000\n"
+                                           'variance_prior = "scaled_inv_chi2"\nnu = 6\n'
+                                           "prior_variances = { animal = 0.5 }")
+    out = run_evaluation(spec, tmp_path / "o", console=False)
+    diag = json.loads((out.out_dir / "mcmc_diagnostics_score.json").read_text(encoding="utf-8"))
+    assert "nu = 6" in diag["priors"]["variances"]
+    assert "scaled inverse chi-square" in (out.out_dir / "report.md").read_text(encoding="utf-8")

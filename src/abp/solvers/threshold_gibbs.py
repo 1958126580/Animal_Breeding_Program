@@ -76,7 +76,7 @@ class ThresholdGibbsConfig:
     ess_min: float = 400.0
     max_iterations: int = 30000
     nu: float = -2.0              #: prior degrees of freedom (-2 with s2 = 0: uniform)
-    s2: float = 0.0               #: prior scale
+    s2: float | dict = 0.0        #: prior scale (one value, or per term name)
     start: dict | None = None     #: starting variances (default 0.2 per term)
     fix_variances: bool = False   #: keep the variances at ``start`` (known variances)
 
@@ -212,6 +212,10 @@ class _Problem:
         return sp.csr_matrix((data, self.pat.indices, self.pat.indptr), shape=self.pat.shape)
 
 
+def _prior_scale(cfg: ThresholdGibbsConfig, name: str) -> float:
+    return float(cfg.s2.get(name, 0.0)) if isinstance(cfg.s2, dict) else float(cfg.s2)
+
+
 def _slice_sample(logf, x0: float, w: float, rng, max_steps: int = 50) -> float:
     """One update of a univariate slice sampler with stepping out and shrinkage
     (Neal 2003, Ann Stat 31:705); leaves the density ``exp(logf)`` invariant."""
@@ -312,12 +316,13 @@ class _Chain:
             r = self.l - (eta - v)
             vr = float(v @ r)
             s2v = self.var[k]
+            s2k = _prior_scale(cfg, t.name)
 
             def logf(x):                      # x = log c
                 c = math.exp(x)
                 out = -0.5 * (c * c * vv - 2.0 * c * vr) + (2.0 - (cfg.nu + 2.0)) * x
-                if cfg.s2 > 0:
-                    out -= cfg.nu * cfg.s2 / (2.0 * c * c * s2v)
+                if s2k > 0:
+                    out -= cfg.nu * s2k / (2.0 * c * c * s2v)
                 return out
             x = _slice_sample(logf, 0.0, 0.5, rng)
             c = math.exp(x)
@@ -336,7 +341,7 @@ class _Chain:
             for k, (t, Ki) in enumerate(zip(P.terms, P.k_inv)):
                 a0, b0 = P.offs[t.name]
                 u = self.theta[a0:b0]
-                ss = float(u @ (Ki @ u)) + self.cfg.nu * self.cfg.s2
+                ss = float(u @ (Ki @ u)) + self.cfg.nu * _prior_scale(self.cfg, t.name)
                 self.var[k] = ss / rng.chisquare(t.q + self.cfg.nu)
             self.fac.refactor(P.coefficient(self.var))
 
