@@ -386,6 +386,15 @@
           "default": "stop",
           "description": "Multi-trait REML whose optimum has a singular genetic covariance matrix: 'stop' (ABP-E300, default) or 'reduced_rank' (refit with G0 = Lambda Lambda' of rank reml.rank)."
         },
+        "rank_selection": {
+          "type": "string",
+          "enum": [
+            "none",
+            "aic"
+          ],
+          "default": "none",
+          "description": "Multi-trait REML: 'aic' fits the full-rank model and every reduced rank and keeps the one with the smallest AIC."
+        },
         "rank": {
           "type": "integer",
           "description": "Multi-trait REML: estimate G0 = Lambda Lambda' with this rank directly (an assumption stated by the user; below the number of traits). Not combined with boundary = 'reduced_rank', whose fallback uses rank traits - 1."

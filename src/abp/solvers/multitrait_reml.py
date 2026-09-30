@@ -743,3 +743,43 @@ def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: 
     return ReducedRankFit(Lam, Lam @ Lam.T, R0, r, -0.5 * f, ev.n_eval, "converged", gnorm,
                           {"source": source, "G0": (Lam0f @ Lam0f.T).tolist(),
                            "R0": R0f.tolist()}, dec, x.copy(), cov_x)
+
+
+def n_parameters(t: int, rank: int) -> int:
+    """Free covariance parameters: loadings of rank ``rank`` (``t r - r(r-1)/2``; equal to
+    ``t(t+1)/2`` at full rank) plus ``t(t+1)/2`` for ``R0``."""
+    return t * rank - rank * (rank - 1) // 2 + t * (t + 1) // 2
+
+
+def select_rank(data: MTData, k_inv, logdet_k: float | None, cfg: dict,
+                memory_budget_bytes: int = 4 * 2**30) -> dict:
+    """Fit the full-rank model (AI-REML) and every reduced rank ``1..t-1`` and choose
+    the rank with the smallest AIC ``-2 logL + 2 n_par`` (Akaike 1974).  AIC is used
+    instead of a likelihood-ratio test because a rank reduction puts the null
+    hypothesis on the boundary of the parameter space, where the chi-square reference
+    does not hold (Self & Liang 1987).  Fits that stop (boundary, non-convergence)
+    are listed with their error and excluded.  Returns ``{"table", "chosen_rank",
+    "fits"}``; ``fits[r]`` is an ``MTREMLFit`` (``r = t``) or a ``ReducedRankFit``."""
+    t = int(np.asarray(data.Y).shape[1])
+    table, fits = [], {}
+    for rank in range(1, t + 1):
+        row = {"rank": rank, "n_parameters": n_parameters(t, rank)}
+        try:
+            fit = (mt_reml_fit(data, k_inv, logdet_k, cfg, memory_budget_bytes) if rank == t
+                   else mt_reml_fit_reduced_rank(data, k_inv, logdet_k, rank, cfg,
+                                                 memory_budget_bytes))
+            row["loglik"] = float(fit.loglik)
+            row["aic"] = -2.0 * row["loglik"] + 2.0 * row["n_parameters"]
+            fits[rank] = fit
+        except ABPError as exc:
+            row["error"] = {"code": exc.code, "message": exc.message}
+        table.append(row)
+    ok = [r_ for r_ in table if "aic" in r_]
+    if not ok:
+        raise ABPError("REML_NOT_CONVERGED", "rank selection: no rank could be fitted",
+                       table=table)
+    best = min(ok, key=lambda r_: r_["aic"])
+    for r_ in ok:
+        r_["delta_aic"] = r_["aic"] - best["aic"]
+    return {"table": table, "chosen_rank": best["rank"], "fits": fits,
+            "criterion": "AIC = -2 logL + 2 n_parameters (REML likelihoods, same fixed effects)"}

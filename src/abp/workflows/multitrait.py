@@ -77,9 +77,20 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
     loadings = None
     fit = None
     if d["variances"]["mode"] == "reml":
-        from ..solvers.multitrait_reml import mt_reml_fit, mt_reml_fit_reduced_rank
-        stop, fit = None, None
-        if d["reml"]["rank"] is None:
+        from ..solvers.multitrait_reml import mt_reml_fit, mt_reml_fit_reduced_rank, select_rank
+        stop, fit, selection, rr = None, None, None, None
+        if d["reml"]["rank_selection"] == "aic":
+            sel = select_rank(mt_data, structure.k_inv, structure.logdet_k, d["reml"],
+                              memory_budget_bytes=budget)
+            selection = {k: sel[k] for k in ("table", "chosen_rank", "criterion")}
+            log.info("rank selection by AIC: %s -> rank %d",
+                     [(r_["rank"], round(r_["aic"], 3) if "aic" in r_ else r_["error"]["code"])
+                      for r_ in sel["table"]], sel["chosen_rank"])
+            if sel["chosen_rank"] == t:
+                fit = sel["fits"][t]
+            else:
+                rr = sel["fits"][sel["chosen_rank"]]
+        elif d["reml"]["rank"] is None:
             try:
                 fit = mt_reml_fit(mt_data, structure.k_inv, structure.logdet_k, d["reml"],
                                   memory_budget_bytes=budget)
@@ -91,14 +102,18 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
                             "covariance matrix (rank %d) as requested by reml.boundary",
                             exc.message, t - 1)
         if fit is None:
-            rank = d["reml"]["rank"] or t - 1
-            rr = mt_reml_fit_reduced_rank(mt_data, structure.k_inv, structure.logdet_k, rank,
-                                          d["reml"], memory_budget_bytes=budget)
+            if rr is None:
+                rank = d["reml"]["rank"] or t - 1
+                rr = mt_reml_fit_reduced_rank(mt_data, structure.k_inv, structure.logdet_k,
+                                              rank, d["reml"], memory_budget_bytes=budget)
+            rank = rr.rank
             G0, R0, loadings = rr.G0, rr.R0, rr.loadings
             reml_info = rr.to_dict(traits)
             reml_info["full_rank_stop"] = stop
-            reml_info["rank_source"] = ("reml.rank (stated by the user)" if stop is None else
-                                        "reml.boundary = 'reduced_rank' fallback (traits - 1)")
+            reml_info["rank_source"] = (
+                "reml.rank_selection = 'aic'" if selection is not None else
+                "reml.rank (stated by the user)" if stop is None else
+                "reml.boundary = 'reduced_rank' fallback (traits - 1)")
             log.info("reduced-rank multi-trait REML (rank %d) %s after %d likelihood "
                      "evaluations; logL %.6f", rank, rr.status, rr.evaluations, rr.loglik)
             variance_source = f"reml (multi-trait, reduced-rank G0 of rank {rank})"
@@ -108,6 +123,8 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
             log.info("multi-trait REML %s after %d iterations (%s); logL %.6f", fit.status,
                      fit.iterations, fit.trace_method, fit.loglik)
             variance_source = "reml (multi-trait AI-REML with EM fallback)"
+        if selection is not None:
+            reml_info["rank_selection"] = selection
     else:
         vals = d["variances"]["values"]
         G0 = np.array(vals[add_name], dtype=np.float64)

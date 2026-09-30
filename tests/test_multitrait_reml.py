@@ -467,3 +467,47 @@ def test_reduced_rank_analytic_gradient_equals_finite_differences(t, r):
     fd = np.array([(ev.objective(x + h * e) - ev.objective(x - h * e)) / (2 * h)
                    for e in np.eye(n_par)])
     np.testing.assert_allclose(g, fd, rtol=1e-6, atol=1e-4)
+
+
+def test_rank_selection_by_aic():
+    cfg = {"tol": 1e-8, "max_iter": 200}
+    ids, s_, d_, ped, data, male = _sexed_boundary_data()
+    # boundary data: 60 iterations suffice for the full-rank fit to diagnose the boundary
+    sel = MR.select_rank(data, ped.ainv(), ped.logdet_a(), {"tol": 1e-8, "max_iter": 60})
+    rows = {r["rank"]: r for r in sel["table"]}
+    assert sel["chosen_rank"] == 1 and rows[2]["error"]["code"] == "ABP-E300"
+    assert rows[1]["aic"] == pytest.approx(-2 * rows[1]["loglik"] + 2 * MR.n_parameters(2, 1))
+    assert MR.n_parameters(2, 1) == 5 and MR.n_parameters(2, 2) == 6 and MR.n_parameters(3, 2) == 11
+    ped2, data2, A2 = _problem()                  # interior optimum: full rank kept
+    sel2 = MR.select_rank(data2, ped2.ainv(), ped2.logdet_a(), cfg)
+    rows2 = {r["rank"]: r for r in sel2["table"]}
+    full = MR.mt_reml_fit(data2, ped2.ainv(), ped2.logdet_a(), cfg)
+    assert rows2[2]["loglik"] == pytest.approx(full.loglik, abs=1e-9)
+    assert rows2[1]["loglik"] <= rows2[2]["loglik"] + 1e-6       # nested models
+    assert sel2["chosen_rank"] == min(rows2, key=lambda k: rows2[k]["aic"])
+
+
+def test_workflow_rank_selection(tmp_path):
+    from abp.workflows.evaluate import run_evaluation
+    spec, ped, data = _write_boundary_case(tmp_path, 'rank_selection = "aic"')
+    out = run_evaluation(spec, tmp_path / "o", console=False)
+    r = out.results["traits"]["y1"]["reml"]
+    assert r["rank"] == 1 and r["rank_selection"]["chosen_rank"] == 1
+    assert r["rank_source"] == "reml.rank_selection = 'aic'"
+    assert "chosen by AIC" in (out.out_dir / "report.md").read_text(encoding="utf-8")
+
+
+def test_spec_refuses_rank_selection_with_stated_rank():
+    from abp.core.spec import validate_spec_dict
+    base = {"schema_version": "1",
+            "project": {"name": "t", "species": "sheep", "synthetic_data": True},
+            "analysis": {"task": "additive_ebv", "target_population": "x",
+                         "information_cutoff": "2024-12-31", "genetic_base": "x"},
+            "data": {"pedigree": "p.csv", "phenotypes": "y.csv"},
+            "traits": [{"name": "a", "unit": "c"}, {"name": "b", "unit": "c"}],
+            "model": {"traits": ["a", "b"], "random": [{"name": "animal", "kind": "additive",
+                                                         "relationship": "pedigree"}]},
+            "variances": {"mode": "reml"}}
+    assert validate_spec_dict(dict(base, reml={"rank_selection": "aic"}))
+    with pytest.raises(ABPError, match="rank_selection"):
+        validate_spec_dict(dict(base, reml={"rank_selection": "aic", "rank": 1}))

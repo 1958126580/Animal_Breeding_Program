@@ -76,6 +76,16 @@ def render_report(results: dict, manifest: dict) -> str:
                          + " The rank is a model assumption; compare the log-likelihood with "
                          "other ranks before relying on it.")
                 L.append("")
+            if r.get("rank_selection"):
+                rs = r["rank_selection"]
+                L.append("Rank of the genetic covariance matrix chosen by AIC (smallest "
+                         f"-2 logL + 2 n_parameters): **rank {rs['chosen_rank']}**. "
+                         + "; ".join(f"rank {x['rank']}: " + (
+                             f"logL {x['loglik']:.4f}, {x['n_parameters']} parameters, "
+                             f"ΔAIC {x['delta_aic']:.2f}" if "aic" in x
+                             else f"not fitted ({x['error']['code']})")
+                             for x in rs["table"]) + ".")
+                L.append("")
             evals = r.get("rank") is not None or r.get("method") == "laplace_approximate_reml"
             L.append(f"REML: status **{r['status']}**, {r['iterations']} "
                      f"{'likelihood evaluations' if evals else 'iterations'}, "

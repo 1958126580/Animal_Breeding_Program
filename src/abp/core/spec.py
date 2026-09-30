@@ -174,6 +174,9 @@ SCHEMA = Section({
                           doc="Multi-trait REML whose optimum has a singular genetic covariance "
                               "matrix: 'stop' (ABP-E300, default) or 'reduced_rank' (refit with "
                               "G0 = Lambda Lambda' of rank reml.rank)."),
+        "rank_selection": Field("str", default="none", choices=("none", "aic"),
+                                doc="Multi-trait REML: 'aic' fits the full-rank model and every "
+                                    "reduced rank and keeps the one with the smallest AIC."),
         "rank": Field("int", check=_positive,
                       doc="Multi-trait REML: estimate G0 = Lambda Lambda' with this rank "
                           "directly (an assumption stated by the user; below the number of "
@@ -559,11 +562,14 @@ def validate_spec_dict(raw: dict) -> dict:
         if rr["rank"] is not None and (t == 1 or rr["rank"] >= t):
             raise _err("reml.rank", f"multi-trait models only, and below the number of "
                                     f"traits ({t})")
+        if rr["rank_selection"] != "none" and (t == 1 or rr["rank"] is not None):
+            raise _err("reml.rank_selection", "multi-trait models only, and not together with "
+                                              "reml.rank")
         if rr["rank"] is not None and rr["boundary"] == "reduced_rank":
             raise _err("reml.rank", "give either reml.rank (reduced rank from the start) or "
                                     "reml.boundary = 'reduced_rank' (fallback), not both")
-        if (rr["boundary"] == "reduced_rank" or rr["rank"] is not None) \
-                and raw.get("metafounders") is not None:
+        if (rr["boundary"] == "reduced_rank" or rr["rank"] is not None
+                or rr["rank_selection"] != "none") and raw.get("metafounders") is not None:
             raise ABPError("UNSUPPORTED_COMBINATION", "reduced-rank multi-trait REML is not "
                            "implemented with [metafounders] in this version")
     elif v["values"] is not None:
