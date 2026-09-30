@@ -1,6 +1,6 @@
 # command: abp selftest
-# date: 2026-09-29T05:30:13+00:00
-ABP 0.5.0 self-test (native kernel: True)
+# date: 2026-09-30T00:59:17+00:00
+ABP 0.6.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
@@ -17,9 +17,10 @@ ABP 0.5.0 self-test (native kernel: True)
   [PASS] T13 selected inversion (Takahashi) = exact inverse on the pattern - kernel native_cpp/native_cpp
   [PASS] T14 sparse LDL' solve and log-determinant - kernel order native_cpp, symbolic native_cpp, numeric native_cpp
   [PASS] T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)
+  [PASS] T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix
 RESULT: PASS
 # command: ABP_DISABLE_NATIVE=1 abp selftest
-ABP 0.5.0 self-test (native kernel: False)
+ABP 0.6.0 self-test (native kernel: False)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel python_meuwissen_luo
@@ -36,4 +37,5 @@ ABP 0.5.0 self-test (native kernel: False)
   [PASS] T13 selected inversion (Takahashi) = exact inverse on the pattern - kernel python/python
   [PASS] T14 sparse LDL' solve and log-determinant - kernel order python, symbolic python, numeric python
   [PASS] T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)
+  [PASS] T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix
 RESULT: PASS
