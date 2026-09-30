@@ -47,8 +47,8 @@ AlphaMate has been run.
 
 | Command | Result | Log |
 |---|---|---|
-| `python -m pytest -v` (native C++ kernel; round 6) | **284 passed**, 0 failed, 0 skipped, 406.7 s | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 6) | PY_R6 | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `python -m pytest -v` (native C++ kernel; round 6) | **285 passed**, 0 failed, 0 skipped, 403.9 s | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 6) | **280 passed**, 0 failed, 5 skipped (native-only comparisons), 1412.4 s | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
 | `abp selftest` with and without the native kernel (round 6) | RESULT: PASS (both; T01–T16; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
 | `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–14, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 6, incl. API sections 18–25) | all 17 exit status 0 (run concurrently with the pure-Python test suite) | `docs/validation/examples-linux.log` |
 | `python benchmarks/calibration_study.py --design random_selection --scenarios pedigree_true --replicates 200` and `--design default` (round 5, F9) | completed | `docs/validation/f9_random_selection.json`, `f9_default.json`, `.log` |

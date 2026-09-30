@@ -61,7 +61,8 @@ method in `docs/method_registry.toml`):
 
 ## 2. Commands that were run (Linux) and their results
 
-Round 6: full test suites (native and pure-Python kernels), self-test
+Round 6: full test suites (native 285 passed; pure-Python kernels 280 passed,
+5 native-only skipped), self-test
 T01–T16, all examples and API sections 18–25, threshold study with the Gibbs
 scenario (30), reduced-rank study (100), multi-trait study with the corrected
 PEV (50), 200,000-animal matrix-free run; CI (validation report §3, §3a, §7.10).
