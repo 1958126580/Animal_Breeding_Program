@@ -193,3 +193,28 @@ the boundary test data in 0.4 s (19 evaluations).
 Windows timings (the CI job records test results, not benchmarks), GPU/CUDA
 (no CUDA path exists), NUMA and multi-socket effects, energy use (no meter),
 and data sets above 100,000 animals.
+
+## Round 7: workflow-level matrix-free single step with int8 genotypes
+
+`python benchmarks/ssmf_workflow_large.py` (`benchmarks/results/ssmf_workflow_large.json`, `.log`).
+The script writes a pedigree CSV (12 discrete generations × 10,000 animals),
+a phenotype CSV (110,000 records, 400 contemporary groups) and a PLINK file
+(the last 30,000 animals, 20,000 random SNPs, 150 MB) and runs the complete
+`abp run` workflow in a child process: QC, allele frequencies, APY (5,000
+random core animals, 5% A22 blend) built from int8 dosages, matrix-free single
+step, PCG, 10 PEV simulations, outputs and manifest.
+
+| Phase (from the run log) | Wall time |
+|---|---:|
+| reading, pedigree and phenotype QC (native inbreeding kernel) | 5 s |
+| PLINK (int8), genotype QC, frequencies, A22 core columns, APY blocks, A22⁻¹ operator | 182 s |
+| PCG solve, 120,400 equations (69 iterations, relative residual 9.8e-9) | 5.5 s |
+| sampled PEV, 10 simulations (92 PCG iterations each) | 65 s |
+| **total** | **261 s**, peak resident memory **7.38 GB** |
+
+Generating the data took 38 s (not included). The mean Monte-Carlo SE of a
+reliability was 0.21 with 10 simulations; more simulations are needed for
+decisions on individual animals. The first run of this benchmark found a
+manifest defect (validation report §9); the numbers above are from the rerun
+after the fix (first run: 255 s, 7.39 GB).
+

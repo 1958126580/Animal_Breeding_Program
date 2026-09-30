@@ -568,9 +568,10 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
                         "min": float(gen.solution.min()), "max": float(gen.solution.max())},
         "files": files,
     }
-    manifest["diagnostics"][trait] = {"solver": out["solver"], "reml": reml_info,
-                                      "fixed_constrained": [list(x) for x in
-                                                            model.fixed.constrained_labels]}
+    # update, not replace: earlier steps (e.g. pev_sampling) have written entries already
+    manifest["diagnostics"].setdefault(trait, {}).update(
+        {"solver": out["solver"], "reml": reml_info,
+         "fixed_constrained": [list(x) for x in model.fixed.constrained_labels]})
     if upg is not None:
         manifest["diagnostics"][trait]["upg"] = upg
     from .multitrait import EvalState

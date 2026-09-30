@@ -4,6 +4,7 @@ APY inverse (incl. the blend policy built from genotypes), and whole
 evaluations with identical EBVs."""
 
 import csv
+import json
 from pathlib import Path
 
 import numpy as np
@@ -185,6 +186,9 @@ def test_sampled_reliabilities_agree_with_exact_ones(tmp_path, apy):
     diff = np.array([r_mf[k] - r_ex[k] for k in keys])
     expected = np.sqrt(2 / np.pi) * np.mean([se[k] for k in keys])
     assert 0.8 * expected < np.abs(diff).mean() < 1.25 * expected
+    # regression (round 7): the sampling record survives in the manifest next to the solver
+    diag = json.loads((mf.out_dir / "manifest.json").read_text(encoding="utf-8"))["diagnostics"]
+    assert diag["wwt"]["pev_sampling"]["n_samples"] == 300 and "solver" in diag["wwt"]
 
 
 def test_apy_blocks_from_int8_dosage_equal_the_float_version():
