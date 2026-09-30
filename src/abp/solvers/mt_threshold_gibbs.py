@@ -219,6 +219,7 @@ class MTProblem:
                               shape=(self.n_obs, self.n_obs))
         self._rinv_order = probe.data.astype(np.int64) - 1          # csr slot -> our order
         self._rinv_ind = (probe.indices.copy(), probe.indptr.copy())
+        self._build_maps()
         self.free = np.arange(2, self.K)                    # indices into tau (0..K); tau_1 = 0
 
     def _check_fixed_effects(self):
@@ -243,6 +244,62 @@ class MTProblem:
                                f"categorical trait, fixed-effect column {k}: all "
                                f"{int(sel.sum())} records are in one extreme category (its "
                                "effect is not finite under a flat prior); merge the level")
+
+    def _build_maps(self):
+        """Fixed symmetric pattern of ``C`` and the linear maps from the values of
+        ``R^{-1}`` (CSR slots) and of ``G0^{-1}`` (``t^2``) to the values of ``C`` on that
+        pattern: ``C = W'R^{-1}W + blockdiag(0, K^{-1} (x) G0^{-1})`` is linear in both, so
+        each iteration costs two sparse matrix-vector products instead of a sparse
+        re-assembly."""
+        from .cholesky import _symmetric_pattern
+        t, W = self.t, self.W
+        ones = np.ones((t, t))
+        surrogate = self.coefficient(self.rinv(np.eye(t) + 0.5 * ones), np.eye(t) + 0.5 * ones)
+        pat = _symmetric_pattern(surrogate)
+        self.cpat = pat
+        n_eq = self.n_eq
+        prow = np.repeat(np.arange(n_eq, dtype=np.int64), np.diff(pat.indptr))
+        pkey = prow * n_eq + pat.indices                         # sorted (canonical CSR)
+
+        def locate(k, l):
+            key = k.astype(np.int64) * n_eq + l
+            pos = np.searchsorted(pkey, key)
+            if np.any(pos >= pkey.size) or np.any(pkey[np.minimum(pos, pkey.size - 1)] != key):
+                raise ValueError("entry outside the pattern of C")
+            return pos
+        # R^{-1} slots: rows a, cols b
+        ind, ptr = self._rinv_ind
+        S = ind.size
+        a = np.repeat(np.arange(self.n_obs), np.diff(ptr))
+        b = ind
+        la = np.diff(W.indptr)[a]
+        lb = np.diff(W.indptr)[b]
+        cnt = la * lb
+        slot = np.repeat(np.arange(S), cnt)
+        start = np.repeat(np.cumsum(cnt) - cnt, cnt)
+        p_ = np.arange(int(cnt.sum())) - start
+        i = p_ // lb[slot]
+        j = p_ % lb[slot]
+        ka = W.indptr[a[slot]] + i
+        kb = W.indptr[b[slot]] + j
+        wv = W.data[ka] * W.data[kb]
+        nz = wv != 0.0                    # stored zeros (e.g. a covariate value 0) add nothing
+        self.M_R = sp.csr_matrix((wv[nz], (locate(W.indices[ka][nz], W.indices[kb][nz]),
+                                           slot[nz])), shape=(pat.nnz, S))
+        # K^{-1} (x) G0^{-1} (stored zeros of K^{-1}, e.g. exact cancellation in A^{-1}, dropped)
+        Kc = sp.csr_matrix(self.k_inv, copy=True)
+        Kc.eliminate_zeros()
+        Kc = Kc.tocoo()
+        ab = np.array([(x, y) for x in range(t) for y in range(t)])
+        rows = (self.P + Kc.row[:, None] * t + ab[None, :, 0]).ravel()
+        cols = (self.P + Kc.col[:, None] * t + ab[None, :, 1]).ravel()
+        gidx = np.tile(np.arange(t * t), Kc.nnz)
+        self.M_G = sp.csr_matrix((np.repeat(Kc.data, t * t), (locate(rows, cols), gidx)),
+                                 shape=(pat.nnz, t * t))
+
+    def coefficient_values(self, Rinv: sp.csr_matrix, G0inv: np.ndarray) -> np.ndarray:
+        """Values of ``C`` on :attr:`cpat` (``Rinv`` from :meth:`rinv`)."""
+        return self.M_R @ Rinv.data + self.M_G @ np.ascontiguousarray(G0inv).ravel()
 
     def rinv(self, R0: np.ndarray) -> sp.csr_matrix:
         """Block-diagonal ``R^{-1}``: ``R0[o_r, o_r]^{-1}`` for every record."""
@@ -325,9 +382,12 @@ class _Chain:
         # the factor is built on the full pattern (a surrogate without exact zeros);
         # the actual C (zeros while R0, G0 are diagonal) is then refactorised on it
         ones = np.ones((t, t))
-        Rs = R0 + 1e-3 * np.trace(R0) / t * ones
-        Gi = np.linalg.inv(G0)
-        self.fac = SparseLDL(P.coefficient(P.rinv(Rs), Gi + 1e-3 * np.trace(Gi) / t * ones))
+        surrogate = sp.csr_matrix((P.coefficient_values(P.rinv(np.eye(t) + 0.5 * ones),
+                                                        np.eye(t) + 0.5 * ones),
+                                   P.cpat.indices, P.cpat.indptr), shape=P.cpat.shape)
+        self.fac = SparseLDL(surrogate)
+        if self.fac.C.nnz != P.cpat.nnz:
+            raise ABPError("FACTORIZATION_FAILED", "internal: pattern of C changed")
         self._refactor()
         self.sd = 0.1
         self.n_prop = self.n_acc = 0
@@ -338,7 +398,7 @@ class _Chain:
 
     def _refactor(self):
         self.Rinv = self.P.rinv(self.R0)
-        self.fac.refactor(self.P.coefficient(self.Rinv, np.linalg.inv(self.G0)))
+        self.fac.refactor_values(self.P.coefficient_values(self.Rinv, np.linalg.inv(self.G0)))
 
     # -- step 1: thresholds (Cowles) and categorical liabilities -----------------
     def _cond_cat(self, eta):

@@ -21,6 +21,10 @@
 // mindegree_order / ldl_numeric / ldl_solve: sparse LDL', see abp/solvers/cholesky.py.
 // ml_general(sire, dam, c, e, fext) -> bytes (2n float64: diag(A), then d)
 //   * metafounder generalisation, see abp/core/metafounders.py.
+// colleau_times(sire, dam, d, x, k) -> bytes (n*k float64): A x for x of shape n x k
+//   (row-major) by the two pedigree recursions of A = T D T' (Colleau 2002), see
+//   abp/core/pedigree.py::Pedigree.a_times (the SuperLU triangular solves are the
+//   reference).
 // The GIL is released while computing.  Memory: O(n) doubles/ints plus a
 // hash map with one entry per distinct (sire, dam) pair.
 
@@ -99,6 +103,79 @@ std::string inbreeding_kernel(const int64_t* sire, const int64_t* dam, int64_t n
     }
     std::copy(F.begin(), F.begin() + n, F_out);
     return std::string();
+}
+
+// A x = T D T' x for x (n x k, row-major):  v = T' x by the backward recursion
+// v_s += v_i / 2, v_d += v_i / 2 (offspring before parents), w = D v, then the forward
+// recursion x_i = w_i + (x_s + x_d) / 2 (parents before offspring).  The inner loops run
+// over the k contiguous columns of one animal.
+std::string colleau_kernel(const int64_t* sire, const int64_t* dam, const double* D,
+                           const double* x, int64_t n, int64_t k, double* out) {
+    for (int64_t i = 0; i < n; ++i) {
+        if (sire[i] >= i || dam[i] >= i || sire[i] < -1 || dam[i] < -1) {
+            return "parents must precede offspring (animal index " + std::to_string(i) + ")";
+        }
+    }
+    std::copy(x, x + n * k, out);
+    for (int64_t i = n - 1; i >= 0; --i) {
+        const double* vi = out + i * k;
+        if (sire[i] >= 0) {
+            double* vs = out + sire[i] * k;
+            for (int64_t j = 0; j < k; ++j) vs[j] += 0.5 * vi[j];
+        }
+        if (dam[i] >= 0) {
+            double* vd = out + dam[i] * k;
+            for (int64_t j = 0; j < k; ++j) vd[j] += 0.5 * vi[j];
+        }
+    }
+    for (int64_t i = 0; i < n; ++i) {
+        double* xi = out + i * k;
+        const double di = D[i];
+        for (int64_t j = 0; j < k; ++j) xi[j] *= di;
+        if (sire[i] >= 0) {
+            const double* xs = out + sire[i] * k;
+            for (int64_t j = 0; j < k; ++j) xi[j] += 0.5 * xs[j];
+        }
+        if (dam[i] >= 0) {
+            const double* xd = out + dam[i] * k;
+            for (int64_t j = 0; j < k; ++j) xi[j] += 0.5 * xd[j];
+        }
+    }
+    return "";
+}
+
+PyObject* py_colleau_times(PyObject*, PyObject* args) {
+    Py_buffer sb, db, Db, xb;
+    long long k = 0;
+    if (!PyArg_ParseTuple(args, "y*y*y*y*L", &sb, &db, &Db, &xb, &k)) return nullptr;
+    PyObject* result = nullptr;
+    const int64_t n = static_cast<int64_t>(sb.len / 8);
+    if (sb.len != db.len || sb.len % 8 != 0 || Db.len != sb.len || k < 1
+        || xb.len != static_cast<Py_ssize_t>(n * k * 8)) {
+        PyErr_SetString(PyExc_ValueError, "colleau_times: inconsistent buffer sizes");
+    } else {
+        result = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(n * k * 8));
+        if (result != nullptr) {
+            double* out = reinterpret_cast<double*>(PyBytes_AS_STRING(result));
+            std::string err;
+            Py_BEGIN_ALLOW_THREADS
+            err = colleau_kernel(static_cast<const int64_t*>(sb.buf),
+                                 static_cast<const int64_t*>(db.buf),
+                                 static_cast<const double*>(Db.buf),
+                                 static_cast<const double*>(xb.buf), n, k, out);
+            Py_END_ALLOW_THREADS
+            if (!err.empty()) {
+                Py_DECREF(result);
+                result = nullptr;
+                PyErr_SetString(PyExc_ValueError, err.c_str());
+            }
+        }
+    }
+    PyBuffer_Release(&sb);
+    PyBuffer_Release(&db);
+    PyBuffer_Release(&Db);
+    PyBuffer_Release(&xb);
+    return result;
 }
 
 PyObject* py_inbreeding_ml(PyObject*, PyObject* args) {
@@ -707,6 +784,9 @@ PyObject* py_ldl_solve(PyObject*, PyObject* args) {
 }
 
 PyMethodDef methods[] = {
+    {"colleau_times", py_colleau_times, METH_VARARGS,
+     "colleau_times(sire, dam, d, x, k) -> bytes of n*k float64: A x (x row-major n x k) "
+     "by the pedigree recursions of A = T D T' (Colleau 2002)."},
     {"inbreeding_ml", py_inbreeding_ml, METH_VARARGS,
      "inbreeding_ml(sire, dam) -> bytes of float64 inbreeding coefficients "
      "(Meuwissen & Luo 1992). Parents must precede offspring; -1 = unknown."},

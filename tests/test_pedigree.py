@@ -146,6 +146,30 @@ def test_native_kernel_matches_python_reference():
         pmod._native.inbreeding_ml(bad, np.array([-1, -1], dtype=np.int64))
 
 
+def test_native_colleau_product_matches_reference(monkeypatch):
+    """Round 8: the C++ Colleau kernel (A x by the two pedigree recursions) equals the
+    reference (two sparse triangular solves) and the dense A x, for a vector and a
+    matrix right-hand side on an inbred pedigree; bad ordering is rejected."""
+    from abp.core import pedigree as pmod
+    if pmod._native is None or not hasattr(pmod._native, "colleau_times"):
+        pytest.skip("native kernel not compiled in this environment (recorded as not_run)")
+    ids, sires, dams = _random_pedigree(400, 12, seed=5, window=40)
+    ped = Pedigree.from_parent_ids(ids, sires, dams)
+    rng = np.random.default_rng(2)
+    x, X = rng.standard_normal(ped.n), rng.standard_normal((ped.n, 7))
+    native = ped.a_times(x), ped.a_times(X)
+    monkeypatch.setenv("ABP_DISABLE_NATIVE", "1")
+    ref = ped.a_times(x), ped.a_times(X)
+    A = ped.a_dense()
+    for got, want, dense in zip(native, ref, (A @ x, A @ X)):
+        np.testing.assert_allclose(got, want, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(got, dense, rtol=1e-10, atol=1e-10)
+    bad = np.array([-1, 1], dtype=np.int64)
+    with pytest.raises(ValueError):
+        pmod._native.colleau_times(bad, np.array([-1, -1], dtype=np.int64), np.ones(2),
+                                   np.ones(2), 1)
+
+
 def test_disable_native_switch(monkeypatch):
     monkeypatch.setenv("ABP_DISABLE_NATIVE", "1")
     ped = Pedigree.from_parent_ids(["1", "2", "3", "4", "5"],

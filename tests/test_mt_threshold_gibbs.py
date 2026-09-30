@@ -336,3 +336,32 @@ def test_expansion_moves_leave_the_posterior_unchanged():
     # the genetic correlation
     for key in ("G0_0_0", "rG_0_1"):
         assert out[True].summaries[key]["ess_bulk"] > 1.3 * out[False].summaries[key]["ess_bulk"]
+
+
+def test_coefficient_maps_equal_direct_assembly():
+    """The linear maps R^-1, G0^-1 -> values of C (used every iteration) equal the
+    sparse assembly W'R^-1W + blockdiag(0, K^-1 (x) G0^-1) (3 traits, missing values,
+    two fixed columns); refactor_values gives the same solution as refactor."""
+    ped, rng = _ped(60, 3, 10)
+    n = ped.n
+    Y = np.column_stack([rng.integers(1, 4, n).astype(float), rng.normal(5, 2, n),
+                         rng.normal(1, 1, n)])
+    Y[rng.random(n) < 0.3, 1] = np.nan
+    Y[rng.random(n) < 0.3, 0] = np.nan
+    Y[rng.random(n) < 0.2, 2] = np.nan
+    Y[np.all(np.isnan(Y), axis=1), 2] = 0.5
+    X = sp.csr_matrix(np.column_stack([np.ones(n), np.arange(n) % 3 == 0]).astype(float))
+    P = MT.MTProblem(Y, 0, MT.split_design(X, Y), np.arange(n), ped.ainv())
+    R0 = np.array([[1, .3, .2], [.3, 2, .4], [.2, .4, 1.5]])
+    G0 = np.array([[.4, .1, .05], [.1, 1, .2], [.05, .2, .8]])
+    Rinv = P.rinv(R0)
+    C = P.coefficient(Rinv, np.linalg.inv(G0))
+    vals = P.coefficient_values(Rinv, np.linalg.inv(G0))
+    D = sp.csr_matrix((vals, P.cpat.indices, P.cpat.indptr), shape=P.cpat.shape)
+    np.testing.assert_allclose(D.toarray(), C.toarray(), atol=1e-12)
+    f1, f2 = SparseLDL(D), SparseLDL(D)
+    R2, G2 = R0 * 1.3 + 0.1 * np.eye(3), G0 * 0.7 + 0.05 * np.eye(3)
+    f1.refactor(P.coefficient(P.rinv(R2), np.linalg.inv(G2)))
+    f2.refactor_values(P.coefficient_values(P.rinv(R2), np.linalg.inv(G2)))
+    b = rng.standard_normal(P.n_eq)
+    np.testing.assert_allclose(f2.solve(b), f1.solve(b), rtol=1e-10, atol=1e-12)

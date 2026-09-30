@@ -271,6 +271,37 @@ class SparseLDL:
         self.C = C
         self._selinv = None
 
+    def refactor_values(self, data: np.ndarray) -> None:
+        """Numeric refactorization from the values of a matrix stored on **exactly**
+        the pattern of ``self.C`` (CSR order of ``self.C.data``; the caller guarantees
+        symmetry).  Skips the sparse re-assembly of :meth:`refactor`: the values are
+        permuted into the factor's column order by an index computed once."""
+        data = np.asarray(data, dtype=np.float64)
+        if data.size != self.C.nnz:
+            raise ValueError("refactor_values needs one value per stored entry of C")
+        if getattr(self, "_bmap", None) is None:
+            idx = sp.csr_matrix((np.arange(1, self.C.nnz + 1, dtype=np.float64),
+                                 self.C.indices, self.C.indptr), shape=self.C.shape)
+            B = sp.csc_matrix(idx)[self.q][:, self.q]
+            B.sort_indices()
+            self._bmap = B.data.astype(np.int64) - 1
+            self._bp = np.ascontiguousarray(B.indptr, dtype=np.int64)
+            self._bi = np.ascontiguousarray(B.indices, dtype=np.int64)
+        Bx = np.ascontiguousarray(data[self._bmap])
+        if native_ldl_available():
+            try:
+                raw_d, raw_l = _native.ldl_numeric(self._bp, self._bi, Bx, self.colptr,
+                                                   self.rowidx)
+            except ValueError as exc:
+                raise ABPError("FACTORIZATION_FAILED", f"sparse LDL' failed: {exc}") from None
+            self.d = np.frombuffer(raw_d, dtype=np.float64).copy()
+            self.lval = np.frombuffer(raw_l, dtype=np.float64).copy()
+        else:
+            self.d, self.lval = ldl_numeric_python(self._bp, self._bi, Bx, self.colptr,
+                                                   self.rowidx, self.n)
+        self.C = sp.csr_matrix((data, self.C.indices, self.C.indptr), shape=self.C.shape)
+        self._selinv = None
+
     def l_times(self, v: np.ndarray) -> np.ndarray:
         """``L v`` in the permuted ordering (``L`` unit lower triangular)."""
         L = sp.csc_matrix((self.lval, self.rowidx, self.colptr), shape=(self.n, self.n))
