@@ -168,3 +168,13 @@ def test_spec_rules_for_the_multitrait_threshold_model():
     for b in bad:
         with pytest.raises(ABPError):
             validate_spec_dict(b)
+
+
+def test_example15_spec_and_data_validate():
+    """Example 15 (weaning weight + first-parity litter size) passes spec and data
+    validation (the full run takes minutes and is part of the examples log)."""
+    from pathlib import Path
+
+    from abp.cli import main
+    ex = Path(__file__).resolve().parents[1] / "examples" / "15_sheep_wwt_nlb1_threshold"
+    assert main(["validate", str(ex / "analysis.toml")]) == 0

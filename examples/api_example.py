@@ -312,6 +312,17 @@ d_rr = kackar_harville_delta_reduced_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2
 print("reduced-rank PEV increase from REML uncertainty (mean, per trait):",
       np.round(np.einsum("ijj->j", d_rr) / np.einsum("ijj->j", res_rr.pev_blocks), 4).tolist())
 
+# --- 27. Multi-trait threshold model (one categorical + one continuous trait) --------
+from abp.solvers.mt_threshold_gibbs import MTThresholdGibbsConfig, mt_threshold_gibbs
+Ymt = np.column_stack([Y[:, 1], np.digitize(y2, np.quantile(y2, [0.4, 0.8])) + 1.0])
+Xmt = [build_fixed_design({}, [], True, int((~np.isnan(Ymt[:, j])).sum())).X for j in range(2)]
+mtt = mt_threshold_gibbs(Ymt, 1, Xmt, np.arange(ped2.n), ped2.ainv(), MTThresholdGibbsConfig(
+    chains=2, iterations=300, burn_in=100, thin=1, max_iterations=300, seed=1, prior_nu=5.0,
+    prior_G0=np.array([[1.0, 0.0], [0.0, 0.3]])))
+print("multi-trait threshold: posterior mean G0", np.round(mtt.G0["mean"], 3).tolist(),
+      "| thresholds", np.round(mtt.thresholds_mean, 3).tolist(),
+      "| converged:", mtt.converged, "(short demonstration chain)")
+
 # --- 11. Whole workflow from an analysis spec ----------------------------------
 root = Path(__file__).resolve().parent
 with tempfile.TemporaryDirectory() as tmp:

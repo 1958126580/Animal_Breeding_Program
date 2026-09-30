@@ -174,15 +174,15 @@ def filter_genotypes(g: GenotypeData, cfg: dict, freq_sample: np.ndarray | None 
     the frequencies of the kept markers in that sample.
     """
     qc = g.qc
-    obs = ~g.missing
-    a_cr = obs.mean(axis=1) if g.missing.shape[1] else np.ones(len(g.ids))
+    # call rates from the missing mask without a negated n x m copy
+    a_cr = 1.0 - g.missing.mean(axis=1) if g.missing.shape[1] else np.ones(len(g.ids))
     keep_a = a_cr >= cfg["min_call_rate_animal"]
     if (~keep_a).any():
         items = [{"id": g.ids[i], "call_rate": float(a_cr[i])} for i in np.flatnonzero(~keep_a)]
         qc.add("GEN-CALLRATE-ANIMAL", "quarantine",
                f"animals with call rate < {cfg['min_call_rate_animal']}", items)
         qc.excluded.extend({**it, "reason": "GEN-CALLRATE-ANIMAL"} for it in items)
-    m_cr = obs[keep_a].mean(axis=0)
+    m_cr = 1.0 - (g.missing if keep_a.all() else g.missing[keep_a]).mean(axis=0)
     keep_m = m_cr >= cfg["min_call_rate_marker"]
     if (~keep_m).any():
         items = [{"marker_id": g.markers[j], "call_rate": float(m_cr[j])}
@@ -195,7 +195,9 @@ def filter_genotypes(g: GenotypeData, cfg: dict, freq_sample: np.ndarray | None 
     if sample.size == 0:
         from ..errors import ABPError
         raise ABPError("GENOTYPE_ZERO_SCALING", "no genotyped animal in the frequency sample")
-    p = allele_frequencies(g.dosage[sample], g.missing[sample])
+    whole = sample.size == len(g.ids)
+    p = allele_frequencies(g.dosage if whole else g.dosage[sample],
+                           g.missing if whole else g.missing[sample])
     maf = minor_allele_frequency(np.nan_to_num(p, nan=0.0))
     mono = keep_m & ((maf == 0) | np.isnan(p))
     if mono.any():
@@ -217,8 +219,11 @@ def filter_genotypes(g: GenotypeData, cfg: dict, freq_sample: np.ndarray | None 
                [{"marker_id": g.markers[j], "maf": float(maf[j])} for j in np.flatnonzero(rare)])
     cols = np.flatnonzero(keep_m)
     ids = [g.ids[i] for i in rows]
-    M = g.dosage[np.ix_(rows, cols)]
-    miss = g.missing[np.ix_(rows, cols)]
+    if rows.size == len(g.ids) and cols.size == len(g.markers):
+        M, miss = g.dosage, g.missing              # nothing excluded: no n x m copies
+    else:
+        M = g.dosage[np.ix_(rows, cols)]
+        miss = g.missing[np.ix_(rows, cols)]
     if parents:
         _mendel(qc, ids, M, miss, parents)
     qc.stats.update({"n_animals_used": len(ids), "n_markers_used": int(cols.size),

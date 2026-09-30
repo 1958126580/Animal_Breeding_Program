@@ -24,6 +24,7 @@ commands below are known to work.
 | 12 | `12_sheep_wwt_single_step_metafounder` | weaning weight, single step on a metafounder base: all unknown parents from base population `MF:BASE`, γ estimated from the genotypes, `G05` without rescaling, REML; EBVs also against the base (`ebv_vs_base`) | `abp run examples/12_sheep_wwt_single_step_metafounder/analysis.toml --out runs/ex12` |
 | 13 | `13_sheep_multitrait_reml` | weaning weight, fat depth and faecal egg count: genetic and residual covariance matrices by multi-trait REML, then multi-trait BLUP | `abp run examples/13_sheep_multitrait_reml/analysis.toml --out runs/ex13` |
 | 14 | `14_sheep_nlb_threshold` | litter size (1/2/3 lambs) with a threshold (probit) repeatability model on the liability scale | `abp run examples/14_sheep_nlb_threshold/analysis.toml --out runs/ex14` |
+| 15 | `15_sheep_wwt_nlb1_threshold` | weaning weight (continuous) and litter size at first lambing (1/2/3, ewes only) in one multi-trait threshold model: (co)variances, thresholds and EBVs by Gibbs sampling, inverse-Wishart prior (about 8-15 minutes) | `abp run examples/15_sheep_wwt_nlb1_threshold/analysis.toml --out runs/ex15` |
 | - | `api_example.py` | the Python API, step by step | `python examples/api_example.py` |
 
 ### Round-5 variants (edit one line of an existing example)

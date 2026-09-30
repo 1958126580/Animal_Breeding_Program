@@ -236,8 +236,11 @@ def apy_blocks_from_dosage(M: np.ndarray, p: np.ndarray, core: np.ndarray, polic
     non = np.setdiff1d(np.arange(n2), core)
 
     def centred(rows):
-        B = M[rows].astype(np.float64) - two_p
-        return np.where(M[rows] < 0, 0.0, B)
+        m = M[rows]
+        B = m.astype(np.float64)
+        B -= two_p                                  # in place: one float block, no copies
+        B[m < 0] = 0.0
+        return B
     Wk = centred(core)
     g_cc = Wk @ Wk.T / d
     g_cn = np.empty((core.size, non.size))

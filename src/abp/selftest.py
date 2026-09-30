@@ -1,6 +1,6 @@
 """``abp selftest``: installation check against hand-derived analytical values.
 
-Every expected value below was derived by hand (T12, T13, T15, T16 and T17 in the comments), is printed in the cited
+Every expected value below was derived by hand (T12, T13, T15-T18 in the comments), is printed in the cited
 source, or (T10) was computed by an independent implementation (ArviZ) -
 none is produced by ABP itself.  The checks exercise the production
 kernels on the target machine (BLAS/LAPACK, optional C++ kernel), so a pass
@@ -239,5 +239,15 @@ def run_selftest() -> tuple[bool, list[str]]:
     check("T17 PLINK decoding to int8 and float64 (hand-derived byte)",
           d8.dtype == np.int8 and d8[:, 0].tolist() == [2, -1, 1, 0]
           and d64[[0, 2, 3], 0].tolist() == [2.0, 1.0, 0.0] and bool(np.isnan(d64[1, 0])))
+    # T18 Colleau product A x (native recursions or the triangular-solve reference):
+    # founders 1, 2; 3 = 1 x 2; 4 = 1 x 3.  a14 = (a11 + a13)/2 = 0.75, a24 = (a21 + a23)/2
+    # = 0.25, a34 = (a31 + a33)/2 = 0.75, a44 = 1 + a13/2 = 1.25, so A e_4 = (.75, .25, .75, 1.25)
+    p18 = Pedigree.from_parent_ids(["1", "2", "3", "4"], [None, None, "1", "1"],
+                               [None, None, "2", "3"])
+    e4 = np.zeros(4)
+    e4[p18.index_of(["4"])[0]] = 1.0
+    got = p18.a_times(e4)[p18.index_of(["1", "2", "3", "4"])]
+    check("T18 Colleau product A x on a hand-derived inbred pedigree",
+          _close(got, [0.75, 0.25, 0.75, 1.25]))
     lines.append("RESULT: " + ("PASS" if ok_all else "FAIL"))
     return ok_all, lines
