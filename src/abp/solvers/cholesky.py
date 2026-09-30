@@ -172,13 +172,24 @@ def ldl_solve_python(colptr, rowidx, lval, d, b):
     return x
 
 
+def _symmetric_pattern(C: sp.spmatrix) -> sp.csr_matrix:
+    """``(C + C') / 2``: a matrix that is symmetric only to rounding can have an
+    asymmetric sparsity pattern (a product that cancels to ~1e-17 on one side and to
+    exactly 0 on the other); the symbolic factorization assumes a symmetric pattern."""
+    C = sp.csr_matrix(C)
+    S = ((C + C.T) * 0.5).tocsr()
+    S.sum_duplicates()
+    S.sort_indices()
+    return S
+
+
 class SparseLDL:
     """``C = P' L D L' P`` with minimum-degree ``P``; same interface as ``SparseLU``."""
 
     kind = "sparse_direct"
 
     def __init__(self, C: sp.spmatrix, memory_budget_bytes: int = 4 * 2**30):
-        C = sp.csr_matrix(C)
+        C = _symmetric_pattern(C)
         self.C = C
         self.n = C.shape[0]
         self.memory_budget_bytes = memory_budget_bytes
@@ -220,7 +231,7 @@ class SparseLDL:
         """Numeric refactorization of a matrix with the **same sparsity pattern**
         (e.g. new variance ratios in a Gibbs sampler): ordering and symbolic
         pattern are reused; only ``d`` and ``L`` are recomputed."""
-        C = sp.csr_matrix(C)
+        C = _symmetric_pattern(C)
         if C.shape != self.C.shape or C.nnz != self.C.nnz:
             raise ValueError("refactor needs a matrix with the same pattern")
         B = sp.csc_matrix(C)[self.q][:, self.q]

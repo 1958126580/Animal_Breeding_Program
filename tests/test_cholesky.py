@@ -104,3 +104,20 @@ def test_blup_ldl_equals_superlu_and_dense():
         np.testing.assert_allclose(r.terms["animal"].pev, d.terms["animal"].pev, atol=1e-12)
     with pytest.raises(ABPError):
         make_sparse_factor(sp.identity(3, format="csr"), 2**30, "cholmod")
+
+
+def test_numerically_symmetric_matrix_with_asymmetric_pattern():
+    """Regression (round 6): an entry of ~1e-17 stored on one side only (cancellation in
+    W'R^-1W) made the numeric LDL' step leave the symbolic pattern."""
+    import numpy as np
+    import scipy.sparse as sp
+    from abp.solvers.cholesky import SparseLDL
+    rng = np.random.default_rng(0)
+    B = sp.random(60, 60, density=0.05, random_state=1)
+    C = (B @ B.T + 60 * sp.identity(60)).tolil()
+    C[5, 40] = 1e-17                     # stored on one side only
+    C = C.tocsr()
+    f = SparseLDL(C)
+    b = rng.standard_normal(60)
+    Cs = 0.5 * (C + C.T).toarray()
+    np.testing.assert_allclose(f.solve(b), np.linalg.solve(Cs, b), rtol=1e-10, atol=1e-12)

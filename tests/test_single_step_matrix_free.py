@@ -185,3 +185,31 @@ def test_sampled_reliabilities_agree_with_exact_ones(tmp_path, apy):
     diff = np.array([r_mf[k] - r_ex[k] for k in keys])
     expected = np.sqrt(2 / np.pi) * np.mean([se[k] for k in keys])
     assert 0.8 * expected < np.abs(diff).mean() < 1.25 * expected
+
+
+def test_apy_blocks_from_int8_dosage_equal_the_float_version():
+    from abp.core.ssop import apy_blocks_from_dosage
+    ped, rng = _ped()
+    g = np.sort(rng.choice(ped.n, 90, replace=False))
+    M = rng.integers(0, 3, (g.size, 350)).astype(np.int8)
+    M[rng.random(M.shape) < 0.02] = -1                         # missing calls
+    miss = M < 0
+    Mf = np.where(miss, 0, M).astype(float)
+    p = np.array([Mf[~miss[:, j], j].mean() / 2 for j in range(M.shape[1])])
+    W = centered(Mf, p, miss)
+    core = np.sort(rng.choice(g.size, 30, replace=False))
+    cols = ped.a_columns(g[core])[g]
+    diagA = 1.0 + ped.inbreeding()[g]
+    ref = apy_blocks_from_genotypes(W, scaling_d(p), core, "blend", 0.05, 0.01, cols, diagA)
+    got = apy_blocks_from_dosage(M, p, core, "blend", 0.05, 0.01, cols, diagA, block=17)
+    for a_, b_ in zip(got, ref):
+        np.testing.assert_allclose(a_, b_, rtol=1e-12, atol=1e-12)
+
+
+def test_a_block_equals_columns_of_a():
+    from abp.core.ssop import a_block
+    ped, rng = _ped()
+    rows = np.sort(rng.choice(ped.n, 50, replace=False))
+    cols = np.sort(rng.choice(ped.n, 40, replace=False))
+    np.testing.assert_allclose(a_block(ped, rows, cols, block=7),
+                               ped.a_columns(cols)[rows], atol=1e-13)

@@ -62,10 +62,16 @@ mixed model in ``f``, and Henderson's form of the likelihood becomes
 
 (``C_f`` the MME of the ``f`` model; derived here, tested against the V-form
 with a singular ``G0``).  ``(Lambda, chol R0)`` are unconstrained parameters
-(``chol R0`` with log-diagonal); ``-2 logL`` is minimised by L-BFGS with
-central-difference gradients (``2 n_par`` likelihood evaluations per
-gradient - an opt-in fallback, not a fast path).  Sampling errors are not
-reported for this parameterisation.
+(``chol R0`` with log-diagonal); ``-2 logL`` is minimised by L-BFGS with the
+analytic gradient (round 6): for the loadings ``2 T - 2 V'F`` with
+``T_ab = sum_i sum_c (C^-1)_{f(i,b), c} (W_f'R^-1 Z)_{c,(i,a)}``, ``V = Z'R^-1 e``,
+``F`` the factor solutions (envelope theorem for ``y'Py`` plus
+``d log|C_f| = 2 tr(C^-1 W_f' R^-1 dW_f)``); for ``R0`` the matrix gradient
+``sum_P [n_P R_P^-1 - R_P^-1 S_P R_P^-1]`` with ``S_P = sum_r (e_r e_r' + Q_r)``,
+chained through ``chol R0``.  ``C^-1`` is needed only on the pattern of ``C``
+(dense inverse or sparse selected inversion), which is full when the gradient is
+evaluated at the rotated loadings ``Lambda Q`` (``Q`` orthogonal: same ``G0``).
+Sampling errors are not reported for this parameterisation.
 """
 
 from __future__ import annotations
@@ -525,6 +531,109 @@ class ReducedRankEvaluator:
             logdet_r += cache[key]
         return logdet_r + self.r * self.logdet_k + fac.logdet() + ypy, fac
 
+    def value_and_gradient(self, x: np.ndarray) -> tuple[float, np.ndarray]:
+        """``-2 logL`` and its analytic gradient in the parameters ``x`` (see module
+        notes: envelope theorem for ``y'Py``, ``d log|C_f| = 2 tr(C^-1 W_f'R^-1 dW_f)``,
+        residual scores from ``Q_r = W_r C^-1 W_r'``; ``C^-1`` only on the pattern of
+        ``C``, evaluated at the rotated loadings ``Lambda Q`` so that the pattern is full)."""
+        t, r = self.t, self.r
+        Lam, R0 = _rr_unpack(x, t, r)
+        Qrot = self._rotation()
+        Lt = Lam @ Qrot                                     # same G0, no structural zeros
+        mts = assemble_multitrait(self.data, self.k_inv, None, R0, loadings=Lt)
+        sysm = mts.system
+        # sparse factor + selected inversion: only entries of C^-1 on the pattern of C are
+        # needed (a dense inverse would cost O(n^3) per evaluation)
+        fac = make_sparse_factor(sysm.C, self.budget)
+        s = fac.solve(sysm.rhs)
+        self.n_eval += 1
+        ent = fac.selected_inverse().entries
+        ypy = float(sysm.y @ (sysm.rinv @ sysm.y)) - float(s @ sysm.rhs)
+        tr_idx, rec_idx = mts.trait_idx, mts.rec_idx
+        n_rec = mts.n_rec
+        starts = np.searchsorted(rec_idx, np.arange(n_rec))
+        ends = np.searchsorted(rec_idx, np.arange(n_rec), side="right")
+        pat = [tuple(tr_idx[a:b]) for a, b in zip(starts, ends)]
+        patterns = sorted(set(pat))
+        pat_of = np.array([patterns.index(p_) for p_ in pat])
+        logdet_r = 0.0
+        pinv = []
+        for pidx, P_ in enumerate(patterns):
+            Rp = R0[np.ix_(P_, P_)]
+            pinv.append(np.linalg.inv(Rp))
+            logdet_r += float(np.linalg.slogdet(Rp)[1]) * int(np.sum(pat_of == pidx))
+        f_val = logdet_r + r * self.logdet_k + fac.logdet() + ypy
+        # --- loadings: 2 T - 2 V'F (wrt Lambda~), then back to Lambda
+        W = sysm.W.tocsr()
+        a0 = sysm.offsets["animal"][0]
+        q = self.k_inv.shape[0]
+        n_obs = rec_idx.size
+        Zo = sp.csr_matrix((np.ones(n_obs), (np.arange(n_obs),
+                            np.asarray(self.data.animal_col)[rec_idx] * t + tr_idx)),
+                           shape=(n_obs, q * t))
+        e = sysm.y - W @ s
+        Re = sysm.rinv @ e
+        V = (Zo.T @ Re).reshape(q, t)
+        F = s[a0:a0 + q * r].reshape(q, r)
+        M = (W.T @ (sysm.rinv @ Zo)).tocoo()
+        i_an, a_tr = M.col // t, M.col % t
+        T = np.zeros((t, r))
+        for b in range(r):
+            vals = ent(a0 + i_an * r + b, M.row) * M.data
+            T[:, b] = np.bincount(a_tr, weights=vals, minlength=t)
+        g_lam = (2.0 * T - 2.0 * V.T @ F) @ Qrot.T
+        # --- residual covariance: scores for symmetric directions, as in MTREMLEvaluator
+        qi, qj, qa, qb, pa, pb = self._q_pairs(W, starts, ends, rec_idx)
+        Qv = W.data[pa] * W.data[pb] * ent(qa, qb)
+        li = qi - starts[rec_idx[qi]]
+        lj = qj - starts[rec_idx[qj]]
+        key = (rec_idx[qi] * t + li) * t + lj
+        Qr = np.bincount(key, weights=Qv, minlength=n_rec * t * t).reshape(n_rec, t, t)
+        Gam = np.zeros((t, t))                 # d(-2 logL)/dR0 as a symmetric matrix gradient
+        for pidx, P_ in enumerate(patterns):
+            recs = np.flatnonzero(pat_of == pidx)
+            k_ = len(P_)
+            Ri = pinv[pidx]
+            Eo = np.stack([e[starts[recs] + c] for c in range(k_)], axis=1)
+            S_oo = Eo.T @ Eo + Qr[recs][:, :k_, :k_].sum(axis=0)
+            # d(-2logL)/dR_P = n R^-1 - R^-1 S R^-1   (restricted to the observed block)
+            Gam[np.ix_(P_, P_)] += recs.size * Ri - Ri @ S_oo @ Ri
+        Lr = np.linalg.cholesky(R0)
+        g_L = 2.0 * Gam @ Lr
+        grad = [g_lam[j, k] for j, k in _lower_trapezoid(t, r)]
+        grad += [g_L[j, k] * (Lr[j, j] if j == k else 1.0) for j, k in _lower_trapezoid(t, t)]
+        return float(f_val), np.array(grad)
+
+    def _rotation(self) -> np.ndarray:
+        if not hasattr(self, "_Q"):
+            A = np.random.default_rng(12345).standard_normal((self.r, self.r))
+            self._Q = np.linalg.qr(A)[0]
+        return self._Q
+
+    def _q_pairs(self, W, starts, ends, rec_idx):
+        """Index arrays for ``Q_r``: pairs of observations of the same record x their
+        non-zeros (positions into ``W.data``); cached while the pattern is unchanged."""
+        sig = (W.indptr.tobytes(), W.indices.tobytes())
+        if getattr(self, "_qsig", None) == sig:
+            return self._qcache
+        qi, qj, qa, qb, pa, pb = [], [], [], [], [], []
+        for a, b in zip(starts, ends):
+            for i in range(a, b):
+                pi_ = np.arange(W.indptr[i], W.indptr[i + 1])
+                for j in range(a, b):
+                    pj_ = np.arange(W.indptr[j], W.indptr[j + 1])
+                    A_, B_ = np.meshgrid(pi_, pj_, indexing="ij")
+                    pa.append(A_.ravel())
+                    pb.append(B_.ravel())
+                    qi.append(np.full(A_.size, i))
+                    qj.append(np.full(A_.size, j))
+        pa, pb = np.concatenate(pa), np.concatenate(pb)
+        qi, qj = np.concatenate(qi), np.concatenate(qj)
+        qa, qb = W.indices[pa], W.indices[pb]
+        self._qsig = sig
+        self._qcache = (qi, qj, qa, qb, pa, pb)
+        return self._qcache
+
     def objective(self, x: np.ndarray) -> float:
         Lam, R0 = _rr_unpack(x, self.t, self.r)
         try:
@@ -552,7 +661,7 @@ class ReducedRankFit:
         h2 = (np.diag(self.G0) / (np.diag(self.G0) + np.diag(self.R0))).tolist()
         return {"status": self.status,
                 "algorithm": f"reduced-rank REML, G0 = Lambda Lambda' of rank {self.rank} "
-                             "(L-BFGS, central-difference gradients)",
+                             "(L-BFGS, analytic gradient)",
                 "traits": traits, "G0": self.G0.tolist(), "R0": self.R0.tolist(),
                 "loadings": self.loadings.tolist(), "rank": self.rank,
                 "genetic_correlations": corr(self.G0), "residual_correlations": corr(self.R0),
@@ -581,22 +690,19 @@ def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: 
     Lam0 = V[:, idx] * np.sqrt(np.maximum(w[idx], 1e-6 * max(w.max(), 1e-12)))
     x0 = _rr_pack(Lam0, check_covariance(R0s, "R0 start"))
     tol = float(cfg["tol"])
-    h = 1e-5
 
-    def grad(x):
-        g = np.empty_like(x)
-        for i in range(x.size):
-            e = np.zeros_like(x)
-            e[i] = h * max(1.0, abs(x[i]))
-            g[i] = (ev.objective(x + e) - ev.objective(x - e)) / (2 * e[i])
-        return g
+    def fg(x):
+        try:
+            return ev.value_and_gradient(x)
+        except (ABPError, np.linalg.LinAlgError):
+            return float("inf"), np.zeros_like(x)
 
-    res = minimize(ev.objective, x0, jac=grad, method="L-BFGS-B",
+    res = minimize(fg, x0, jac=True, method="L-BFGS-B",
                    options={"maxiter": int(cfg["max_iter"]), "gtol": max(tol, 1e-6) * 10,
-                            "ftol": 1e-13})
+                            "ftol": 1e-14})
     x = res.x
-    gnorm = float(np.max(np.abs(grad(x))))
-    f = ev.objective(x)
+    f, g = fg(x)
+    gnorm = float(np.max(np.abs(g)))
     if not np.isfinite(f) or gnorm > GRAD_TOL_RR:
         raise ABPError("REML_NOT_CONVERGED", f"reduced-rank multi-trait REML (rank {r}) did "
                        f"not converge (largest gradient element {gnorm:.2e}; {res.message})",

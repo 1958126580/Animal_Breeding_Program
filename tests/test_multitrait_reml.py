@@ -437,3 +437,26 @@ def test_spec_rules_for_reduced_rank():
                model=dict(base["model"], traits=["a"]))
     with pytest.raises(ABPError, match="multi-trait"):
         validate_spec_dict(dict(one, reml={"boundary": "reduced_rank"}))
+
+
+@pytest.mark.parametrize("t,r", [(2, 1), (2, 2), (3, 2)])
+def test_reduced_rank_analytic_gradient_equals_finite_differences(t, r):
+    ped, data2, A = _problem(t=2, miss=0.2)
+    if t == 3:
+        rng = np.random.default_rng(1)
+        Y = np.column_stack([data2.Y, 0.3 * data2.Y[:, 0] + rng.normal(0, 1, data2.Y.shape[0])])
+        Y[rng.random(Y.shape) < 0.15] = np.nan
+        Y[np.isnan(Y).all(axis=1), 2] = 1.0
+        Xs = [sp.csr_matrix(np.ones((int((~np.isnan(Y[:, j])).sum()), 1))) for j in range(3)]
+        data = MTData(Y, Xs, data2.animal_col)
+    else:
+        data = data2
+    ev = MR.ReducedRankEvaluator(data, ped.ainv(), ped.logdet_a(), r)
+    n_par = len(MR._lower_trapezoid(t, r)) + len(MR._lower_trapezoid(t, t))
+    x = np.random.default_rng(t * 10 + r).normal(0.3, 0.4, n_par)
+    f, g = ev.value_and_gradient(x)
+    assert f == pytest.approx(ev.objective(x), abs=1e-8)
+    h = 1e-6
+    fd = np.array([(ev.objective(x + h * e) - ev.objective(x - h * e)) / (2 * h)
+                   for e in np.eye(n_par)])
+    np.testing.assert_allclose(g, fd, rtol=1e-6, atol=1e-4)

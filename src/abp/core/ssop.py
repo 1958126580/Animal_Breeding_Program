@@ -205,6 +205,11 @@ def apy_blocks_from_genotypes(Wc: np.ndarray, scale_d: float, core: np.ndarray,
     g_cc = Wk @ Wk.T / scale_d
     g_cn = Wk @ Wc[non].T / scale_d
     g_nn = np.einsum("ij,ij->i", Wc[non], Wc[non]) / scale_d
+    return _apply_policy(g_cc, g_cn, g_nn, core, non, policy, alpha, ridge, a22_core_cols,
+                         a22_diag)
+
+
+def _apply_policy(g_cc, g_cn, g_nn, core, non, policy, alpha, ridge, a22_core_cols, a22_diag):
     if policy == "blend":
         if a22_core_cols is None or a22_diag is None:
             raise ValueError("blend needs A22 core columns and diag(A22)")
@@ -215,6 +220,34 @@ def apy_blocks_from_genotypes(Wc: np.ndarray, scale_d: float, core: np.ndarray,
         g_cc = g_cc + ridge * np.eye(core.size)
         g_nn = g_nn + ridge
     return g_cc, g_cn, g_nn
+
+
+def apy_blocks_from_dosage(M: np.ndarray, p: np.ndarray, core: np.ndarray, policy: str,
+                           alpha: float, ridge: float, a22_core_cols: np.ndarray | None,
+                           a22_diag: np.ndarray | None, block: int = 2048):
+    """As :func:`apy_blocks_from_genotypes` but from compact dosages ``M`` (``int8``
+    0/1/2, ``-1`` = missing, set to the centred value 0) and allele frequencies ``p``,
+    centring blocks of rows on the fly: the genotypes cost 1 byte per call instead of 8."""
+    M = np.asarray(M)
+    n2 = M.shape[0]
+    two_p = 2.0 * np.asarray(p, dtype=np.float64)
+    d = float(np.sum(two_p * (1.0 - 0.5 * two_p)))          # 2 sum p(1-p)
+    core = np.asarray(core, dtype=np.int64)
+    non = np.setdiff1d(np.arange(n2), core)
+
+    def centred(rows):
+        B = M[rows].astype(np.float64) - two_p
+        return np.where(M[rows] < 0, 0.0, B)
+    Wk = centred(core)
+    g_cc = Wk @ Wk.T / d
+    g_cn = np.empty((core.size, non.size))
+    g_nn = np.empty(non.size)
+    for start in range(0, non.size, block):
+        B = centred(non[start:start + block])
+        g_cn[:, start:start + B.shape[0]] = Wk @ B.T / d
+        g_nn[start:start + B.shape[0]] = np.einsum("ij,ij->i", B, B) / d
+    return _apply_policy(g_cc, g_cn, g_nn, core, non, policy, alpha, ridge, a22_core_cols,
+                         a22_diag)
 
 
 def a_block(ped, rows: np.ndarray, cols: np.ndarray, block: int = 256) -> np.ndarray:
