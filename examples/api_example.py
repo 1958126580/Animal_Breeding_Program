@@ -134,6 +134,8 @@ with tempfile.TemporaryDirectory() as tmp:
     gd = load_plink(Path(tmp) / "demo", "DEMO-ASSEMBLY")
     print("PLINK:", gd.ids, gd.markers, "counted allele (A1):", gd.counted_allele,
           "dosages", np.where(gd.missing, np.nan, gd.dosage).tolist())
+    gd8 = load_plink(Path(tmp) / "demo", "DEMO-ASSEMBLY", storage="int8")
+    print("PLINK int8 storage:", gd8.dosage.dtype, gd8.dosage.tolist(), "(-1 = missing)")
 
 # --- 10. Bayesian marker regression and MCMC diagnostics ------------------------
 from abp.solvers.bayes import BayesConfig, run_bayes
@@ -297,6 +299,18 @@ ev_rr = MR.ReducedRankEvaluator(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), p
 m2ll, grad = ev_rr.value_and_gradient(MR._rr_pack(rr.loadings, rr.R0))
 print("-2 logL at the rank-1 optimum", round(m2ll, 4), "| largest gradient element",
       f"{np.max(np.abs(grad)):.1e}")
+
+# --- 26. Rank selection by AIC and Kackar-Harville PEV for reduced-rank fits -----------
+from abp.solvers.vc_uncertainty import kackar_harville_delta_reduced_rank
+sel = MR.select_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), ped2.logdet_a(),
+                     {"tol": 1e-8, "max_iter": 200})
+print("rank selection (lower rank only if AIC smaller by >= 2): rank", sel["chosen_rank"],
+      "| per rank:", [round(r_["delta_aic"], 2) if "aic" in r_ else r_["error"]["code"]
+                      for r_ in sel["table"]])
+d_rr = kackar_harville_delta_reduced_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(),
+                                          1 + ped2.inbreeding(), rr.x, 2, 1, rr.cov_x)
+print("reduced-rank PEV increase from REML uncertainty (mean, per trait):",
+      np.round(np.einsum("ijj->j", d_rr) / np.einsum("ijj->j", res_rr.pev_blocks), 4).tolist())
 
 # --- 11. Whole workflow from an analysis spec ----------------------------------
 root = Path(__file__).resolve().parent

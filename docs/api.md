@@ -1,6 +1,6 @@
 # ABP Python API
 
-Version 0.6.0. Every snippet below is taken from `examples/api_example.py`,
+Version 0.7.0. Every snippet below is taken from `examples/api_example.py`,
 which the test suite runs (`tests/test_examples.py::test_api_example_script_runs`).
 The mathematics behind each function is in [`methods.md`](methods.md).
 
@@ -217,7 +217,14 @@ gd.ids, gd.markers, gd.counted_allele                # counted allele = A1
 np.where(gd.missing, np.nan, gd.dosage)              # dosages of A1
 ```
 
-`decode_bed(raw, n_samples, n_variants)` decodes SNP-major bytes;
+```python
+gd8 = load_plink(Path(tmp) / "demo", "DEMO-ASSEMBLY", storage="int8")
+```
+
+`load_plink(prefix, assembly, storage="float64")`: with `storage="int8"` the
+dosages are `int8` with −1 for a missing call (`abp.qc.genotype.to_int8(g)` converts
+a loaded `GenotypeData`; it refuses fractional dosages).
+`decode_bed(raw, n_samples, n_variants, dtype=...)` decodes SNP-major bytes;
 `write_bed(prefix, ids, markers, dosage_a1)` writes a fileset (tests,
 conversions).
 
@@ -500,3 +507,30 @@ m2ll, grad = ev_rr.value_and_gradient(MR._rr_pack(rr.loadings, rr.R0))
 `value_and_gradient(x)` returns `−2 log L` and its analytic gradient in the
 parameters `x` (lower-trapezoidal `Λ`, then `chol R0` with log diagonal);
 `ReducedRankFit.newton_decrement` reports the convergence criterion.
+
+## 27. Rank selection and reduced-rank Kackar–Harville PEV
+
+```python
+from abp.solvers.vc_uncertainty import kackar_harville_delta_reduced_rank
+sel = MR.select_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), ped2.logdet_a(),
+                     {"tol": 1e-8, "max_iter": 200})
+d_rr = kackar_harville_delta_reduced_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(),
+                                          1 + ped2.inbreeding(), rr.x, 2, 1, rr.cov_x)
+```
+
+`select_rank(data, k_inv, logdet_k, cfg, memory_budget_bytes, margin=AIC_MARGIN)`
+fits ranks `1..t` and returns `{"table", "chosen_rank", "fits", "criterion",
+"margin"}`; each table row has `rank`, `n_parameters`, and `loglik`, `aic`,
+`delta_aic` or `error`. The choice starts at the highest fitted rank and moves to a
+lower rank only if its AIC is smaller by at least `margin` (default 2).
+`n_parameters(t, rank)` counts the covariance parameters.
+`kackar_harville_delta_reduced_rank(data, k_inv, k_diag, x, t, r, cov_x)` returns
+the `q × t × t` correction to add to the PEV blocks; `ReducedRankFit.x` and
+`.cov_x` (`2 H⁻¹`) come from the fit.
+
+## 28. Threshold Gibbs priors
+
+`ThresholdGibbsConfig(nu=4, s2={"animal": 0.1, "pe": 0.1})` gives each variance a
+scaled inverse-χ² prior (`s2` a number for all terms or a dict per term); the default
+`nu=-2, s2=0` is the uniform prior. In a spec: `bayes.variance_prior`,
+`bayes.nu`, `bayes.prior_variances`.

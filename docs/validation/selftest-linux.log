@@ -1,6 +1,6 @@
 # command: abp selftest
-# date: 2026-09-30T00:59:17+00:00
-ABP 0.6.0 self-test (native kernel: True)
+# date: 2026-09-30T05:48:36+00:00
+ABP 0.7.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
@@ -18,9 +18,10 @@ ABP 0.6.0 self-test (native kernel: True)
   [PASS] T14 sparse LDL' solve and log-determinant - kernel order native_cpp, symbolic native_cpp, numeric native_cpp
   [PASS] T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)
   [PASS] T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix
+  [PASS] T17 PLINK decoding to int8 and float64 (hand-derived byte)
 RESULT: PASS
 # command: ABP_DISABLE_NATIVE=1 abp selftest
-ABP 0.6.0 self-test (native kernel: False)
+ABP 0.7.0 self-test (native kernel: False)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel python_meuwissen_luo
@@ -38,4 +39,5 @@ ABP 0.6.0 self-test (native kernel: False)
   [PASS] T14 sparse LDL' solve and log-determinant - kernel order python, symbolic python, numeric python
   [PASS] T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)
   [PASS] T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix
+  [PASS] T17 PLINK decoding to int8 and float64 (hand-derived byte)
 RESULT: PASS

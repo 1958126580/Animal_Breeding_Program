@@ -497,7 +497,9 @@ def test_workflow_rank_selection(tmp_path):
     r = out.results["traits"]["y1"]["reml"]
     assert r["rank"] == 1 and r["rank_selection"]["chosen_rank"] == 1
     assert r["rank_source"] == "reml.rank_selection = 'aic'"
-    assert "chosen by AIC" in (out.out_dir / "report.md").read_text(encoding="utf-8")
+    assert r["rank_selection"]["margin"] == 2.0
+    report = (out.out_dir / "report.md").read_text(encoding="utf-8")
+    assert "chosen by AIC" in report and "smaller by at least 2" in report
 
 
 def test_spec_refuses_rank_selection_with_stated_rank():

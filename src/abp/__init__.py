@@ -10,4 +10,4 @@ The package is organised in layers (see docs/adr/0001-primary-language.md):
 ``abp.cli``        command-line interface (``abp``)
 """
 
-__version__ = "0.6.0"
+__version__ = "0.7.0"

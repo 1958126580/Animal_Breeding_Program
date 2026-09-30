@@ -1,7 +1,7 @@
 # Requirements trace
 
 Source: the project control instruction (`01_总控指令.md`) and the full
-specification (`02_完整研发指令与技术规范.md`), 2026-09-25; updated 2026-09-29 (round 4). Status values:
+specification (`02_完整研发指令与技术规范.md`), 2026-09-25; updated 2026-09-30 (round 7). Status values:
 **passed** (implemented, and the required checks ran and passed),
 **partial** (part implemented or verified; the gap is stated), **not_run**
 (not implemented or not executed). "Linux" means the checks ran on the Linux
@@ -50,12 +50,12 @@ build machine recorded in `docs/validation_report.md`.
 | M02 QC | passed | pedigree, phenotype and genotype rules; PLINK 1 binary input; batch and sex-chromosome checks not implemented |
 | M03 relationships and base | passed | unknown-parent groups (random or fixed, QP transformation); metafounders with a valid, documented Γ (file with provenance, or estimated from genotypes) for pedigree BLUP, REML and single step (single trait) |
 | M04 LMM and BLUP | passed | dense, sparse and PCG |
-| M05 REML and reliability | passed | single- and multi-trait; dense or sparse selected-inversion traces; reduced-rank G0 at the boundary (analytic gradient); single- and multi-trait PEV including REML uncertainty (Kackar–Harville) |
+| M05 REML and reliability | passed | single- and multi-trait; dense or sparse selected-inversion traces; reduced-rank G0 at the boundary (analytic gradient) and rank selection by AIC with a conservative margin; single-trait, full-rank and reduced-rank multi-trait PEV including REML uncertainty (Kackar–Harville) |
 | M06 GBLUP | passed | VanRaden G with policies; SNP-BLUP equivalence tested |
-| M07 ssGBLUP | partial | exact H⁻¹, metafounders, APY; matrix-free single step with sampled reliabilities (no exact PEV or REML on that path) |
+| M07 ssGBLUP | partial | exact H⁻¹, metafounders, APY; matrix-free single step with sampled reliabilities and int8 genotype storage in the workflow (no exact PEV or REML on that path) |
 | M08 Bayesian | partial | BRR, BayesA, BayesB, BayesC, BayesCπ, BayesR with MCMC diagnostics (M20 part); single-trait genotyped-only; no Bayesian LASSO/horseshoe, single-step or multi-trait Bayes |
 | M09 multi-trait / repeatability / random regression | partial | multi-trait BLUP and multi-trait REML; repeatability model; no random regression |
-| M10 threshold / survival / G×E | partial | single-trait threshold (probit) model with known, Gibbs-sampled or Laplace-REML liability variances (Laplace biased in sparse data); no survival or G×E models |
+| M10 threshold / survival / G×E | partial | single-trait threshold (probit) model with known, Gibbs-sampled (uniform or proper priors) or Laplace-REML liability variances (Laplace biased in sparse data; weakly identified with 2–3 records per animal, F13); no survival or G×E models |
 | M11 selection index | passed | Smith-Hazel, restricted, EBV index |
 | M12 OCS and mating | passed | pedigree-based OCS with KKT certificate; integer plans; minimum-inbreeding mating with hard constraints; no genomic OCS or multi-generation planning |
 | M13 validation, simulation, benchmarking | partial | LR forward validation; 50-replicate calibration study; 20-replicate UPG study; no comparison with other software |

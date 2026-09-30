@@ -29,7 +29,7 @@
       ]
     ]
   },
-  "wall_seconds": 669.7224702835083,
+  "wall_seconds": 556.5172929763794,
   "summary": {
     "g0": "rank1",
     "aic_choice_counts": {
@@ -112,6 +112,42 @@
         "coverage95": {
           "mean": 0.94033,
           "mc_se": 0.0036155124537235795,
+          "n": 100
+        },
+        "realized_accuracy": {
+          "mean": 0.7438774516663578,
+          "mc_se": 0.0023613014283876263,
+          "n": 100
+        }
+      }
+    },
+    "rank1_reml_kh": {
+      "trait1": {
+        "pev_ratio": {
+          "mean": 1.006853812103391,
+          "mc_se": 0.010325796428794687,
+          "n": 100
+        },
+        "coverage95": {
+          "mean": 0.9486,
+          "mc_se": 0.001299261639578727,
+          "n": 100
+        },
+        "realized_accuracy": {
+          "mean": 0.743877451666358,
+          "mc_se": 0.00236130142838762,
+          "n": 100
+        }
+      },
+      "trait2": {
+        "pev_ratio": {
+          "mean": 1.0376448432828536,
+          "mc_se": 0.029182143643972015,
+          "n": 100
+        },
+        "coverage95": {
+          "mean": 0.9443700000000003,
+          "mc_se": 0.003412947865308393,
           "n": 100
         },
         "realized_accuracy": {
@@ -204,6 +240,18 @@
           "realized_accuracy": 0.7673884094451308
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8539957998250748,
+          "coverage95": 0.96,
+          "realized_accuracy": 0.7673884094451304
+        },
+        "trait2": {
+          "pev_ratio": 0.8461845261499509,
+          "coverage95": 0.961,
+          "realized_accuracy": 0.7673884094451308
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -268,6 +316,18 @@
         "trait2": {
           "pev_ratio": 1.3873944813487586,
           "coverage95": 0.907,
+          "realized_accuracy": 0.7646722417467239
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9818432258914304,
+          "coverage95": 0.947,
+          "realized_accuracy": 0.7646722417467239
+        },
+        "trait2": {
+          "pev_ratio": 1.337255242711156,
+          "coverage95": 0.91,
           "realized_accuracy": 0.7646722417467239
         }
       },
@@ -338,6 +398,18 @@
           "realized_accuracy": 0.7581793426161428
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8840865587791094,
+          "coverage95": 0.972,
+          "realized_accuracy": 0.7581793426161428
+        },
+        "trait2": {
+          "pev_ratio": 0.7768714988657608,
+          "coverage95": 0.982,
+          "realized_accuracy": 0.7581793426161428
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -405,6 +477,18 @@
           "realized_accuracy": 0.787991594392472
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8642670749278801,
+          "coverage95": 0.964,
+          "realized_accuracy": 0.7879915943924719
+        },
+        "trait2": {
+          "pev_ratio": 0.8581161406976099,
+          "coverage95": 0.963,
+          "realized_accuracy": 0.787991594392472
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -457,6 +541,18 @@
         "trait2": {
           "pev_ratio": 0.7978646588972542,
           "coverage95": 0.969,
+          "realized_accuracy": 0.7207507516163122
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.032161409212515,
+          "coverage95": 0.95,
+          "realized_accuracy": 0.7207507516163125
+        },
+        "trait2": {
+          "pev_ratio": 0.7734636777571747,
+          "coverage95": 0.972,
           "realized_accuracy": 0.7207507516163122
         }
       },
@@ -527,6 +623,18 @@
           "realized_accuracy": 0.7487858755871557
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.913288781093781,
+          "coverage95": 0.965,
+          "realized_accuracy": 0.7487858755871561
+        },
+        "trait2": {
+          "pev_ratio": 0.7798107387523563,
+          "coverage95": 0.979,
+          "realized_accuracy": 0.7487858755871557
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -594,6 +702,18 @@
           "realized_accuracy": 0.713880716960157
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1352830029876315,
+          "coverage95": 0.924,
+          "realized_accuracy": 0.7138807169601569
+        },
+        "trait2": {
+          "pev_ratio": 0.8788634051217669,
+          "coverage95": 0.962,
+          "realized_accuracy": 0.713880716960157
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -646,6 +766,18 @@
         "trait2": {
           "pev_ratio": 2.069575479470448,
           "coverage95": 0.83,
+          "realized_accuracy": 0.7038171400756579
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.242059622507226,
+          "coverage95": 0.921,
+          "realized_accuracy": 0.7038171400756587
+        },
+        "trait2": {
+          "pev_ratio": 1.9762321647807795,
+          "coverage95": 0.841,
           "realized_accuracy": 0.7038171400756579
         }
       },
@@ -716,6 +848,18 @@
           "realized_accuracy": 0.723138150749068
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9666951206176854,
+          "coverage95": 0.95,
+          "realized_accuracy": 0.7231381507490677
+        },
+        "trait2": {
+          "pev_ratio": 1.1545811861043787,
+          "coverage95": 0.928,
+          "realized_accuracy": 0.723138150749068
+        }
+      },
       "aic_choice": 2,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -768,6 +912,18 @@
         "trait2": {
           "pev_ratio": 0.9743267134239119,
           "coverage95": 0.954,
+          "realized_accuracy": 0.7453264602449277
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.01023075545744,
+          "coverage95": 0.949,
+          "realized_accuracy": 0.7453264602449271
+        },
+        "trait2": {
+          "pev_ratio": 0.9425355293306733,
+          "coverage95": 0.956,
           "realized_accuracy": 0.7453264602449277
         }
       },
@@ -838,6 +994,18 @@
           "realized_accuracy": 0.7534032389956202
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8577931917147301,
+          "coverage95": 0.961,
+          "realized_accuracy": 0.7534032389956201
+        },
+        "trait2": {
+          "pev_ratio": 0.6442516462667708,
+          "coverage95": 0.981,
+          "realized_accuracy": 0.7534032389956202
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -905,6 +1073,18 @@
           "realized_accuracy": 0.7595387923042846
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9164174987356167,
+          "coverage95": 0.962,
+          "realized_accuracy": 0.7595387923042851
+        },
+        "trait2": {
+          "pev_ratio": 1.0652700102675474,
+          "coverage95": 0.947,
+          "realized_accuracy": 0.7595387923042846
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -957,6 +1137,18 @@
         "trait2": {
           "pev_ratio": 1.3226294664971634,
           "coverage95": 0.914,
+          "realized_accuracy": 0.7396432378960376
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9249201642465081,
+          "coverage95": 0.966,
+          "realized_accuracy": 0.7396432378960373
+        },
+        "trait2": {
+          "pev_ratio": 1.2699805198088976,
+          "coverage95": 0.918,
           "realized_accuracy": 0.7396432378960376
         }
       },
@@ -1027,6 +1219,18 @@
           "realized_accuracy": 0.7725319938763534
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0539908549446722,
+          "coverage95": 0.941,
+          "realized_accuracy": 0.7725319938763532
+        },
+        "trait2": {
+          "pev_ratio": 1.1396596522011593,
+          "coverage95": 0.929,
+          "realized_accuracy": 0.7725319938763534
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -1079,6 +1283,18 @@
         "trait2": {
           "pev_ratio": 0.8920612851240382,
           "coverage95": 0.958,
+          "realized_accuracy": 0.7700925035655417
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9352233118695802,
+          "coverage95": 0.955,
+          "realized_accuracy": 0.7700925035655413
+        },
+        "trait2": {
+          "pev_ratio": 0.868136817414184,
+          "coverage95": 0.962,
           "realized_accuracy": 0.7700925035655417
         }
       },
@@ -1137,6 +1353,18 @@
           "realized_accuracy": 0.7776374020452083
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8812082484074599,
+          "coverage95": 0.959,
+          "realized_accuracy": 0.7776374020452084
+        },
+        "trait2": {
+          "pev_ratio": 0.8900615498806673,
+          "coverage95": 0.958,
+          "realized_accuracy": 0.7776374020452083
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -1189,6 +1417,18 @@
         "trait2": {
           "pev_ratio": 1.1328516245413656,
           "coverage95": 0.93,
+          "realized_accuracy": 0.7325304281880363
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1765125869061397,
+          "coverage95": 0.924,
+          "realized_accuracy": 0.7325304281880362
+        },
+        "trait2": {
+          "pev_ratio": 1.1002747262300288,
+          "coverage95": 0.934,
           "realized_accuracy": 0.7325304281880363
         }
       },
@@ -1247,6 +1487,18 @@
           "realized_accuracy": 0.7623280270053109
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9832634723647132,
+          "coverage95": 0.944,
+          "realized_accuracy": 0.7623280270053115
+        },
+        "trait2": {
+          "pev_ratio": 1.1267556198373267,
+          "coverage95": 0.93,
+          "realized_accuracy": 0.7623280270053109
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -1299,6 +1551,18 @@
         "trait2": {
           "pev_ratio": 0.7810819167326118,
           "coverage95": 0.977,
+          "realized_accuracy": 0.7235509402110473
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0945188350062431,
+          "coverage95": 0.932,
+          "realized_accuracy": 0.7235509402110467
+        },
+        "trait2": {
+          "pev_ratio": 0.7643637757572777,
+          "coverage95": 0.979,
           "realized_accuracy": 0.7235509402110473
         }
       },
@@ -1369,6 +1633,18 @@
           "realized_accuracy": 0.7715601126536104
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1705054630973646,
+          "coverage95": 0.935,
+          "realized_accuracy": 0.7715601126536102
+        },
+        "trait2": {
+          "pev_ratio": 1.3304731433057952,
+          "coverage95": 0.91,
+          "realized_accuracy": 0.7715601126536104
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -1433,6 +1709,18 @@
         "trait2": {
           "pev_ratio": 1.3296863517500643,
           "coverage95": 0.913,
+          "realized_accuracy": 0.6905361746278313
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9305380483225492,
+          "coverage95": 0.965,
+          "realized_accuracy": 0.6905361746278308
+        },
+        "trait2": {
+          "pev_ratio": 1.2637491457932015,
+          "coverage95": 0.918,
           "realized_accuracy": 0.6905361746278313
         }
       },
@@ -1503,6 +1791,18 @@
           "realized_accuracy": 0.7131382581022812
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0295625182907735,
+          "coverage95": 0.95,
+          "realized_accuracy": 0.7131382581022805
+        },
+        "trait2": {
+          "pev_ratio": 1.01109612192415,
+          "coverage95": 0.95,
+          "realized_accuracy": 0.7131382581022812
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -1555,6 +1855,18 @@
         "trait2": {
           "pev_ratio": 0.9560002702108829,
           "coverage95": 0.957,
+          "realized_accuracy": 0.7715707362459049
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0748650864237348,
+          "coverage95": 0.944,
+          "realized_accuracy": 0.7715707362459049
+        },
+        "trait2": {
+          "pev_ratio": 0.9258442966998432,
+          "coverage95": 0.959,
           "realized_accuracy": 0.7715707362459049
         }
       },
@@ -1613,6 +1925,18 @@
           "realized_accuracy": 0.7913674139072717
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9846430626053424,
+          "coverage95": 0.952,
+          "realized_accuracy": 0.7913674139072713
+        },
+        "trait2": {
+          "pev_ratio": 0.9899386576858163,
+          "coverage95": 0.953,
+          "realized_accuracy": 0.7913674139072717
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -1668,6 +1992,18 @@
           "realized_accuracy": 0.7146668913737437
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9663180426828144,
+          "coverage95": 0.955,
+          "realized_accuracy": 0.714666891373744
+        },
+        "trait2": {
+          "pev_ratio": 1.1342695376853105,
+          "coverage95": 0.934,
+          "realized_accuracy": 0.7146668913737437
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -1720,6 +2056,18 @@
         "trait2": {
           "pev_ratio": 1.0991206489164316,
           "coverage95": 0.942,
+          "realized_accuracy": 0.7396198523582643
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8990832664166112,
+          "coverage95": 0.965,
+          "realized_accuracy": 0.7396198523582644
+        },
+        "trait2": {
+          "pev_ratio": 1.0580757216515844,
+          "coverage95": 0.945,
           "realized_accuracy": 0.7396198523582643
         }
       },
@@ -1790,6 +2138,18 @@
           "realized_accuracy": 0.7880533388787158
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9207352404101812,
+          "coverage95": 0.955,
+          "realized_accuracy": 0.7880533388787152
+        },
+        "trait2": {
+          "pev_ratio": 0.8382188973442659,
+          "coverage95": 0.964,
+          "realized_accuracy": 0.7880533388787158
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -1854,6 +2214,18 @@
         "trait2": {
           "pev_ratio": 1.6273406754840727,
           "coverage95": 0.865,
+          "realized_accuracy": 0.7285818741999487
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1785823424283328,
+          "coverage95": 0.927,
+          "realized_accuracy": 0.728581874199949
+        },
+        "trait2": {
+          "pev_ratio": 1.5570310979567767,
+          "coverage95": 0.877,
           "realized_accuracy": 0.7285818741999487
         }
       },
@@ -1924,6 +2296,18 @@
           "realized_accuracy": 0.7440462157708857
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0543116072551897,
+          "coverage95": 0.937,
+          "realized_accuracy": 0.7440462157708855
+        },
+        "trait2": {
+          "pev_ratio": 0.9226084557358003,
+          "coverage95": 0.952,
+          "realized_accuracy": 0.7440462157708857
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -1976,6 +2360,18 @@
         "trait2": {
           "pev_ratio": 1.963464461191295,
           "coverage95": 0.832,
+          "realized_accuracy": 0.7238912180826382
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1757579255324428,
+          "coverage95": 0.922,
+          "realized_accuracy": 0.7238912180826383
+        },
+        "trait2": {
+          "pev_ratio": 1.8684361610467661,
+          "coverage95": 0.844,
           "realized_accuracy": 0.7238912180826382
         }
       },
@@ -2046,6 +2442,18 @@
           "realized_accuracy": 0.7305616221405316
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0277153442171416,
+          "coverage95": 0.951,
+          "realized_accuracy": 0.7305616221405321
+        },
+        "trait2": {
+          "pev_ratio": 1.021805476141736,
+          "coverage95": 0.949,
+          "realized_accuracy": 0.7305616221405316
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -2098,6 +2506,18 @@
         "trait2": {
           "pev_ratio": 2.2420181815408955,
           "coverage95": 0.798,
+          "realized_accuracy": 0.7270813610988651
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1792550817006358,
+          "coverage95": 0.931,
+          "realized_accuracy": 0.7270813610988642
+        },
+        "trait2": {
+          "pev_ratio": 2.1345976335226395,
+          "coverage95": 0.81,
           "realized_accuracy": 0.7270813610988651
         }
       },
@@ -2156,6 +2576,18 @@
           "realized_accuracy": 0.7356498910433577
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9902222566064152,
+          "coverage95": 0.952,
+          "realized_accuracy": 0.7356498910433582
+        },
+        "trait2": {
+          "pev_ratio": 0.9394054958235225,
+          "coverage95": 0.956,
+          "realized_accuracy": 0.7356498910433577
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -2208,6 +2640,18 @@
         "trait2": {
           "pev_ratio": 0.7379471083170575,
           "coverage95": 0.977,
+          "realized_accuracy": 0.7689767239570583
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0219770483499258,
+          "coverage95": 0.949,
+          "realized_accuracy": 0.7689767239570581
+        },
+        "trait2": {
+          "pev_ratio": 0.7221796035743061,
+          "coverage95": 0.979,
           "realized_accuracy": 0.7689767239570583
         }
       },
@@ -2278,6 +2722,18 @@
           "realized_accuracy": 0.7672989272848001
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.948831890499442,
+          "coverage95": 0.953,
+          "realized_accuracy": 0.7672989272848003
+        },
+        "trait2": {
+          "pev_ratio": 1.4745247250316336,
+          "coverage95": 0.894,
+          "realized_accuracy": 0.7672989272848001
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -2330,6 +2786,18 @@
         "trait2": {
           "pev_ratio": 1.0815788419442025,
           "coverage95": 0.937,
+          "realized_accuracy": 0.7081600257386311
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.037114789189001,
+          "coverage95": 0.942,
+          "realized_accuracy": 0.7081600257386318
+        },
+        "trait2": {
+          "pev_ratio": 1.046696335421191,
+          "coverage95": 0.942,
           "realized_accuracy": 0.7081600257386311
         }
       },
@@ -2388,6 +2856,18 @@
           "realized_accuracy": 0.7365188487595584
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0274256066157872,
+          "coverage95": 0.945,
+          "realized_accuracy": 0.7365188487595586
+        },
+        "trait2": {
+          "pev_ratio": 1.0488213324267668,
+          "coverage95": 0.943,
+          "realized_accuracy": 0.7365188487595584
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -2443,6 +2923,18 @@
           "realized_accuracy": 0.7775164207135361
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9041368306520368,
+          "coverage95": 0.963,
+          "realized_accuracy": 0.7775164207135357
+        },
+        "trait2": {
+          "pev_ratio": 1.27762965109705,
+          "coverage95": 0.921,
+          "realized_accuracy": 0.7775164207135361
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -2495,6 +2987,18 @@
         "trait2": {
           "pev_ratio": 0.9068317730662264,
           "coverage95": 0.959,
+          "realized_accuracy": 0.7552868633444151
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0280120955700045,
+          "coverage95": 0.943,
+          "realized_accuracy": 0.7552868633444144
+        },
+        "trait2": {
+          "pev_ratio": 0.8799107405385173,
+          "coverage95": 0.964,
           "realized_accuracy": 0.7552868633444151
         }
       },
@@ -2565,6 +3069,18 @@
           "realized_accuracy": 0.7584118960278297
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9110846084387022,
+          "coverage95": 0.956,
+          "realized_accuracy": 0.7584118960278294
+        },
+        "trait2": {
+          "pev_ratio": 1.126400243765148,
+          "coverage95": 0.933,
+          "realized_accuracy": 0.7584118960278297
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -2617,6 +3133,18 @@
         "trait2": {
           "pev_ratio": 0.8893117214956082,
           "coverage95": 0.969,
+          "realized_accuracy": 0.7525099150597867
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0369093566071776,
+          "coverage95": 0.949,
+          "realized_accuracy": 0.7525099150597866
+        },
+        "trait2": {
+          "pev_ratio": 0.8641546949884168,
+          "coverage95": 0.97,
           "realized_accuracy": 0.7525099150597867
         }
       },
@@ -2675,6 +3203,18 @@
           "realized_accuracy": 0.7458316919306841
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0921643703780513,
+          "coverage95": 0.938,
+          "realized_accuracy": 0.7458316919306841
+        },
+        "trait2": {
+          "pev_ratio": 0.6780138689013475,
+          "coverage95": 0.979,
+          "realized_accuracy": 0.7458316919306841
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -2727,6 +3267,18 @@
         "trait2": {
           "pev_ratio": 0.7010836592226416,
           "coverage95": 0.976,
+          "realized_accuracy": 0.763202360866242
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8870813948491226,
+          "coverage95": 0.958,
+          "realized_accuracy": 0.7632023608662418
+        },
+        "trait2": {
+          "pev_ratio": 0.6828050150062965,
+          "coverage95": 0.977,
           "realized_accuracy": 0.763202360866242
         }
       },
@@ -2785,6 +3337,18 @@
           "realized_accuracy": 0.7284853021442763
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.014837721786626,
+          "coverage95": 0.946,
+          "realized_accuracy": 0.7284853021442756
+        },
+        "trait2": {
+          "pev_ratio": 1.4845534278501133,
+          "coverage95": 0.898,
+          "realized_accuracy": 0.7284853021442763
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -2837,6 +3401,18 @@
         "trait2": {
           "pev_ratio": 0.9935537899683924,
           "coverage95": 0.955,
+          "realized_accuracy": 0.7566048956628066
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8467766492922222,
+          "coverage95": 0.97,
+          "realized_accuracy": 0.7566048956628064
+        },
+        "trait2": {
+          "pev_ratio": 0.958098874185599,
+          "coverage95": 0.959,
           "realized_accuracy": 0.7566048956628066
         }
       },
@@ -2907,6 +3483,18 @@
           "realized_accuracy": 0.7108147500717146
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.2597059196997522,
+          "coverage95": 0.919,
+          "realized_accuracy": 0.7108147500717152
+        },
+        "trait2": {
+          "pev_ratio": 0.6828032432207667,
+          "coverage95": 0.986,
+          "realized_accuracy": 0.7108147500717146
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -2959,6 +3547,18 @@
         "trait2": {
           "pev_ratio": 0.8894566507795856,
           "coverage95": 0.96,
+          "realized_accuracy": 0.723618820002167
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9485535175453675,
+          "coverage95": 0.954,
+          "realized_accuracy": 0.723618820002167
+        },
+        "trait2": {
+          "pev_ratio": 0.8628304482279137,
+          "coverage95": 0.963,
           "realized_accuracy": 0.723618820002167
         }
       },
@@ -3029,6 +3629,18 @@
           "realized_accuracy": 0.7363300747187905
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.976107108934901,
+          "coverage95": 0.962,
+          "realized_accuracy": 0.7363300747187908
+        },
+        "trait2": {
+          "pev_ratio": 0.767265734463872,
+          "coverage95": 0.979,
+          "realized_accuracy": 0.7363300747187905
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -3081,6 +3693,18 @@
         "trait2": {
           "pev_ratio": 1.2495834857729677,
           "coverage95": 0.92,
+          "realized_accuracy": 0.7084543079915998
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0314219713333033,
+          "coverage95": 0.946,
+          "realized_accuracy": 0.7084543079916004
+        },
+        "trait2": {
+          "pev_ratio": 1.198836386658883,
+          "coverage95": 0.923,
           "realized_accuracy": 0.7084543079915998
         }
       },
@@ -3151,6 +3775,18 @@
           "realized_accuracy": 0.762074006440187
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8886004153563353,
+          "coverage95": 0.969,
+          "realized_accuracy": 0.7620740064401872
+        },
+        "trait2": {
+          "pev_ratio": 0.8779364479289758,
+          "coverage95": 0.969,
+          "realized_accuracy": 0.762074006440187
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -3203,6 +3839,18 @@
         "trait2": {
           "pev_ratio": 0.7419480768690124,
           "coverage95": 0.972,
+          "realized_accuracy": 0.7905198309157859
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.062468479071863,
+          "coverage95": 0.929,
+          "realized_accuracy": 0.7905198309157863
+        },
+        "trait2": {
+          "pev_ratio": 0.7266699846864109,
+          "coverage95": 0.974,
           "realized_accuracy": 0.7905198309157859
         }
       },
@@ -3273,6 +3921,18 @@
           "realized_accuracy": 0.7391824645898374
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0648471718061328,
+          "coverage95": 0.942,
+          "realized_accuracy": 0.7391824645898373
+        },
+        "trait2": {
+          "pev_ratio": 0.8879862783626331,
+          "coverage95": 0.964,
+          "realized_accuracy": 0.7391824645898374
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -3340,6 +4000,18 @@
           "realized_accuracy": 0.7602370641676429
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8586014313456802,
+          "coverage95": 0.965,
+          "realized_accuracy": 0.7602370641676429
+        },
+        "trait2": {
+          "pev_ratio": 1.1011785828806488,
+          "coverage95": 0.932,
+          "realized_accuracy": 0.7602370641676429
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -3395,6 +4067,18 @@
           "realized_accuracy": 0.7520687265265181
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0023998869863733,
+          "coverage95": 0.956,
+          "realized_accuracy": 0.7520687265265185
+        },
+        "trait2": {
+          "pev_ratio": 1.0695654344643846,
+          "coverage95": 0.94,
+          "realized_accuracy": 0.7520687265265181
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -3447,6 +4131,18 @@
         "trait2": {
           "pev_ratio": 0.8989460777090422,
           "coverage95": 0.961,
+          "realized_accuracy": 0.7271497132469507
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0094340767816037,
+          "coverage95": 0.949,
+          "realized_accuracy": 0.7271497132469505
+        },
+        "trait2": {
+          "pev_ratio": 0.8704067443124598,
+          "coverage95": 0.963,
           "realized_accuracy": 0.7271497132469507
         }
       },
@@ -3517,6 +4213,18 @@
           "realized_accuracy": 0.7416943971983047
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.166112090204976,
+          "coverage95": 0.93,
+          "realized_accuracy": 0.7416943971983051
+        },
+        "trait2": {
+          "pev_ratio": 0.9736875027506081,
+          "coverage95": 0.95,
+          "realized_accuracy": 0.7416943971983047
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -3581,6 +4289,18 @@
         "trait2": {
           "pev_ratio": 1.793830449824398,
           "coverage95": 0.841,
+          "realized_accuracy": 0.7727069535223295
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9596870613724328,
+          "coverage95": 0.95,
+          "realized_accuracy": 0.7727069535223293
+        },
+        "trait2": {
+          "pev_ratio": 1.704081174507717,
+          "coverage95": 0.852,
           "realized_accuracy": 0.7727069535223295
         }
       },
@@ -3651,6 +4371,18 @@
           "realized_accuracy": 0.7048095363698866
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9770133703185344,
+          "coverage95": 0.954,
+          "realized_accuracy": 0.7048095363698869
+        },
+        "trait2": {
+          "pev_ratio": 1.002366782355843,
+          "coverage95": 0.951,
+          "realized_accuracy": 0.7048095363698866
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -3703,6 +4435,18 @@
         "trait2": {
           "pev_ratio": 0.8884411823083731,
           "coverage95": 0.964,
+          "realized_accuracy": 0.7196333883171314
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9570019809983267,
+          "coverage95": 0.957,
+          "realized_accuracy": 0.7196333883171313
+        },
+        "trait2": {
+          "pev_ratio": 0.8614450637234426,
+          "coverage95": 0.967,
           "realized_accuracy": 0.7196333883171314
         }
       },
@@ -3761,6 +4505,18 @@
           "realized_accuracy": 0.7334205484443482
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0623843833887476,
+          "coverage95": 0.952,
+          "realized_accuracy": 0.733420548444348
+        },
+        "trait2": {
+          "pev_ratio": 0.8676907378466403,
+          "coverage95": 0.97,
+          "realized_accuracy": 0.7334205484443482
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -3812,6 +4568,18 @@
         },
         "trait2": {
           "pev_ratio": 0.8766008066180775,
+          "coverage95": 0.965,
+          "realized_accuracy": 0.7452630368866878
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0638250972740766,
+          "coverage95": 0.943,
+          "realized_accuracy": 0.7452630368866877
+        },
+        "trait2": {
+          "pev_ratio": 0.8576427989795202,
           "coverage95": 0.965,
           "realized_accuracy": 0.7452630368866878
         }
@@ -3883,6 +4651,18 @@
           "realized_accuracy": 0.7024339313001391
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0951601455655906,
+          "coverage95": 0.942,
+          "realized_accuracy": 0.7024339313001393
+        },
+        "trait2": {
+          "pev_ratio": 0.9917078922493837,
+          "coverage95": 0.955,
+          "realized_accuracy": 0.7024339313001391
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -3950,6 +4730,18 @@
           "realized_accuracy": 0.749577080436387
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0081022299999167,
+          "coverage95": 0.95,
+          "realized_accuracy": 0.7495770804363867
+        },
+        "trait2": {
+          "pev_ratio": 0.8633510977120087,
+          "coverage95": 0.966,
+          "realized_accuracy": 0.749577080436387
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -4002,6 +4794,18 @@
         "trait2": {
           "pev_ratio": 0.7238599341637392,
           "coverage95": 0.976,
+          "realized_accuracy": 0.7242651742483891
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.2017383108076969,
+          "coverage95": 0.925,
+          "realized_accuracy": 0.7242651742483885
+        },
+        "trait2": {
+          "pev_ratio": 0.7098187467026638,
+          "coverage95": 0.977,
           "realized_accuracy": 0.7242651742483891
         }
       },
@@ -4072,6 +4876,18 @@
           "realized_accuracy": 0.7386161503747833
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0483993982414348,
+          "coverage95": 0.947,
+          "realized_accuracy": 0.7386161503747836
+        },
+        "trait2": {
+          "pev_ratio": 0.7945305395330299,
+          "coverage95": 0.968,
+          "realized_accuracy": 0.7386161503747833
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -4127,6 +4943,18 @@
           "realized_accuracy": 0.7096550842864635
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.2303853342774642,
+          "coverage95": 0.92,
+          "realized_accuracy": 0.7096550842864635
+        },
+        "trait2": {
+          "pev_ratio": 1.0871638602426583,
+          "coverage95": 0.938,
+          "realized_accuracy": 0.7096550842864635
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -4179,6 +5007,18 @@
         "trait2": {
           "pev_ratio": 1.051713669784594,
           "coverage95": 0.943,
+          "realized_accuracy": 0.751557798400252
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9585820330097711,
+          "coverage95": 0.954,
+          "realized_accuracy": 0.7515577984002522
+        },
+        "trait2": {
+          "pev_ratio": 1.0206107740609134,
+          "coverage95": 0.947,
           "realized_accuracy": 0.751557798400252
         }
       },
@@ -4249,6 +5089,18 @@
           "realized_accuracy": 0.7191453401877341
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1893231087653648,
+          "coverage95": 0.93,
+          "realized_accuracy": 0.7191453401877348
+        },
+        "trait2": {
+          "pev_ratio": 1.0703917028032428,
+          "coverage95": 0.935,
+          "realized_accuracy": 0.7191453401877341
+        }
+      },
       "aic_choice": 2,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -4301,6 +5153,18 @@
         "trait2": {
           "pev_ratio": 1.4672953600819278,
           "coverage95": 0.889,
+          "realized_accuracy": 0.7892147206982235
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.897154956451205,
+          "coverage95": 0.957,
+          "realized_accuracy": 0.7892147206982237
+        },
+        "trait2": {
+          "pev_ratio": 1.4080775155032166,
+          "coverage95": 0.891,
           "realized_accuracy": 0.7892147206982235
         }
       },
@@ -4371,6 +5235,18 @@
           "realized_accuracy": 0.7356199219867755
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9876651705577743,
+          "coverage95": 0.956,
+          "realized_accuracy": 0.7356199219867755
+        },
+        "trait2": {
+          "pev_ratio": 1.158272933464759,
+          "coverage95": 0.94,
+          "realized_accuracy": 0.7356199219867755
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -4423,6 +5299,18 @@
         "trait2": {
           "pev_ratio": 0.8185853899360322,
           "coverage95": 0.974,
+          "realized_accuracy": 0.7364451408390386
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9804576583509774,
+          "coverage95": 0.954,
+          "realized_accuracy": 0.736445140839039
+        },
+        "trait2": {
+          "pev_ratio": 0.7990959231964583,
+          "coverage95": 0.978,
           "realized_accuracy": 0.7364451408390386
         }
       },
@@ -4481,6 +5369,18 @@
           "realized_accuracy": 0.7230282346498972
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1279600403532553,
+          "coverage95": 0.94,
+          "realized_accuracy": 0.7230282346498981
+        },
+        "trait2": {
+          "pev_ratio": 0.8567666446089942,
+          "coverage95": 0.971,
+          "realized_accuracy": 0.7230282346498972
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -4536,6 +5436,18 @@
           "realized_accuracy": 0.7236163011497018
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9809148406431375,
+          "coverage95": 0.945,
+          "realized_accuracy": 0.7236163011497023
+        },
+        "trait2": {
+          "pev_ratio": 1.3022846931789689,
+          "coverage95": 0.915,
+          "realized_accuracy": 0.7236163011497018
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -4588,6 +5500,18 @@
         "trait2": {
           "pev_ratio": 1.1577179188885292,
           "coverage95": 0.939,
+          "realized_accuracy": 0.7810735575495306
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8392489549112703,
+          "coverage95": 0.967,
+          "realized_accuracy": 0.7810735575495301
+        },
+        "trait2": {
+          "pev_ratio": 1.120327339406656,
+          "coverage95": 0.942,
           "realized_accuracy": 0.7810735575495306
         }
       },
@@ -4658,6 +5582,18 @@
           "realized_accuracy": 0.7375488587138354
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0061845059690326,
+          "coverage95": 0.949,
+          "realized_accuracy": 0.7375488587138357
+        },
+        "trait2": {
+          "pev_ratio": 0.9760075774816135,
+          "coverage95": 0.951,
+          "realized_accuracy": 0.7375488587138354
+        }
+      },
       "aic_choice": 2,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -4725,6 +5661,18 @@
           "realized_accuracy": 0.7710028772919367
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8810082589809491,
+          "coverage95": 0.962,
+          "realized_accuracy": 0.7710028772919371
+        },
+        "trait2": {
+          "pev_ratio": 1.006579405885685,
+          "coverage95": 0.947,
+          "realized_accuracy": 0.7710028772919367
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -4777,6 +5725,18 @@
         "trait2": {
           "pev_ratio": 0.9985600197351844,
           "coverage95": 0.955,
+          "realized_accuracy": 0.7504763326430214
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.962543278514073,
+          "coverage95": 0.956,
+          "realized_accuracy": 0.7504763326430207
+        },
+        "trait2": {
+          "pev_ratio": 0.9609892819745511,
+          "coverage95": 0.957,
           "realized_accuracy": 0.7504763326430214
         }
       },
@@ -4847,6 +5807,18 @@
           "realized_accuracy": 0.7451206869766845
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9980397887612844,
+          "coverage95": 0.945,
+          "realized_accuracy": 0.7451206869766843
+        },
+        "trait2": {
+          "pev_ratio": 1.28030223372704,
+          "coverage95": 0.913,
+          "realized_accuracy": 0.7451206869766845
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -4914,6 +5886,18 @@
           "realized_accuracy": 0.7322820800919523
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9384880742783995,
+          "coverage95": 0.953,
+          "realized_accuracy": 0.7322820800919522
+        },
+        "trait2": {
+          "pev_ratio": 0.8357546601153476,
+          "coverage95": 0.967,
+          "realized_accuracy": 0.7322820800919523
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -4969,6 +5953,18 @@
           "realized_accuracy": 0.7797350348757096
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0017682088637412,
+          "coverage95": 0.95,
+          "realized_accuracy": 0.77973503487571
+        },
+        "trait2": {
+          "pev_ratio": 0.8592597760932326,
+          "coverage95": 0.968,
+          "realized_accuracy": 0.7797350348757096
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -5021,6 +6017,18 @@
         "trait2": {
           "pev_ratio": 0.9343060634584135,
           "coverage95": 0.958,
+          "realized_accuracy": 0.719734061241817
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.064215751146238,
+          "coverage95": 0.943,
+          "realized_accuracy": 0.7197340612418179
+        },
+        "trait2": {
+          "pev_ratio": 0.9029769095857672,
+          "coverage95": 0.962,
           "realized_accuracy": 0.719734061241817
         }
       },
@@ -5091,6 +6099,18 @@
           "realized_accuracy": 0.7467831410747712
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.047775088221432,
+          "coverage95": 0.944,
+          "realized_accuracy": 0.746783141074772
+        },
+        "trait2": {
+          "pev_ratio": 0.8542637076708303,
+          "coverage95": 0.967,
+          "realized_accuracy": 0.7467831410747712
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -5142,6 +6162,18 @@
         },
         "trait2": {
           "pev_ratio": 0.9182717439721366,
+          "coverage95": 0.964,
+          "realized_accuracy": 0.7405624928968103
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9460204396250518,
+          "coverage95": 0.962,
+          "realized_accuracy": 0.7405624928968109
+        },
+        "trait2": {
+          "pev_ratio": 0.8918149434349242,
           "coverage95": 0.964,
           "realized_accuracy": 0.7405624928968103
         }
@@ -5198,6 +6230,18 @@
         "trait2": {
           "pev_ratio": 0.919450928859304,
           "coverage95": 0.965,
+          "realized_accuracy": 0.7303248125050653
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0437202064374052,
+          "coverage95": 0.949,
+          "realized_accuracy": 0.7303248125050655
+        },
+        "trait2": {
+          "pev_ratio": 0.8902213574483633,
+          "coverage95": 0.97,
           "realized_accuracy": 0.7303248125050653
         }
       },
@@ -5268,6 +6312,18 @@
           "realized_accuracy": 0.784373956072478
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9865695873968995,
+          "coverage95": 0.943,
+          "realized_accuracy": 0.7843739560724778
+        },
+        "trait2": {
+          "pev_ratio": 1.0349056615846295,
+          "coverage95": 0.941,
+          "realized_accuracy": 0.784373956072478
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -5320,6 +6376,18 @@
         "trait2": {
           "pev_ratio": 1.2198633302514614,
           "coverage95": 0.923,
+          "realized_accuracy": 0.7309086229549634
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.8891689512380073,
+          "coverage95": 0.956,
+          "realized_accuracy": 0.7309086229549635
+        },
+        "trait2": {
+          "pev_ratio": 1.1677614205883464,
+          "coverage95": 0.927,
           "realized_accuracy": 0.7309086229549634
         }
       },
@@ -5390,6 +6458,18 @@
           "realized_accuracy": 0.7388255920478323
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1712022114309142,
+          "coverage95": 0.937,
+          "realized_accuracy": 0.7388255920478329
+        },
+        "trait2": {
+          "pev_ratio": 0.8999699123248427,
+          "coverage95": 0.964,
+          "realized_accuracy": 0.7388255920478323
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -5457,6 +6537,18 @@
           "realized_accuracy": 0.745247996890257
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9011665878776471,
+          "coverage95": 0.96,
+          "realized_accuracy": 0.7452479968902577
+        },
+        "trait2": {
+          "pev_ratio": 1.209772879276051,
+          "coverage95": 0.928,
+          "realized_accuracy": 0.745247996890257
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -5509,6 +6601,18 @@
         "trait2": {
           "pev_ratio": 1.0361857584323895,
           "coverage95": 0.954,
+          "realized_accuracy": 0.773034510401125
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.7724685981646201,
+          "coverage95": 0.975,
+          "realized_accuracy": 0.773034510401125
+        },
+        "trait2": {
+          "pev_ratio": 0.9951427093474695,
+          "coverage95": 0.955,
           "realized_accuracy": 0.773034510401125
         }
       },
@@ -5579,6 +6683,18 @@
           "realized_accuracy": 0.7538288849407951
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9087083382685833,
+          "coverage95": 0.962,
+          "realized_accuracy": 0.7538288849407959
+        },
+        "trait2": {
+          "pev_ratio": 1.1420576474200645,
+          "coverage95": 0.93,
+          "realized_accuracy": 0.7538288849407951
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -5634,6 +6750,18 @@
           "realized_accuracy": 0.7098801498348396
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0309107582343584,
+          "coverage95": 0.947,
+          "realized_accuracy": 0.7098801498348388
+        },
+        "trait2": {
+          "pev_ratio": 0.7587829724004633,
+          "coverage95": 0.977,
+          "realized_accuracy": 0.7098801498348396
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -5686,6 +6814,18 @@
         "trait2": {
           "pev_ratio": 0.9751770844659999,
           "coverage95": 0.95,
+          "realized_accuracy": 0.7402488921662349
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9572920937914804,
+          "coverage95": 0.952,
+          "realized_accuracy": 0.7402488921662347
+        },
+        "trait2": {
+          "pev_ratio": 0.945189052623857,
+          "coverage95": 0.952,
           "realized_accuracy": 0.7402488921662349
         }
       },
@@ -5756,6 +6896,18 @@
           "realized_accuracy": 0.768118912682369
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9523219935224638,
+          "coverage95": 0.965,
+          "realized_accuracy": 0.7681189126823694
+        },
+        "trait2": {
+          "pev_ratio": 1.2354917882086198,
+          "coverage95": 0.922,
+          "realized_accuracy": 0.768118912682369
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -5808,6 +6960,18 @@
         "trait2": {
           "pev_ratio": 0.9655127621470144,
           "coverage95": 0.95,
+          "realized_accuracy": 0.7682499735335891
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.1561705399304878,
+          "coverage95": 0.924,
+          "realized_accuracy": 0.7682499735335891
+        },
+        "trait2": {
+          "pev_ratio": 0.9330574030662621,
+          "coverage95": 0.955,
           "realized_accuracy": 0.7682499735335891
         }
       },
@@ -5866,6 +7030,18 @@
           "realized_accuracy": 0.7124217263203607
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.0252445047859091,
+          "coverage95": 0.949,
+          "realized_accuracy": 0.7124217263203609
+        },
+        "trait2": {
+          "pev_ratio": 1.0361997009444173,
+          "coverage95": 0.949,
+          "realized_accuracy": 0.7124217263203607
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -5918,6 +7094,18 @@
         "trait2": {
           "pev_ratio": 2.298026191285131,
           "coverage95": 0.818,
+          "realized_accuracy": 0.7122570158482792
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.2447097390730524,
+          "coverage95": 0.924,
+          "realized_accuracy": 0.7122570158482802
+        },
+        "trait2": {
+          "pev_ratio": 2.161010038232979,
+          "coverage95": 0.827,
           "realized_accuracy": 0.7122570158482792
         }
       },
@@ -5988,6 +7176,18 @@
           "realized_accuracy": 0.7278968963901787
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.023288703140622,
+          "coverage95": 0.936,
+          "realized_accuracy": 0.7278968963901786
+        },
+        "trait2": {
+          "pev_ratio": 0.6925388799188875,
+          "coverage95": 0.983,
+          "realized_accuracy": 0.7278968963901787
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 2,
       "rank1_true": {
@@ -6040,6 +7240,18 @@
         "trait2": {
           "pev_ratio": 0.8892016437146161,
           "coverage95": 0.961,
+          "realized_accuracy": 0.7640211478181497
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 1.052286303796602,
+          "coverage95": 0.943,
+          "realized_accuracy": 0.7640211478181503
+        },
+        "trait2": {
+          "pev_ratio": 0.8651825255559822,
+          "coverage95": 0.962,
           "realized_accuracy": 0.7640211478181497
         }
       },
@@ -6098,6 +7310,18 @@
           "realized_accuracy": 0.7386613404319354
         }
       },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.881030945578735,
+          "coverage95": 0.967,
+          "realized_accuracy": 0.738661340431935
+        },
+        "trait2": {
+          "pev_ratio": 1.4131286385941424,
+          "coverage95": 0.903,
+          "realized_accuracy": 0.7386613404319354
+        }
+      },
       "aic_choice": 1,
       "aic_margin2_choice": 1,
       "rank1_true": {
@@ -6150,6 +7374,18 @@
         "trait2": {
           "pev_ratio": 0.9163401473034098,
           "coverage95": 0.95,
+          "realized_accuracy": 0.739657034978938
+        }
+      },
+      "rank1_reml_kh": {
+        "trait1": {
+          "pev_ratio": 0.9636144452447872,
+          "coverage95": 0.944,
+          "realized_accuracy": 0.7396570349789376
+        },
+        "trait2": {
+          "pev_ratio": 0.8893234537082525,
+          "coverage95": 0.953,
           "realized_accuracy": 0.739657034978938
         }
       },

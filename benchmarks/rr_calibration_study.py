@@ -14,6 +14,8 @@ are simulated by gene dropping ``f = T D^{1/2} z``, ``u = f lambda'`` (exactly
                   (``loadings``) and, for all animals, MSE / mean PEV and the
                   coverage of nominal 95% intervals per trait;
 * ``rank1_true``  the same BLUP with the true lambda and R0 (reference).
+* ``rank1_reml_kh`` (round 7) the rank-1 REML BLUP scored with the Kackar-Harville
+                  PEV (``kackar_harville_delta_reduced_rank``).
 
 Round 7: every replicate also records the rank chosen by plain minimum AIC and
 by the conservative rule of ``select_rank`` (lower rank only if its AIC is smaller
@@ -48,6 +50,7 @@ from abp.core.pedigree import Pedigree  # noqa: E402
 from abp.errors import ABPError  # noqa: E402
 from abp.solvers.multitrait import MTData, build_and_solve  # noqa: E402
 from abp.solvers.multitrait_reml import mt_reml_fit, mt_reml_fit_reduced_rank  # noqa: E402
+from abp.solvers.vc_uncertainty import kackar_harville_delta_reduced_rank  # noqa: E402
 
 LAM = np.array([[1.4], [0.6]])
 G0 = LAM @ LAM.T
@@ -87,11 +90,11 @@ def simulate(seed: int, n: int):
     return ped, MTData(Y, Xs, np.arange(n)), U
 
 
-def _scores(res, U):
+def _scores(res, U, delta=None):
     out = {}
     for j in range(2):
         err = U[:, j] - res.ebv[:, j]
-        pev = res.pev_blocks[:, j, j]
+        pev = res.pev_blocks[:, j, j] + (0.0 if delta is None else delta[:, j, j])
         out[f"trait{j + 1}"] = {"pev_ratio": float(np.mean(err ** 2) / np.mean(pev)),
                                 "coverage95": float(np.mean(np.abs(err) <= 1.96 * np.sqrt(pev))),
                                 "realized_accuracy": float(np.corrcoef(U[:, j],
@@ -117,6 +120,10 @@ def replicate(seed: int) -> dict:
         out["rank1_reml"] = {"status": "converged", "G0": rr.G0.tolist(), "R0": rr.R0.tolist(),
                              "loglik": rr.loglik,
                              "evaluations": rr.evaluations, **_scores(res, U)}
+        if rr.cov_x is not None:                     # round 7: Kackar-Harville PEV
+            d = kackar_harville_delta_reduced_rank(data, ped.ainv(), kd, rr.x, 2, 1, rr.cov_x,
+                                                   method="dense")
+            out["rank1_reml_kh"] = _scores(res, U, d)
     except ABPError as exc:
         out["rank1_reml"] = {"status": exc.code}
     aic = {}
@@ -184,7 +191,9 @@ def main():
                "rank1_R0": {f"R0[{i},{j}]": {**_ms(Rs[:, i, j]), "true": float(R0[i, j])}
                             for i in range(2) for j in range(i, 2)}}
     ref = "rank1_true" if G0_MODE == "rank1" else "true_parameters"
+    kh = [r["rank1_reml_kh"] for r in ok if "rank1_reml_kh" in r]
     for sc, rows in (("rank1_reml", [r["rank1_reml"] for r in ok]),
+                     *((("rank1_reml_kh", kh),) if kh else ()),
                      (ref, [r[ref] for r in reps])):
         summary[sc] = {tr: {k: _ms([row[tr][k] for row in rows])
                             for k in ("pev_ratio", "coverage95", "realized_accuracy")}

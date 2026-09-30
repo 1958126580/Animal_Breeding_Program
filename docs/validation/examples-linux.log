@@ -1,175 +1,175 @@
-# date: 2026-09-30T00:59:20+00:00
+# date: 2026-09-30T05:48:38+00:00
 ## abp run examples/01_textbook_mrode_3_1/analysis.toml --out <tmp>/01_textbook_mrode_3_1
-2026-09-30T00:59:20 INFO ABP run 20260930T005920Z-02a63aa5 started; spec /home/user/Animal_Breeding_Program/examples/01_textbook_mrode_3_1/analysis.toml (sha256 af5d0b81df93)
-2026-09-30T00:59:20 INFO read 5 phenotype rows and 8 pedigree rows
-2026-09-30T00:59:20 INFO pedigree QC passed: 8 animals, max generation 2, mean F 0.0000 (native_cpp_meuwissen_luo kernel)
-2026-09-30T00:59:20 INFO phenotype QC passed: 5 records used, 0 excluded (listed in qc_excluded_records.csv)
-2026-09-30T00:59:20 INFO wwg: 5 records, 2 fixed columns kept (0 constrained), random terms ['animal']
-2026-09-30T00:59:20 INFO wwg: solved 10 equations with dense (requested explicitly in spec); relative residual 1.88e-16; 0.00 s
-2026-09-30T00:59:20 INFO run 20260930T005920Z-02a63aa5 passed in 0.03 s
+2026-09-30T05:48:39 INFO ABP run 20260930T054839Z-f365e37c started; spec /home/user/Animal_Breeding_Program/examples/01_textbook_mrode_3_1/analysis.toml (sha256 af5d0b81df93)
+2026-09-30T05:48:39 INFO read 5 phenotype rows and 8 pedigree rows
+2026-09-30T05:48:39 INFO pedigree QC passed: 8 animals, max generation 2, mean F 0.0000 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:48:39 INFO phenotype QC passed: 5 records used, 0 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:48:39 INFO wwg: 5 records, 2 fixed columns kept (0 constrained), random terms ['animal']
+2026-09-30T05:48:39 INFO wwg: solved 10 equations with dense (requested explicitly in spec); relative residual 1.88e-16; 0.00 s
+2026-09-30T05:48:39 INFO run 20260930T054839Z-f365e37c passed in 0.03 s
 status: passed
 outputs: <tmp>/01_textbook_mrode_3_1
 report: <tmp>/01_textbook_mrode_3_1/report.md
-# exit_code: 0  wall_s: .567751664
+# exit_code: 0  wall_s: .623670349
 ## abp run examples/02_sheep_wwt_reml/analysis.toml --out <tmp>/02_sheep_wwt_reml
-2026-09-30T00:59:21 INFO ABP run 20260930T005921Z-e545e0d6 started; spec /home/user/Animal_Breeding_Program/examples/02_sheep_wwt_reml/analysis.toml (sha256 76e476a3293a)
-2026-09-30T00:59:21 INFO read 1896 phenotype rows and 2108 pedigree rows
-2026-09-30T00:59:21 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T00:59:21 INFO phenotype QC passed: 1893 records used, 3 excluded (listed in qc_excluded_records.csv)
-2026-09-30T00:59:21 INFO wwt: 1893 records, 24 fixed columns kept (3 constrained), random terms ['animal']
-2026-09-30T00:59:33 INFO wwt: REML converged after 7 iterations; logL -3524.164931; variances {'animal': 3.552275, 'residual': 12.359681}
-2026-09-30T00:59:34 INFO wwt: solved 2132 equations with dense (auto: 2132 equations <= 12000 and dense memory 0.10 GiB within budget); relative residual 1.94e-15; 0.41 s
-2026-09-30T00:59:35 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.06344 (2.7%)
-2026-09-30T00:59:35 INFO run 20260930T005921Z-e545e0d6 passed in 14.55 s
+2026-09-30T05:48:39 INFO ABP run 20260930T054839Z-6631f051 started; spec /home/user/Animal_Breeding_Program/examples/02_sheep_wwt_reml/analysis.toml (sha256 76e476a3293a)
+2026-09-30T05:48:39 INFO read 1896 phenotype rows and 2108 pedigree rows
+2026-09-30T05:48:39 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:48:39 INFO phenotype QC passed: 1893 records used, 3 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:48:39 INFO wwt: 1893 records, 24 fixed columns kept (3 constrained), random terms ['animal']
+2026-09-30T05:48:56 INFO wwt: REML converged after 7 iterations; logL -3524.164931; variances {'animal': 3.552275, 'residual': 12.359681}
+2026-09-30T05:48:57 INFO wwt: solved 2132 equations with dense (auto: 2132 equations <= 12000 and dense memory 0.10 GiB within budget); relative residual 1.94e-15; 0.16 s
+2026-09-30T05:48:58 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.06344 (2.7%)
+2026-09-30T05:48:58 INFO run 20260930T054839Z-6631f051 passed in 19.20 s
 status: passed
 outputs: <tmp>/02_sheep_wwt_reml
 report: <tmp>/02_sheep_wwt_reml/report.md
-# exit_code: 0  wall_s: 15.127151173
+# exit_code: 0  wall_s: 19.751625513
 ## abp run examples/03_sheep_nlb_repeatability/analysis.toml --out <tmp>/03_sheep_nlb_repeatability
-2026-09-30T00:59:36 INFO ABP run 20260930T005936Z-12a681b4 started; spec /home/user/Animal_Breeding_Program/examples/03_sheep_nlb_repeatability/analysis.toml (sha256 8ce26ed4627c)
-2026-09-30T00:59:36 INFO read 1208 phenotype rows and 2108 pedigree rows
-2026-09-30T00:59:36 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T00:59:36 INFO phenotype QC passed: 1208 records used, 0 excluded (listed in qc_excluded_records.csv)
-2026-09-30T00:59:36 INFO nlb: 1208 records, 9 fixed columns kept (3 constrained), random terms ['animal', 'pe']
-2026-09-30T00:59:49 INFO nlb: REML converged after 15 iterations; logL -45.649018; variances {'animal': 0.030314, 'pe': 0.025336, 'residual': 0.335262}
-2026-09-30T00:59:51 INFO nlb: solved 2571 equations with dense (auto: 2571 equations <= 12000 and dense memory 0.15 GiB within budget); relative residual 1.91e-15; 0.24 s
-2026-09-30T00:59:53 INFO nlb: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.001227 (4.6%)
-2026-09-30T00:59:53 INFO run 20260930T005936Z-12a681b4 passed in 17.57 s
+2026-09-30T05:48:59 INFO ABP run 20260930T054859Z-0910823d started; spec /home/user/Animal_Breeding_Program/examples/03_sheep_nlb_repeatability/analysis.toml (sha256 8ce26ed4627c)
+2026-09-30T05:48:59 INFO read 1208 phenotype rows and 2108 pedigree rows
+2026-09-30T05:48:59 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:48:59 INFO phenotype QC passed: 1208 records used, 0 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:48:59 INFO nlb: 1208 records, 9 fixed columns kept (3 constrained), random terms ['animal', 'pe']
+2026-09-30T05:49:10 INFO nlb: REML converged after 15 iterations; logL -45.649018; variances {'animal': 0.030314, 'pe': 0.025336, 'residual': 0.335262}
+2026-09-30T05:49:12 INFO nlb: solved 2571 equations with dense (auto: 2571 equations <= 12000 and dense memory 0.15 GiB within budget); relative residual 1.91e-15; 0.35 s
+2026-09-30T05:49:16 INFO nlb: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.001227 (4.6%)
+2026-09-30T05:49:16 INFO run 20260930T054859Z-0910823d passed in 17.38 s
 status: passed
 outputs: <tmp>/03_sheep_nlb_repeatability
 report: <tmp>/03_sheep_nlb_repeatability/report.md
-# exit_code: 0  wall_s: 18.040970462
+# exit_code: 0  wall_s: 17.867935909
 ## abp run examples/04_sheep_fec_gblup/analysis.toml --out <tmp>/04_sheep_fec_gblup
-2026-09-30T00:59:54 INFO ABP run 20260930T005954Z-295dc9f7 started; spec /home/user/Animal_Breeding_Program/examples/04_sheep_fec_gblup/analysis.toml (sha256 aa99afdbfe60)
-2026-09-30T00:59:54 INFO read 1896 phenotype rows and 2108 pedigree rows
-2026-09-30T00:59:54 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T00:59:54 INFO phenotype QC passed: 955 records used, 0 excluded (listed in qc_excluded_records.csv)
-2026-09-30T00:59:54 INFO GBLUP: 708 records of non-genotyped animals excluded (listed)
-2026-09-30T00:59:54 INFO fec: 247 records, 14 fixed columns kept (1 constrained), random terms ['animal']
-2026-09-30T00:59:55 INFO fec: REML converged after 15 iterations; logL -161.302441; variances {'animal': 0.814105, 'residual': 0.669841}
-2026-09-30T00:59:55 INFO fec: solved 490 equations with dense (auto: 490 equations <= 12000 and dense memory 0.01 GiB within budget); relative residual 1.13e-16; 0.01 s
-2026-09-30T00:59:55 INFO fec: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.02037 (4.3%)
-2026-09-30T00:59:55 INFO run 20260930T005954Z-295dc9f7 passed in 1.82 s
+2026-09-30T05:49:17 INFO ABP run 20260930T054917Z-2823ef15 started; spec /home/user/Animal_Breeding_Program/examples/04_sheep_fec_gblup/analysis.toml (sha256 aa99afdbfe60)
+2026-09-30T05:49:17 INFO read 1896 phenotype rows and 2108 pedigree rows
+2026-09-30T05:49:17 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:49:17 INFO phenotype QC passed: 955 records used, 0 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:49:17 INFO GBLUP: 708 records of non-genotyped animals excluded (listed)
+2026-09-30T05:49:17 INFO fec: 247 records, 14 fixed columns kept (1 constrained), random terms ['animal']
+2026-09-30T05:49:19 INFO fec: REML converged after 15 iterations; logL -161.302441; variances {'animal': 0.814105, 'residual': 0.669841}
+2026-09-30T05:49:19 INFO fec: solved 490 equations with dense (auto: 490 equations <= 12000 and dense memory 0.01 GiB within budget); relative residual 1.13e-16; 0.01 s
+2026-09-30T05:49:19 INFO fec: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.02037 (4.3%)
+2026-09-30T05:49:19 INFO run 20260930T054917Z-2823ef15 passed in 2.24 s
 status: passed
 outputs: <tmp>/04_sheep_fec_gblup
 report: <tmp>/04_sheep_fec_gblup/report.md
-# exit_code: 0  wall_s: 2.276960289
+# exit_code: 0  wall_s: 2.755042542
 ## abp run examples/05_sheep_wwt_single_step/analysis.toml --out <tmp>/05_sheep_wwt_single_step
-2026-09-30T00:59:56 INFO ABP run 20260930T005956Z-54c46000 started; spec /home/user/Animal_Breeding_Program/examples/05_sheep_wwt_single_step/analysis.toml (sha256 783ba159322d)
-2026-09-30T00:59:56 INFO read 1896 phenotype rows and 2108 pedigree rows
-2026-09-30T00:59:56 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T00:59:56 INFO phenotype QC passed: 1893 records used, 3 excluded (listed in qc_excluded_records.csv)
-2026-09-30T00:59:57 INFO wwt: 1893 records, 24 fixed columns kept (3 constrained), random terms ['animal']
-2026-09-30T01:00:04 INFO wwt: REML converged after 8 iterations; logL -3526.603572; variances {'animal': 3.219753, 'residual': 12.668013}
-2026-09-30T01:00:06 INFO wwt: solved 2132 equations with dense (auto: 2132 equations <= 12000 and dense memory 0.10 GiB within budget); relative residual 1.93e-15; 0.93 s
-2026-09-30T01:00:06 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.05241 (2.4%)
-2026-09-30T01:00:07 INFO run 20260930T005956Z-54c46000 passed in 10.58 s
+2026-09-30T05:49:19 INFO ABP run 20260930T054919Z-9d1d0467 started; spec /home/user/Animal_Breeding_Program/examples/05_sheep_wwt_single_step/analysis.toml (sha256 783ba159322d)
+2026-09-30T05:49:19 INFO read 1896 phenotype rows and 2108 pedigree rows
+2026-09-30T05:49:19 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:49:19 INFO phenotype QC passed: 1893 records used, 3 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:49:20 INFO wwt: 1893 records, 24 fixed columns kept (3 constrained), random terms ['animal']
+2026-09-30T05:49:28 INFO wwt: REML converged after 8 iterations; logL -3526.603572; variances {'animal': 3.219753, 'residual': 12.668013}
+2026-09-30T05:49:29 INFO wwt: solved 2132 equations with dense (auto: 2132 equations <= 12000 and dense memory 0.10 GiB within budget); relative residual 1.93e-15; 0.48 s
+2026-09-30T05:49:32 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.05241 (2.4%)
+2026-09-30T05:49:32 INFO run 20260930T054919Z-9d1d0467 passed in 12.38 s
 status: passed
 outputs: <tmp>/05_sheep_wwt_single_step
 report: <tmp>/05_sheep_wwt_single_step/report.md
-# exit_code: 0  wall_s: 11.027475878
+# exit_code: 0  wall_s: 12.821213256
 ## abp run examples/06_sheep_multitrait_index/analysis.toml --out <tmp>/06_sheep_multitrait_index
-2026-09-30T01:00:07 INFO ABP run 20260930T010007Z-545fabd5 started; spec /home/user/Animal_Breeding_Program/examples/06_sheep_multitrait_index/analysis.toml (sha256 11344d85f9d7)
-2026-09-30T01:00:07 INFO read 1896 phenotype rows and 2108 pedigree rows
-2026-09-30T01:00:07 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T01:00:07 INFO phenotype QC passed: 1896 records used, 3 excluded (listed in qc_excluded_records.csv)
-2026-09-30T01:00:21 INFO multi-trait (4 traits, 4257 observations): solved 8506 equations with dense (auto: 8506 equations <= 12000 and dense memory 1.62 GiB within budget); relative residual 3.30e-15; 10.07 s
-2026-09-30T01:00:21 INFO run 20260930T010007Z-545fabd5 passed in 14.32 s
+2026-09-30T05:49:32 INFO ABP run 20260930T054932Z-c45a451e started; spec /home/user/Animal_Breeding_Program/examples/06_sheep_multitrait_index/analysis.toml (sha256 11344d85f9d7)
+2026-09-30T05:49:32 INFO read 1896 phenotype rows and 2108 pedigree rows
+2026-09-30T05:49:32 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:49:32 INFO phenotype QC passed: 1896 records used, 3 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:49:47 INFO multi-trait (4 traits, 4257 observations): solved 8506 equations with dense (auto: 8506 equations <= 12000 and dense memory 1.62 GiB within budget); relative residual 3.30e-15; 10.64 s
+2026-09-30T05:49:47 INFO run 20260930T054932Z-c45a451e passed in 14.69 s
 status: passed
 outputs: <tmp>/06_sheep_multitrait_index
 report: <tmp>/06_sheep_multitrait_index/report.md
-# exit_code: 0  wall_s: 14.752638639
+# exit_code: 0  wall_s: 15.163435396
 ## abp run examples/08_sheep_wwt_lr_validation/analysis.toml --out <tmp>/08_sheep_wwt_lr_validation
-2026-09-30T01:00:22 INFO ABP run 20260930T010022Z-b0fef6b8 started; spec /home/user/Animal_Breeding_Program/examples/08_sheep_wwt_lr_validation/analysis.toml (sha256 c149d3169e2a)
-2026-09-30T01:00:22 INFO read 1896 phenotype rows and 2108 pedigree rows
-2026-09-30T01:00:22 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T01:00:22 INFO phenotype QC passed: 1893 records used, 3 excluded (listed in qc_excluded_records.csv)
-2026-09-30T01:00:22 INFO wwt: 1893 records, 24 fixed columns kept (3 constrained), random terms ['animal']
-2026-09-30T01:00:29 INFO wwt: REML converged after 7 iterations; logL -3524.164931; variances {'animal': 3.552275, 'residual': 12.359681}
-2026-09-30T01:00:30 INFO wwt: solved 2132 equations with dense (auto: 2132 equations <= 12000 and dense memory 0.10 GiB within budget); relative residual 1.94e-15; 0.62 s
-2026-09-30T01:00:31 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.06344 (2.7%)
-2026-09-30T01:00:48 INFO LR validation (wwt, cutoff 2024-12-31): 403 focal animals, Delta_p 0.0570, b_w|p 0.9915, rho_wp 0.6719
-2026-09-30T01:00:48 INFO run 20260930T010022Z-b0fef6b8 passed in 26.61 s
+2026-09-30T05:49:47 INFO ABP run 20260930T054947Z-717141b9 started; spec /home/user/Animal_Breeding_Program/examples/08_sheep_wwt_lr_validation/analysis.toml (sha256 c149d3169e2a)
+2026-09-30T05:49:47 INFO read 1896 phenotype rows and 2108 pedigree rows
+2026-09-30T05:49:47 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:49:47 INFO phenotype QC passed: 1893 records used, 3 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:49:47 INFO wwt: 1893 records, 24 fixed columns kept (3 constrained), random terms ['animal']
+2026-09-30T05:49:55 INFO wwt: REML converged after 7 iterations; logL -3524.164931; variances {'animal': 3.552275, 'residual': 12.359681}
+2026-09-30T05:49:56 INFO wwt: solved 2132 equations with dense (auto: 2132 equations <= 12000 and dense memory 0.10 GiB within budget); relative residual 1.94e-15; 0.57 s
+2026-09-30T05:49:56 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.06344 (2.7%)
+2026-09-30T05:50:24 INFO LR validation (wwt, cutoff 2024-12-31): 403 focal animals, Delta_p 0.0570, b_w|p 0.9915, rho_wp 0.6719
+2026-09-30T05:50:24 INFO run 20260930T054947Z-717141b9 passed in 36.35 s
 status: passed
 outputs: <tmp>/08_sheep_wwt_lr_validation
 report: <tmp>/08_sheep_wwt_lr_validation/report.md
-# exit_code: 0  wall_s: 27.159799855
+# exit_code: 0  wall_s: 36.856944631
 ## abp run examples/10_sheep_fec_bayesc/analysis.toml --out <tmp>/10_sheep_fec_bayesc
-2026-09-30T01:00:49 INFO ABP run 20260930T010049Z-468df07d started; spec /home/user/Animal_Breeding_Program/examples/10_sheep_fec_bayesc/analysis.toml (sha256 f24a5fe81ffe)
-2026-09-30T01:00:49 INFO read 1896 phenotype rows and 2108 pedigree rows
-2026-09-30T01:00:49 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T01:00:49 INFO phenotype QC passed: 955 records used, 0 excluded (listed in qc_excluded_records.csv)
-2026-09-30T01:00:50 INFO GBLUP: 708 records of non-genotyped animals excluded (listed)
-2026-09-30T01:00:50 INFO fec: Bayesian BayesC on 247 records, 2000 markers, 4 chains (kernel will be reported)
-2026-09-30T01:03:26 INFO run 20260930T010049Z-468df07d passed in 156.56 s
+2026-09-30T05:50:24 INFO ABP run 20260930T055024Z-959be095 started; spec /home/user/Animal_Breeding_Program/examples/10_sheep_fec_bayesc/analysis.toml (sha256 f24a5fe81ffe)
+2026-09-30T05:50:24 INFO read 1896 phenotype rows and 2108 pedigree rows
+2026-09-30T05:50:24 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:50:24 INFO phenotype QC passed: 955 records used, 0 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:50:25 INFO GBLUP: 708 records of non-genotyped animals excluded (listed)
+2026-09-30T05:50:25 INFO fec: Bayesian BayesC on 247 records, 2000 markers, 4 chains (kernel will be reported)
+2026-09-30T05:53:04 INFO run 20260930T055024Z-959be095 passed in 159.18 s
 status: passed
 outputs: <tmp>/10_sheep_fec_bayesc
 report: <tmp>/10_sheep_fec_bayesc/report.md
-# exit_code: 0  wall_s: 157.303636178
+# exit_code: 0  wall_s: 159.917502709
 ## abp run examples/11_sheep_upg/analysis.toml --out <tmp>/11_sheep_upg
-2026-09-30T01:03:26 INFO ABP run 20260930T010326Z-533987c1 started; spec /home/user/Animal_Breeding_Program/examples/11_sheep_upg/analysis.toml (sha256 a7cc4d9c822a)
-2026-09-30T01:03:26 INFO read 1350 phenotype rows and 1533 pedigree rows
-2026-09-30T01:03:26 INFO pedigree QC passed: 1533 animals, max generation 6, mean F 0.0051 (native_cpp_meuwissen_luo kernel)
-2026-09-30T01:03:26 INFO phenotype QC passed: 1350 records used, 0 excluded (listed in qc_excluded_records.csv)
-2026-09-30T01:03:26 INFO wwt: 1350 records, 10 fixed columns kept (2 constrained), random terms ['animal']
-2026-09-30T01:03:44 INFO wwt: REML converged after 6 iterations; logL -2500.893761; variances {'animal': 4.233956, 'residual': 11.514773}
-2026-09-30T01:03:45 INFO wwt: solved 1546 equations with dense (auto: 1546 equations <= 12000 and dense memory 0.05 GiB within budget); relative residual 8.29e-16; 0.24 s
-2026-09-30T01:03:46 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.03146 (1.1%)
-2026-09-30T01:03:46 INFO run 20260930T010326Z-533987c1 passed in 19.84 s
+2026-09-30T05:53:04 INFO ABP run 20260930T055304Z-3a2e5b18 started; spec /home/user/Animal_Breeding_Program/examples/11_sheep_upg/analysis.toml (sha256 a7cc4d9c822a)
+2026-09-30T05:53:04 INFO read 1350 phenotype rows and 1533 pedigree rows
+2026-09-30T05:53:04 INFO pedigree QC passed: 1533 animals, max generation 6, mean F 0.0051 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:53:04 INFO phenotype QC passed: 1350 records used, 0 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:53:04 INFO wwt: 1350 records, 10 fixed columns kept (2 constrained), random terms ['animal']
+2026-09-30T05:53:28 INFO wwt: REML converged after 6 iterations; logL -2500.893761; variances {'animal': 4.233956, 'residual': 11.514773}
+2026-09-30T05:53:31 INFO wwt: solved 1546 equations with dense (auto: 1546 equations <= 12000 and dense memory 0.05 GiB within budget); relative residual 8.29e-16; 1.86 s
+2026-09-30T05:53:35 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.03146 (1.1%)
+2026-09-30T05:53:35 INFO run 20260930T055304Z-3a2e5b18 passed in 30.63 s
 status: passed
 outputs: <tmp>/11_sheep_upg
 report: <tmp>/11_sheep_upg/report.md
-# exit_code: 0  wall_s: 20.436132525
+# exit_code: 0  wall_s: 31.383846194
 ## abp run examples/12_sheep_wwt_single_step_metafounder/analysis.toml --out <tmp>/12_sheep_wwt_single_step_metafounder
-2026-09-30T01:03:47 INFO ABP run 20260930T010347Z-9120d9f2 started; spec /home/user/Animal_Breeding_Program/examples/12_sheep_wwt_single_step_metafounder/analysis.toml (sha256 b05f018dd016)
-2026-09-30T01:03:47 INFO read 1896 phenotype rows and 2108 pedigree rows
-2026-09-30T01:03:47 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T01:03:47 INFO phenotype QC passed: 1893 records used, 3 excluded (listed in qc_excluded_records.csv)
-2026-09-30T01:03:49 INFO wwt: 1893 records, 24 fixed columns kept (3 constrained), random terms ['animal']
-2026-09-30T01:04:17 INFO wwt: REML converged after 8 iterations; logL -3524.721679; variances {'animal': 4.641412, 'residual': 12.540116}
-2026-09-30T01:04:18 INFO wwt: solved 2133 equations with dense (auto: 2133 equations <= 12000 and dense memory 0.10 GiB within budget); relative residual 7.31e-16; 0.72 s
-2026-09-30T01:04:31 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.04241 (0.9%)
-2026-09-30T01:04:31 INFO run 20260930T010347Z-9120d9f2 passed in 44.43 s
+2026-09-30T05:53:36 INFO ABP run 20260930T055336Z-a3a3594e started; spec /home/user/Animal_Breeding_Program/examples/12_sheep_wwt_single_step_metafounder/analysis.toml (sha256 b05f018dd016)
+2026-09-30T05:53:36 INFO read 1896 phenotype rows and 2108 pedigree rows
+2026-09-30T05:53:36 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:53:36 INFO phenotype QC passed: 1893 records used, 3 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:53:40 INFO wwt: 1893 records, 24 fixed columns kept (3 constrained), random terms ['animal']
+2026-09-30T05:54:11 INFO wwt: REML converged after 8 iterations; logL -3524.721679; variances {'animal': 4.641412, 'residual': 12.540116}
+2026-09-30T05:54:15 INFO wwt: solved 2133 equations with dense (auto: 2133 equations <= 12000 and dense memory 0.10 GiB within budget); relative residual 7.31e-16; 3.12 s
+2026-09-30T05:54:17 INFO wwt: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.04241 (0.9%)
+2026-09-30T05:54:17 INFO run 20260930T055336Z-a3a3594e passed in 40.86 s
 status: passed
 outputs: <tmp>/12_sheep_wwt_single_step_metafounder
 report: <tmp>/12_sheep_wwt_single_step_metafounder/report.md
-# exit_code: 0  wall_s: 45.040104925
+# exit_code: 0  wall_s: 41.632023568
 ## abp run examples/13_sheep_multitrait_reml/analysis.toml --out <tmp>/13_sheep_multitrait_reml
-2026-09-30T01:04:32 INFO ABP run 20260930T010432Z-87519ab8 started; spec /home/user/Animal_Breeding_Program/examples/13_sheep_multitrait_reml/analysis.toml (sha256 e47c75cf39d9)
-2026-09-30T01:04:32 INFO read 1896 phenotype rows and 2108 pedigree rows
-2026-09-30T01:04:32 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T01:04:32 INFO phenotype QC passed: 1895 records used, 3 excluded (listed in qc_excluded_records.csv)
-2026-09-30T01:04:36 INFO multi-trait REML converged after 15 iterations (sparse_selected_inversion); logL -4452.932061
-2026-09-30T01:04:59 INFO multi-trait PEV including REML uncertainty (Kackar-Harville): mean relative increase [0.0394, 0.0342, 0.038]
-2026-09-30T01:04:59 INFO multi-trait (3 traits, 4003 observations): solved 6390 equations with dense (auto: 6390 equations <= 12000 and dense memory 0.91 GiB within budget); relative residual 1.63e-15; 13.42 s
-2026-09-30T01:05:00 INFO run 20260930T010432Z-87519ab8 passed in 27.74 s
+2026-09-30T05:54:17 INFO ABP run 20260930T055417Z-12de1242 started; spec /home/user/Animal_Breeding_Program/examples/13_sheep_multitrait_reml/analysis.toml (sha256 e47c75cf39d9)
+2026-09-30T05:54:17 INFO read 1896 phenotype rows and 2108 pedigree rows
+2026-09-30T05:54:17 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:54:17 INFO phenotype QC passed: 1895 records used, 3 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:54:22 INFO multi-trait REML converged after 15 iterations (sparse_selected_inversion); logL -4452.932061
+2026-09-30T05:54:44 INFO multi-trait PEV including REML uncertainty (Kackar-Harville): mean relative increase [0.0394, 0.0342, 0.038]
+2026-09-30T05:54:44 INFO multi-trait (3 traits, 4003 observations): solved 6390 equations with dense (auto: 6390 equations <= 12000 and dense memory 0.91 GiB within budget); relative residual 1.63e-15; 15.27 s
+2026-09-30T05:54:44 INFO run 20260930T055417Z-12de1242 passed in 26.51 s
 status: passed
 outputs: <tmp>/13_sheep_multitrait_reml
 report: <tmp>/13_sheep_multitrait_reml/report.md
-# exit_code: 0  wall_s: 28.301427555
+# exit_code: 0  wall_s: 27.176075859
 ## abp run examples/14_sheep_nlb_threshold/analysis.toml --out <tmp>/14_sheep_nlb_threshold
-2026-09-30T01:05:00 INFO ABP run 20260930T010500Z-89e31212 started; spec /home/user/Animal_Breeding_Program/examples/14_sheep_nlb_threshold/analysis.toml (sha256 fb6d347be76e)
-2026-09-30T01:05:00 INFO read 1208 phenotype rows and 2108 pedigree rows
-2026-09-30T01:05:00 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
-2026-09-30T01:05:00 INFO phenotype QC passed: 1208 records used, 0 excluded (listed in qc_excluded_records.csv)
-2026-09-30T01:05:30 INFO nlb: threshold model, 3 categories, converged in 5 Newton iterations (largest last step 7.2e-15); thresholds [0.0, 1.5871]
-2026-09-30T01:05:30 INFO run 20260930T010500Z-89e31212 passed in 29.88 s
+2026-09-30T05:54:44 INFO ABP run 20260930T055444Z-0d2371e9 started; spec /home/user/Animal_Breeding_Program/examples/14_sheep_nlb_threshold/analysis.toml (sha256 fb6d347be76e)
+2026-09-30T05:54:44 INFO read 1208 phenotype rows and 2108 pedigree rows
+2026-09-30T05:54:45 INFO pedigree QC passed: 2108 animals, max generation 5, mean F 0.0127 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:54:45 INFO phenotype QC passed: 1208 records used, 0 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:55:02 INFO nlb: threshold model, 3 categories, converged in 5 Newton iterations (largest last step 7.2e-15); thresholds [0.0, 1.5871]
+2026-09-30T05:55:02 INFO run 20260930T055444Z-0d2371e9 passed in 17.83 s
 status: passed
 outputs: <tmp>/14_sheep_nlb_threshold
 report: <tmp>/14_sheep_nlb_threshold/report.md
-# exit_code: 0  wall_s: 30.716286843
+# exit_code: 0  wall_s: 18.496215338
 ## abp run examples/11_sheep_upg/analysis_fixed.toml --out <tmp>/11_fixed
-2026-09-30T01:05:31 INFO ABP run 20260930T010531Z-ebfa3dc0 started; spec /home/user/Animal_Breeding_Program/examples/11_sheep_upg/analysis_fixed.toml (sha256 abca4b9d0048)
-2026-09-30T01:05:31 INFO read 1350 phenotype rows and 1533 pedigree rows
-2026-09-30T01:05:31 INFO pedigree QC passed: 1533 animals, max generation 6, mean F 0.0051 (native_cpp_meuwissen_luo kernel)
-2026-09-30T01:05:31 INFO phenotype QC passed: 1350 records used, 0 excluded (listed in qc_excluded_records.csv)
-2026-09-30T01:05:31 INFO wwt: 1350 records, 10 fixed columns kept (2 constrained), random terms ['animal']
-2026-09-30T01:05:35 INFO wwt: solved 1546 equations with dense (auto: 1546 equations <= 12000 and dense memory 0.05 GiB within budget); relative residual 1.44e-15; 2.28 s
-2026-09-30T01:05:35 INFO run 20260930T010531Z-ebfa3dc0 passed in 4.16 s
+2026-09-30T05:55:03 INFO ABP run 20260930T055503Z-bb5655b5 started; spec /home/user/Animal_Breeding_Program/examples/11_sheep_upg/analysis_fixed.toml (sha256 abca4b9d0048)
+2026-09-30T05:55:03 INFO read 1350 phenotype rows and 1533 pedigree rows
+2026-09-30T05:55:03 INFO pedigree QC passed: 1533 animals, max generation 6, mean F 0.0051 (native_cpp_meuwissen_luo kernel)
+2026-09-30T05:55:03 INFO phenotype QC passed: 1350 records used, 0 excluded (listed in qc_excluded_records.csv)
+2026-09-30T05:55:03 INFO wwt: 1350 records, 10 fixed columns kept (2 constrained), random terms ['animal']
+2026-09-30T05:55:04 INFO wwt: solved 1546 equations with dense (auto: 1546 equations <= 12000 and dense memory 0.05 GiB within budget); relative residual 1.44e-15; 0.40 s
+2026-09-30T05:55:04 INFO run 20260930T055503Z-bb5655b5 passed in 0.69 s
 status: passed
 outputs: <tmp>/11_fixed
 report: <tmp>/11_fixed/report.md
-# exit_code: 0  wall_s: 4.940217193
+# exit_code: 0  wall_s: 1.499359894
 ## abp index examples/07_selection_index/index.toml
 {
   "file": "examples/07_selection_index/index.toml",
@@ -196,10 +196,10 @@ report: <tmp>/11_fixed/report.md
   "assumptions": "multivariate normal; one round of truncation selection; infinite population; no Bulmer effect",
   "warning": "parameters declared synthetic: illustration only"
 }
-# exit_code: 0  wall_s: .455029849
+# exit_code: 0  wall_s: .460118217
 ## abp mate examples/09_sheep_mating/mating.toml --out <tmp>/mating
 mating plan proposal written to: <tmp>/mating
-# exit_code: 0  wall_s: 7.565750764
+# exit_code: 0  wall_s: 8.681052251
 ## python examples/11_sheep_upg/compare.py
 | model | corr(EBV,TBV) lambs | b(TBV|EBV) lambs | bias purchased rams | bias 2024 lambs |
 |---|---:|---:|---:|---:|
@@ -212,7 +212,7 @@ mating plan proposal written to: <tmp>/mating
 | UPG:A_16_19 | 8 | +2.790 | +2.571 | +3.795 |
 | UPG:A_20_24 | 10 | +5.135 | +3.318 | +4.980 |
 | UPG:B | 9 | -1.222 | -1.625 | -0.805 |
-# exit_code: 0  wall_s: 22.489924783
+# exit_code: 0  wall_s: 70.447979176
 ## python examples/api_example.py
 F: {'1': 0.0, '2': 0.0, '3': 0.0, '4': 0.0, '5': 0.0, '6': 0.0, '7': 0.0, '8': 0.0}
 A[7, 8] = 0.25
@@ -235,6 +235,7 @@ K-inverse with groups: (4, 4) | diag(K) for reliabilities: [2.   1.   1.25 1.  ]
 OCS: constraint_active coancestry 0.04817 <= C_max 0.04817 | KKT stationarity 1.1e-11
 mating plan: 30 pairs, mean progeny F 0.0 | forbidden: {'relationship': 2}
 PLINK: ['a1', 'a2', 'a3'] ['snp1', 'snp2'] counted allele (A1): ['A', 'C'] dosages [[0.0, 2.0], [1.0, nan], [2.0, 1.0]]
+PLINK int8 storage: int8 [[0, 2], [1, -1], [2, 1]] (-1 = missing)
 BayesC: converged after 1000 iterations | h2 0.396 R-hat 0.9998 | worst GEBV R-hat 1.0026 | markers with the highest inclusion probability: [34, 142, 194]
 diagnostics of iid draws: {'rhat': 1.0, 'ess_bulk': 3844.295, 'ess_tail': 3889.221}
 metafounder base: diag A = [1.2 1.2 1.2 0.4] | A[s, d] = 0.4
@@ -252,5 +253,7 @@ threshold Gibbs: posterior mean liability variance 0.623 | converged: False (sho
 multi-trait PEV increase from REML uncertainty (mean, per trait): [0.0188, 0.0176]
 sampled reliabilities: mean 0.408 | mean Monte-Carlo SE 0.1
 -2 logL at the rank-1 optimum 1016.5356 | largest gradient element 7.0e-08
+rank selection (lower rank only if AIC smaller by >= 2): rank 1 | per rank: [0.0, 'ABP-E300']
+reduced-rank PEV increase from REML uncertainty (mean, per trait): [0.0473, 0.0916]
 workflow: passed -> ['ebv_wwg.csv', 'fixed_effects_wwg.csv', 'manifest.json', 'qc_excluded_records.csv', 'qc_pedigree.json', 'qc_phenotypes.json', 'report.md', 'results.json', 'run.log']
-# exit_code: 0  wall_s: 21.011869629
+# exit_code: 0  wall_s: 138.434500272

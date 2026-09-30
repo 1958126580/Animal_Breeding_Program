@@ -7,8 +7,8 @@
 # calibration, G5 external validity, G6 scale/platform, G7 decision/release.
 
 schema_version = "1"
-registry_date = "2026-09-29"
-abp_version = "0.4.0"
+registry_date = "2026-09-30"
+abp_version = "0.7.0"
 
 [[method]]
 method_id = "ped.a_matrix"
@@ -377,11 +377,14 @@ code = ["src/abp/io/plink.py"]
 tests = ["tests/test_plink.py::test_hand_derived_bytes",
          "tests/test_plink.py::test_round_trip_and_loader",
          "tests/test_plink.py::test_bad_files",
-         "tests/test_plink.py::test_plink_and_dosage_inputs_give_identical_gblup"]
+         "tests/test_plink.py::test_plink_and_dosage_inputs_give_identical_gblup",
+         "tests/test_plink.py::test_int8_decoding_and_loader_equal_float",
+         "tests/test_plink.py::test_to_int8_refuses_fractional_dosages",
+         "tests/test_single_step_matrix_free.py::test_int8_genotype_storage_gives_identical_ebvs"]
 gates = { G0 = "passed", G1 = "not_applicable", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["no individual-major .bed, PLINK 2 (.pgen), VCF or BGEN", "ref/alt unknown from .bim"]
+known_limits = ["no individual-major .bed, PLINK 2 (.pgen), VCF or BGEN", "ref/alt unknown from .bim", "genomic.genotype_storage = 'int8' (round 7) stores whole-number dosages only; fractional dosages are refused"]
 dependencies = ["numpy"]
 
 [[method]]
@@ -599,7 +602,7 @@ dependencies = ["numpy", "scipy"]
 method_id = "blup.pev_vc"
 name = "PEV and reliability including the uncertainty of REML variance estimates (Kackar-Harville)"
 estimand = "prediction error variance of empirical BLUP (variances estimated by REML)"
-scope = "single-trait REML runs (pedigree, genomic, single step) and full-rank multi-trait REML runs (t x t correction per animal); not at a REML boundary; not with metafounders in multi-trait runs"
+scope = "single-trait REML runs (pedigree, genomic, single step), full-rank and reduced-rank multi-trait REML runs (t x t correction per animal); not at a REML boundary of a full-rank fit; not with metafounders in multi-trait runs"
 math = "docs/methods.md#23-pev-including-the-uncertainty-of-reml-variances-kackarharville"
 sources = ["Kackar & Harville 1984 J Am Stat Assoc 79:853", "Harville & Jeske 1992 J Am Stat Assoc 87:724"]
 errata = []
@@ -608,6 +611,7 @@ complexity = "2 extra MME solves per variance component"
 code = ["src/abp/solvers/vc_uncertainty.py", "src/abp/solvers/reml.py", "src/abp/workflows/evaluate.py"]
 tests = ["tests/test_vc_uncertainty.py::test_delta_equals_v_form_derivatives",
          "tests/test_vc_uncertainty.py::test_multitrait_delta_equals_v_form_derivatives",
+         "tests/test_vc_uncertainty.py::test_reduced_rank_delta_equals_v_form_derivatives",
          "tests/test_vc_uncertainty.py::test_example13_reports_multitrait_pev_including_vc_uncertainty",
          "tests/test_vc_uncertainty.py::test_workflow_reports_pev_including_vc_uncertainty"]
 # G4: benchmarks/calibration_study.py (50 replicates, docs/validation/calibration_kh.json): pedigree REML
@@ -616,6 +620,7 @@ gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "pass
 implementation_status = "passed"
 maturity = "experimental"
 # G4 multi-trait (round 6): mt_calibration_kh.json, MSE/PEV 1.087/1.094/1.129 -> 1.025/1.048/1.058.
+# G4 reduced rank (round 7): rr_calibration_study.json, MSE/PEV 1.021/1.076 -> 1.007/1.038.
 known_limits = ["not computed at a REML boundary", "does not remove base-population mismatch (single step F6)"]
 dependencies = ["numpy", "scipy"]
 
@@ -645,9 +650,9 @@ dependencies = ["numpy", "scipy"]
 method_id = "reml.multi_trait_reduced_rank"
 name = "Multi-trait REML with a reduced-rank genetic covariance matrix G0 = Lambda Lambda'"
 estimand = "genetic (rank r) and residual covariance matrices when the full-rank optimum is on the boundary"
-scope = "multi-trait animal model, one additive term, missing traits; reml.boundary = 'reduced_rank' (fallback, rank t-1) or reml.rank; not with metafounders"
+scope = "multi-trait animal model, one additive term, missing traits; reml.boundary = 'reduced_rank' (fallback, rank t-1), reml.rank, or reml.rank_selection = 'aic' (all ranks fitted; lower rank only if AIC smaller by >= 2); not with metafounders"
 math = "docs/methods.md#25-reduced-rank-genetic-covariance-matrix-in-multi-trait-reml"
-sources = ["Kirkpatrick & Meyer 2004 Genetics 168:2295", "Meyer & Kirkpatrick 2005 Genet Sel Evol 37:1"]
+sources = ["Kirkpatrick & Meyer 2004 Genetics 168:2295", "Meyer & Kirkpatrick 2005 Genet Sel Evol 37:1", "Akaike 1974 IEEE Trans Autom Control 19:716", "Self & Liang 1987 J Am Stat Assoc 82:605"]
 errata = []
 exact_or_approximate = "exact restricted likelihood of the reduced-rank model; optimum by L-BFGS-B with the analytic gradient; converged when the Newton decrement < 1e-6"
 complexity = "one sparse factorization + selected inversion per likelihood-and-gradient evaluation; 2 n_par gradient evaluations for the final Newton-decrement check"
@@ -658,13 +663,19 @@ tests = ["tests/test_multitrait_reml.py::test_reduced_rank_loglik_equals_v_form_
          "tests/test_multitrait_reml.py::test_reduced_rank_blup_and_pev_equal_v_form",
          "tests/test_multitrait_reml.py::test_workflow_reduced_rank_fallback_and_direct_rank",
          "tests/test_multitrait_reml.py::test_spec_rules_for_reduced_rank",
-         "tests/test_multitrait_reml.py::test_reduced_rank_analytic_gradient_equals_finite_differences"]
+         "tests/test_multitrait_reml.py::test_reduced_rank_analytic_gradient_equals_finite_differences",
+         "tests/test_multitrait_reml.py::test_rank_selection_by_aic",
+         "tests/test_multitrait_reml.py::test_rank_selection_margin_rule",
+         "tests/test_multitrait_reml.py::test_workflow_rank_selection",
+         "tests/test_multitrait_reml.py::test_spec_refuses_rank_selection_with_stated_rank"]
 # G4: benchmarks/rr_calibration_study.py (100 replicates, true G0 of rank 1): 100/100 converged, G0/R0 within
 # 2 MC SE; BLUP MSE/PEV 1.02/1.08 with estimates (0.997 with true parameters); full-rank REML stopped in 58/100.
+# Rank selection (round 7; rr_calibration_study.json, rr_calibration_full.json): with the margin of 2, rank 1
+# chosen in 58/100 (true rank 1) and 0/100 (true full rank, rG 0.595); plain minimum AIC: 97/100 and 19/100 (F15).
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_100_replicates_rank1", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["no standard errors", "rank is a user assumption (no automatic rank selection)", "not with metafounders", "no Kackar-Harville PEV correction for reduced-rank fits"]
+known_limits = ["no standard errors of the parameters in the report", "rank selection by AIC is conservative: a true reduced rank is recognised only when the full-rank fit stops at the boundary or AIC favours it by >= 2 (58/100 in the study)", "not with metafounders"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -688,7 +699,7 @@ tests = ["tests/test_single_step_matrix_free.py::test_a22_inverse_operator_equal
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["reliabilities only by sampling (Monte-Carlo SE reported)", "no REML", "single trait only", "no tuning, UPG, metafounders or LR validation", "the workflow holds genotypes as float64 (the int8 path is library-level: apy_blocks_from_dosage)"]
+known_limits = ["reliabilities only by sampling (Monte-Carlo SE reported)", "no REML", "single trait only", "no tuning, UPG, metafounders or LR validation", "genomic.genotype_storage = 'int8' keeps the workflow's genotypes compact; the explicit G path still forms dense n2 x n2 matrices"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -710,13 +721,18 @@ tests = ["tests/test_threshold_gibbs.py::test_truncated_normal_draws_match_scipy
          "tests/test_threshold_gibbs.py::test_variance_posterior_equals_independent_metropolis_reference",
          "tests/test_threshold_gibbs.py::test_workflow_threshold_gibbs_converges_and_writes_evidence",
          "tests/test_threshold_gibbs.py::test_workflow_threshold_gibbs_withholds_unconverged_results",
-         "tests/test_threshold_gibbs.py::test_spec_rules_for_threshold_gibbs"]
+         "tests/test_threshold_gibbs.py::test_spec_rules_for_threshold_gibbs",
+         "tests/test_threshold_gibbs.py::test_per_term_prior_scales_equal_the_scalar_prior",
+         "tests/test_threshold_gibbs.py::test_spec_rules_for_threshold_priors",
+         "tests/test_threshold_gibbs.py::test_workflow_threshold_gibbs_with_informative_prior"]
 # G4: benchmarks/threshold_study.py (30 replicates): animal variance 0.108 +- 0.009 (true 0.111), pe 0.138 +- 0.010
 # (true 0.111), 0/30 withheld, model/realized accuracy 0.948 +- 0.029.
+# Priors (round 7, threshold_prior_study.json, nu = 4): scale 0.05 -> 0.090 / 0.104, scale 0.2 -> 0.125 / 0.140
+# (animal / pe): the posterior follows the prior centre with 2-3 records per animal (F13).
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_30_replicates_genetic_variance_unbiased", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["single trait only", "flat variance priors by default: posterior means of small variances can be pulled up (pe variance +24% in the study)", "per-EBV diagnostics skipped above 5e7 stored draws", "no genetic groups, metafounders or LR validation"]
+known_limits = ["single trait only", "flat variance priors by default: posterior means of small variances can be pulled up (pe variance +24% in the study); proper priors (bayes.variance_prior) move the estimates towards the prior centre instead of removing the bias (F13)", "per-EBV diagnostics skipped above 5e7 stored draws", "no genetic groups, metafounders or LR validation"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]

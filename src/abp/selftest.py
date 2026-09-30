@@ -1,6 +1,6 @@
 """``abp selftest``: installation check against hand-derived analytical values.
 
-Every expected value below was derived by hand (T12, T13, T15 and T16 in the comments), is printed in the cited
+Every expected value below was derived by hand (T12, T13, T15, T16 and T17 in the comments), is printed in the cited
 source, or (T10) was computed by an independent implementation (ArviZ) -
 none is produced by ABP itself.  The checks exercise the production
 kernels on the target machine (BLAS/LAPACK, optional C++ kernel), so a pass
@@ -230,5 +230,14 @@ def run_selftest() -> tuple[bool, list[str]]:
     fa = SparseLDL(Ta.tocsr())
     check("T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix",
           _close(fa.solve(np.array([1.0, 0.0, 1.0])), [1.0, 1.0, 1.0]))
+    # T17 PLINK SNP-major byte 0xE4 = 2-bit codes 00, 01, 10, 11 (lowest bits = first sample):
+    # A1/A1, missing, A1/A2, A2/A2 -> A1 dosages 2, missing, 1, 0; int8 storage uses -1 for missing
+    from .io.plink import decode_bed
+    raw = bytes([0x6C, 0x1B, 0x01, 0xE4])
+    d8 = decode_bed(raw, 4, 1, "int8")
+    d64 = decode_bed(raw, 4, 1)
+    check("T17 PLINK decoding to int8 and float64 (hand-derived byte)",
+          d8.dtype == np.int8 and d8[:, 0].tolist() == [2, -1, 1, 0]
+          and d64[[0, 2, 3], 0].tolist() == [2.0, 1.0, 0.0] and bool(np.isnan(d64[1, 0])))
     lines.append("RESULT: " + ("PASS" if ok_all else "FAIL"))
     return ok_all, lines

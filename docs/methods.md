@@ -1257,7 +1257,9 @@ Hessian of `−2 log L` already formed for the Newton decrement; `J_i = ∂û_i/
 by central differences of the latent-factor BLUP
 (`kackar_harville_delta_reduced_rank`). The same columns are written for
 reduced-rank runs. **Test.** `test_reduced_rank_delta_equals_v_form_derivatives`
-(V-form `û = (A ⊗ ΛΛᵀ)ZᵀPy` differentiated in `x`, rtol 10⁻⁴).
+(V-form `û = (A ⊗ ΛΛᵀ)ZᵀPy` differentiated in `x`, rtol 10⁻⁴). **Evidence**
+(rank-1 study of §25, 100 replicates): MSE/PEV 1.021 → 1.007 and 1.076 → 1.038,
+coverage 0.947 → 0.949 and 0.940 → 0.944.
 **Evidence** (50 replicates, `mt_calibration_kh.json`): MSE/PEV 1.087 → 1.025
 (wwt), 1.094 → 1.048 (fat), 1.129 → 1.058 (fec); coverage 0.940/0.939/0.935 →
 0.948/0.944/0.942.

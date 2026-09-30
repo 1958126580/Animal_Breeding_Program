@@ -1,6 +1,6 @@
-# Validation report: ABP 0.6.0
+# Validation report: ABP 0.7.0
 
-Date: 2026-09-30 (round 6; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
+Date: 2026-09-30 (rounds 6 and 7; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
 evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
 (round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
@@ -11,7 +11,9 @@ round 3: run
 round 5: run
 [36524938324](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36524938324);
 round 6: run
-[36657626436](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36657626436); §3a).
+[36657626436](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36657626436);
+round 7: run
+[36673772284](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36673772284); §3a).
 Raw logs: `docs/validation/`. Status vocabulary: passed, failed, blocked,
 not_run.
 
@@ -23,9 +25,9 @@ not_run.
 | G1 mathematics | independent derivations, analytical cases, dimension, limit and equivalence tests | passed | §4, §5 |
 | G2 numerics | residuals, convergence, boundaries, exact references | passed | §4, §5; MCMC diagnostics equal ArviZ to ≤ 8·10⁻¹⁶ |
 | G3 software | ID mapping, bad inputs, recovery, interface consistency | passed (Linux; Windows CI) | §3, §5, §6 |
-| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
+| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); threshold priors, rank selection and reduced-rank Kackar–Harville PEV (§7.11); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
 | G5 external validity | real data, time or population hold-out | **not_run** | no real data were available or authorized (the LR workflow exists and was run on synthetic data) |
-| G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`), including exact PEV for 100,500 equations and the matrix-free single step (50,000 animals, 6,000 genotyped: 1.7 GB instead of 10.9 GB; 200,000 animals, 30,000 genotyped, int8 genotypes: 6.75 GB); Windows functional tests in CI (round 3: 211 tests passed on Windows and Linux, §3a), no Windows timings; no CUDA path |
+| G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`), including exact PEV for 100,500 equations and the matrix-free single step (50,000 animals, 6,000 genotyped: 1.7 GB instead of 10.9 GB; 200,000 animals, 30,000 genotyped, int8 genotypes: 6.75 GB; complete `abp run` with 120,000 animals / 30,000 genotyped from PLINK as int8: 261 s, 7.38 GB); Windows functional tests in CI (round 3: 211 tests passed on Windows and Linux, §3a), no Windows timings; no CUDA path |
 | G7 decision and release | feasible plans, installation reproduction, evidence package | **partial** | mating plans satisfy every hard constraint, verified per plan (§5, §6); no binary release; project license not chosen |
 
 **No claim of leadership or superiority over any software is made.** No
@@ -48,10 +50,14 @@ AlphaMate has been run.
 
 | Command | Result | Log |
 |---|---|---|
-| `python -m pytest -v` (native C++ kernel; round 6) | **285 passed**, 0 failed, 0 skipped, 403.9 s | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 6) | **280 passed**, 0 failed, 5 skipped (native-only comparisons), 1412.4 s | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
-| `abp selftest` with and without the native kernel (round 6) | RESULT: PASS (both; T01–T16; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
-| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–14, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 6, incl. API sections 18–25) | all 17 exit status 0 (run concurrently with the pure-Python test suite) | `docs/validation/examples-linux.log` |
+| `python -m pytest -v` (native C++ kernel; round 7) | **297 passed**, 0 failed, 0 skipped, 473.7 s (final code; an earlier run before the last one-line change: 297 passed) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 7) | **292 passed**, 0 failed, 5 skipped (native-only comparisons), 2205.7 s (a first run was stopped by the session's 30-minute limit for background jobs after 244 passed; the complete rerun is logged) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `abp selftest` with and without the native kernel (round 7) | RESULT: PASS (both; T01–T17; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
+| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–14, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 7, incl. API sections 18–26) | all 17 exit status 0 (run before the last change of the round, which only adds `margin` to the recorded rank selection; no example uses rank selection) | `docs/validation/examples-linux.log` |
+| `python benchmarks/threshold_study.py --scenarios threshold_gibbs_prior005 threshold_gibbs_prior020 --replicates 30 --workers 4 --out docs/validation/threshold_prior_study.json` (round 7) | completed; 0 of 60 withheld | `docs/validation/threshold_prior_study.json`, `.log` |
+| `python benchmarks/rr_calibration_study.py --replicates 100 --workers 4` (round 7: AIC rules, Kackar–Harville) | completed; round-6 values reproduced | `docs/validation/rr_calibration_study.json`, `.log` |
+| `python benchmarks/rr_calibration_study.py --replicates 100 --workers 4 --g0 full --out docs/validation/rr_calibration_full.json` (round 7) | completed | `docs/validation/rr_calibration_full.json`, `.log` |
+| `python benchmarks/ssmf_workflow_large.py` (round 7) | exit status 0, 261 s, 7.38 GB | `benchmarks/results/ssmf_workflow_large.json`, `.log` |
 | `python benchmarks/calibration_study.py --design random_selection --scenarios pedigree_true --replicates 200` and `--design default` (round 5, F9) | completed | `docs/validation/f9_random_selection.json`, `f9_default.json`, `.log` |
 | `python benchmarks/calibration_study.py --scenarios pedigree_reml single_step_reml --replicates 50 --workers 4` (round 5, Kackar–Harville PEV) | completed; round-3 values reproduced | `docs/validation/calibration_kh.json`, `.log` |
 | `python benchmarks/calibration_study.py --scenarios single_step_true single_step_apy150_true single_step_apy300_true --replicates 50 --workers 4` (round 5, APY) | completed; `single_step_true` reproduced round 3 exactly | `docs/validation/calibration_apy.json`, `.log` |
@@ -129,6 +135,14 @@ From the release commit 82936e3 on, CI is green:
 [36657626436](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36657626436)
 (commit 398ed2c): 7 of 7 jobs succeeded (Windows and Ubuntu × Python
 3.11–3.13, pure-Python kernels).
+
+Round 7: CI was checked after every push. The runs for commits f5a2835,
+9c244f1, b347451, 4f45c7a (run 36670006301), eb1a424 (36670220980), a9ffce4
+([36672749790](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36672749790))
+and 4c06e84
+([36673772284](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36673772284))
+succeeded on all 7 jobs (Windows and Ubuntu × Python 3.11–3.13, pure-Python
+kernels). The release commit's run is listed in the HANDOFF.
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer
@@ -429,6 +443,60 @@ exact reliabilities of the explicit single step, with 300 simulations and
 four different seeds, the mean error was between −0.0024 and +0.0007
 (per-animal SE ≈ 0.04) and the spread of `(r̂ − r)/SE` 1.02–1.03.
 
+### 7.11 Round-7 studies
+
+**Threshold Gibbs sampler with proper priors (30 replicates, `ν = 4`,
+`threshold_prior_study.json`).** Same data design as §7.10 (true genetic and
+permanent-environment liability variances 0.111 each); prior scales
+deliberately below and above the truth.
+
+| Prior scale | Withheld | Genetic variance (posterior mean) | pe variance | Model / realized accuracy |
+|---|---:|---:|---:|---:|
+| uniform (§7.10) | 0 | 0.108 ± 0.009 | 0.138 ± 0.010 | 0.948 ± 0.029 |
+| 0.05 | 0 | 0.090 ± 0.007 | 0.104 ± 0.007 | 0.906 ± 0.025 |
+| 0.2 | 0 | 0.125 ± 0.005 | 0.140 ± 0.005 | 1.012 ± 0.026 |
+
+The estimates follow the prior centre: with 2–3 records per animal the data
+identify these variances weakly. Realized accuracy is unchanged (0.450 and
+0.451). A proper prior therefore moves the bias rather than removing it; the
+uniform prior stays the default (F13 stays open).
+
+**Rank selection (100 replicates each, 1,000 animals;
+`rr_calibration_study.json` true rank 1, `rr_calibration_full.json` true full
+rank with r_G 0.595).**
+
+| Rule | Rank 1 chosen, true rank 1 | Rank 1 chosen, true full rank |
+|---|---:|---:|
+| smallest AIC | 97 / 100 | 19 / 100 |
+| AIC, lower rank only if smaller by ≥ 2 (ABP) | 58 / 100 | 0 / 100 |
+
+With a full-rank truth the full-rank fit converged in 100/100 (r_G 0.598 ±
+0.016). In the 19 wrong reductions of plain AIC the rank-1 BLUP understated
+trait-2 PEV about fourfold (median MSE/PEV 4.3) and realized accuracy fell to
+0.43 (0.54 with the true parameters) — hence the margin (F15). With a rank-1
+truth the margin rule picks rank 1 exactly in the 58 replicates where the
+full-rank fit stops at the boundary.
+
+**Kackar–Harville PEV for reduced-rank fits** (rank-1 study, same 100
+replicates): BLUP with the REML estimates, MSE/PEV
+plug-in → corrected 1.021 ± 0.011 → 1.007 ± 0.010 (trait 1) and 1.076 ± 0.031 →
+1.038 ± 0.029 (trait 2); coverage of 95% intervals 0.947 → 0.949 and 0.940 →
+0.944 (true parameters: 0.997, coverage 0.950). The correction was available
+in all 100 fits. Trait 2 remains 1.3 Monte-Carlo SE above 1.
+
+**Workflow-level matrix-free single step** (`benchmarks/ssmf_workflow_large.py`):
+`abp run` on generated files (pedigree
+CSV with 120,000 animals, 110,000 records in 400 contemporary groups, PLINK
+file with 30,000 genotyped animals × 20,000 SNPs), `genotype_storage = "int8"`,
+APY with 5,000 core animals, matrix-free single step, 10 PEV simulations:
+exit status 0, 261 s wall time, peak resident memory 7.38 GB (child process;
+`benchmarks/results/ssmf_workflow_large.json`, `.log`). Genotype loading, QC,
+frequencies and the APY/A22 operators took 182 s, PCG 5.5 s (69 iterations,
+relative residual 9.8e-9), sampling 65 s (92 PCG iterations per simulation).
+Mean reliability 0.32, mean Monte-Carlo SE 0.21 with 10 simulations. Held as
+float64 with a missing mask, the genotypes alone would take 5.4 GB instead of
+0.6 GB (arithmetic, not a measured run).
+
 ### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
@@ -452,9 +520,10 @@ for the four-trait example.
 | F9 | Under random selection (F6 factor design) pedigree BLUP with true variances shows a candidate bias of 0.135 ± 0.044 kg (≈ 3 MC SE) | **resolved** (round 5) | 200 replicates: 0.049 ± 0.024 kg; the 150 new replicates 0.020 ± 0.029; TBV centring checked (§7.9). Sampling variation |
 | F10 | Multi-trait REML does not handle boundary optima | **addressed** (rounds 5–6; opt-in) | default still stops with `ABP-E300`; `reml.boundary = "reduced_rank"` or `reml.rank` fits G0 = ΛΛ′; 100-replicate study: 100/100 converged, unbiased, EBVs close to calibrated (§7.10). Singular R0 still stops |
 | F11 | Laplace-approximate REML of liability variances is biased with 2–3 categorical records per animal (genetic variance −23%, 20% of runs at the search bound) | **resolved by an alternative** (round 6) | Gibbs sampler: genetic variance 0.108 ± 0.009 (true 0.111), 0/30 withheld (§7.10); the Laplace estimator stays available and documented as biased. Remaining: pe variance +24% with uniform priors (F13) |
-| F12 | REML-based PEV was 7–13% optimistic in every study | **resolved** (rounds 5–6) | Kackar–Harville PEV: pedigree REML MSE/PEV 1.017 ± 0.031; multi-trait 1.025/1.048/1.058 (§7.10). Not for reduced-rank fits |
-| F13 | Threshold Gibbs sampler with uniform variance priors: permanent-environment variance 0.138 ± 0.010 (true 0.111) | open (documented) | posterior means of small variances are pulled up by uniform priors; the posterior median (0.132) is closer; proper priors (`nu`, `s2` in the library) are not exposed in the spec yet |
-| F14 | Sampled reliabilities carry Monte-Carlo error (SE ≈ 0.04 with 300 simulations; 0.15 with 20 at 200,000 animals) | open (by design) | reported per animal (`reliability_mc_se`); choose `solver.pev_samples` for the precision needed |
+| F12 | REML-based PEV was 7–13% optimistic in every study | **resolved** (rounds 5–7) | Kackar–Harville PEV: pedigree REML MSE/PEV 1.017 ± 0.031; multi-trait 1.025/1.048/1.058 (§7.10); reduced-rank fits (round 7, §7.11) |
+| F13 | Threshold Gibbs sampler with uniform variance priors: permanent-environment variance 0.138 ± 0.010 (true 0.111) | open (documented; round 7 study) | proper priors are in the spec (`bayes.variance_prior`); with prior scales 0.05 / 0.2 the estimates follow the prior (§7.11): with 2–3 records per animal these variances are weakly identified, and no prior choice removes that. More records per animal or known variances are the remedies |
+| F14 | Sampled reliabilities carry Monte-Carlo error (SE ≈ 0.04 with 300 simulations; 0.15 with 20 at 200,000 animals) | open (by design) | reported per animal (`reliability_mc_se`); choose `solver.pev_samples` for the precision needed (0.21 with 10 at 120,000 animals, §7.11) |
+| F15 | Rank selection by the smallest AIC wrongly reduced a full-rank G0 (r_G 0.6) to rank 1 in 19 of 100 data sets, making trait-2 PEV about four times too small | **resolved** (round 7) | ABP moves to a lower rank only if its AIC is smaller by ≥ 2: 0 of 100 wrong reductions; the cost is that a true rank 1 is found in 58/100 instead of 97/100 (the full-rank model is kept in the rest) (§7.11) |
 
 ## 9. Defects found and fixed
 
@@ -483,6 +552,14 @@ for the four-trait example.
 | 6 | `SparseLDL` and the SuperLU + selected-inversion path failed on matrices symmetric only to rounding with an asymmetric pattern (a 1e-17 entry on one side after cancellation) | reduced-rank analytic-gradient fit with rank 2 (native); local pure-Python-kernel run (SuperLU; CI's rounding did not trigger it) | matrix symmetrised before factorization in both | `test_numerically_symmetric_matrix_with_asymmetric_pattern`, `test_superlu_selected_inverse_with_asymmetric_pattern`, self-test T16 |
 | 6 | 11 pushes failed CI (all 7 jobs) because the published JSON schema was not regenerated after new spec keys | CI (noticed late: the round-6 pushes were not checked until the release) | schema regenerated (`python -m abp.core.spec`); CI green from run 36652918117 | `test_published_json_schema_is_current` |
 | 6 | Reduced-rank REML stopped with `ABP-E403` in 2 of 100 study fits although at the optimum (gradient bound 1e-3 unattainable at the precision of −2 log L ≈ 3600) | calibration study | Newton-decrement criterion (≤ 1e-6) | study rerun: 100/100 converged |
+
+| 7 | The manifest lost the sampled-PEV record (`diagnostics.<trait>.pev_sampling`: samples, seed, mean Monte-Carlo SE): a later step replaced the trait's diagnostics dictionary instead of updating it. Results and the `reliability_mc_se` column were unaffected | the workflow-level 120,000-animal benchmark read `null` from the manifest | the dictionary is updated in place | `test_sampled_reliabilities_agree_with_exact_ones` (manifest assertion; fails before the fix) |
+| 7 | Rank selection by the smallest AIC reduced a full-rank G0 in 19% of data sets (a method-choice defect, F15) | rank study with a full-rank truth | conservative margin of 2 | `test_rank_selection_margin_rule` |
+
+Round-7 errors in the construction of tests and scripts: a new unit test of
+the margin rule had wrong expected AIC values (fixed before commit); the
+full-rank rank study first wrote the label "true G0 of rank 1" into its JSON
+(label fixed in the script and the study re-run; numbers identical).
 
 Round-6 errors in the construction of tests, studies and scripts
 (production code unaffected): a sampled-reliability test first required a
@@ -543,7 +620,6 @@ kept the original acceptance threshold.
 | Posterior SBC near the target data | the prior SBC (§7.3) checks the computation over the prior; a posterior SBC is a further step |
 | Comparison with BLUPF90, MiXBLUP, ASReml, DMU, JWAS, BGLR | not installed or licensed in this environment; must be run under a pre-registered protocol |
 | Independent mature simulator (AlphaSimR, QMSim, XSim) | not installed; ABP's generators are independent of its solver code but are not mature external simulators |
-| Kackar–Harville PEV for reduced-rank fits | not implemented (no covariance of the loadings) |
-| Proper variance priors for the threshold Gibbs sampler in the spec | library-level only (`nu`, `s2`) |
-| Matrix-free single step with the workflow's genotype loader at 30,000+ animals | the workflow holds genotypes as float64; the 200,000-animal run used the library with int8 genotypes |
+| Calibration of the full-rank EBVs kept by the rank-selection rule | the rank studies score only the rank-1 and true-parameter BLUPs |
+| Workflow-level run at 200,000 animals | the workflow run used 120,000 animals (30,000 genotyped); the 200,000-animal run is library-level (round 6) |
 | Installation from a built wheel or installer | no binary packaging yet (source install only) |

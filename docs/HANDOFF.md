@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-09-30, ABP 0.6.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-09-30, ABP 0.7.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -43,6 +43,14 @@ method in `docs/method_registry.toml`):
   analytic gradient and Newton-decrement convergence for reduced-rank REML
   plus a 100-replicate study; int8 APY blocks and a 200,000-animal run;
   fix of the sparse LDL' for asymmetric patterns; self-test T16;
+* **round 7**: proper variance priors for the threshold Gibbs sampler in the
+  spec (`bayes.variance_prior`, `bayes.prior_variances`) with a sensitivity
+  study (F13: the data identify these variances weakly); Kackar–Harville PEV
+  for reduced-rank fits; rank selection (`reml.rank_selection = "aic"`,
+  conservative margin of 2, F15); int8 genotype storage in the workflow
+  (`genomic.genotype_storage`, blockwise G and frequencies); workflow-level
+  run with 120,000 animals / 30,000 genotyped (261 s, 7.38 GB); manifest fix
+  for the sampled-PEV record; self-test T17;
 * single-trait BLUP (animal, repeatability), dense/sparse/PCG solvers, PEV,
   reliability; **exact PEV at any size whose factor fits in memory by sparse
   selected inversion** (round 3; Takahashi equations on the symbolic Cholesky
@@ -57,9 +65,16 @@ method in `docs/method_registry.toml`):
 * optimal contribution selection and mating plans (`abp mate`, proposals
   only);
 * workflow with atomic outputs, manifests and reports; CLI; launchers;
-  synthetic sheep generator; 14 examples; documentation; self-test T01–T16.
+  synthetic sheep generator; 14 examples; documentation; self-test T01–T17.
 
 ## 2. Commands that were run (Linux) and their results
+
+Round 7: full test suites (native 297 passed; pure-Python kernels
+292 passed, 5 native-only skipped), self-test T01–T17 with both kernels, all examples and the API example
+(sections 18–26), threshold prior study (30 replicates × 2 priors), rank
+studies with rank-1 and full-rank truths (100 each; the rank-1 study also
+scores the reduced-rank Kackar–Harville PEV), workflow-level large run; CI
+after every push (validation report §3, §3a, §7.11).
 
 Round 6: full test suites (native 285 passed; pure-Python kernels 280 passed,
 5 native-only skipped), self-test
@@ -94,9 +109,9 @@ on 7 jobs (run 36447242937: 211 passed on Windows and Linux).
 Windows performance measurements (functional tests only, in CI), CUDA (no
 implementation), real-data validation and comparison software (no data or
 licenses), LR population accuracy (erratum not verifiable), posterior SBC,
-Kackar–Harville PEV for reduced-rank fits, proper variance priors for the
-threshold Gibbs sampler in the spec, the workflow's genotype loader with
-int8 storage.
+calibration of the full-rank EBVs kept by the rank-selection rule (not scored
+in the rank studies), a workflow-level run at 200,000 animals (the workflow
+run used 120,000).
 
 ## 4. Open scientific and engineering risks
 
@@ -110,10 +125,16 @@ See `docs/validation_report.md` §8. The most important:
   ABP-E300; singular R0 still stops.
 * **F11 resolved by the Gibbs sampler** (genetic liability variance 0.108 ±
   0.009, true 0.111); Laplace REML stays available and documented as biased.
-* **F12 resolved**: single- and multi-trait Kackar–Harville PEV calibrated.
-* **F13 (new)**: Gibbs pe variance +24% with uniform priors (posterior means
-  of small variances); **F14**: sampled reliabilities carry Monte-Carlo error
-  (reported per animal).
+* **F12 resolved**: single-trait, multi-trait and reduced-rank
+  Kackar–Harville PEV calibrated (reduced rank 1.007/1.038).
+* **F13 (open)**: with 2–3 categorical records per animal the liability
+  variances are weakly identified: uniform priors give pe +24%; proper priors
+  move the estimates towards their centre (round-7 study). Remedy: more
+  records per animal or known variances. **F14**: sampled reliabilities carry
+  Monte-Carlo error (SE 0.21 with 10 simulations at 120,000 animals).
+* **F15 resolved**: plain minimum AIC reduced a full-rank G0 in 19% of data
+  sets; the margin of 2 prevents it (0/100) at the cost of recognising a true
+  rank 1 less often (58/100 instead of 97/100).
 * **F7**: genetic groups defined by long periods leave bias when the level
   drifts within a period.
 * **F8**: BayesCπ π₀ mixing can be slow; ABP withholds such results.
@@ -140,19 +161,17 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 6 completed tasks 1–4 listed here in round 5 (task 3 without an
-approximate deterministic reliability: sampling was chosen because its error
-is known). Next:
+Round 7 completed tasks 1–4 listed here in round 6 (task 1 without
+multi-trait threshold models). Next:
 
-1. Threshold model: expose proper variance priors (`bayes.nu`, `bayes.s2` for
-   `method = "threshold"`) and study their effect on the pe variance (F13);
-   multi-trait threshold/linear models.
-2. Workflow genotype storage as int8 (loader and matrix-free path), then a
-   workflow-level run at 30,000+ genotyped animals.
-3. Kackar–Harville PEV for reduced-rank fits (covariance of the loadings
-   from the numerical Hessian already computed for the Newton decrement).
-4. Automatic rank choice for reduced-rank REML (likelihood-ratio or AIC
-   across ranks, with a study).
+1. Multi-trait threshold/linear models (categorical and continuous traits
+   together), with a Gibbs sampler extending `threshold_gibbs`.
+2. Rank selection: score the calibration of the full-rank EBVs kept by the
+   margin rule, and study the rule with three or more traits.
+3. Sampled PEV: variance reduction (e.g. control variates from a
+   block-diagonal approximation) so that fewer simulations reach SE ≤ 0.05.
+4. Workflow-level run at 200,000+ animals and a profile of the genotype
+   loading / APY construction phase (182 s of 261 s at 120,000 animals).
 5. Real-data validation (G5) and comparison software — blocked on the gaps
    in §5.
 

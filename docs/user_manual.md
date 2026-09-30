@@ -174,7 +174,7 @@ end with
 `RESULT: PASS`. It also reports whether the native C++ kernel is in use.
 
 ```
-ABP 0.6.0 self-test (native kernel: True)
+ABP 0.7.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
@@ -192,6 +192,7 @@ ABP 0.6.0 self-test (native kernel: True)
   [PASS] T14 sparse LDL' solve and log-determinant - kernel order native_cpp, symbolic native_cpp, numeric native_cpp
   [PASS] T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)
   [PASS] T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix
+  [PASS] T17 PLINK decoding to int8 and float64 (hand-derived byte)
 RESULT: PASS
 ```
 
@@ -536,6 +537,7 @@ values = { animal = 20.0, residual = 40.0 }
 | `start` | data-based | single-trait only: `{ animal = ..., residual = ... }`; default: the OLS residual variance split 1/3 genetic, 1/6 per other term. For categorical traits `residual` must be 1. |
 | `boundary` | `"stop"` | multi-trait only: `"reduced_rank"` refits with a genetic covariance matrix of rank traits − 1 when the full-rank optimum is on the boundary (§7.6) |
 | `rank` | – | multi-trait only: fit the genetic covariance matrix with this rank (below the number of traits) directly; not together with `boundary = "reduced_rank"` |
+| `rank_selection` | `"none"` | multi-trait only: `"aic"` fits every rank 1..traits and chooses one by AIC, moving to a lower rank only if its AIC is smaller by at least 2 (§7.6); not together with `rank`; when set, `boundary` has no effect (rank selection already covers the boundary case) |
 
 ### 5.8 `[solver]`
 
@@ -574,6 +576,7 @@ values = { animal = 20.0, residual = 40.0 }
 | `tuning` | `"none"` | `match_a22`: rescale G so its mean diagonal and off-diagonal equal those of A22 |
 | `apy_core_size` | 0 | APY (§7.15): number of core animals; 0 uses the exact inverse of G* |
 | `apy_seed` | 20260925 | seed of the random core selection (the core IDs are written to the manifest) |
+| `genotype_storage` | `"float64"` | `"int8"`: genotypes are held as 1-byte integers (−1 = missing), 2 bytes per call instead of 9 with float64 plus the missing mask. PLINK files are decoded directly; dosage files must contain whole numbers (imputed fractional dosages are refused). Results are the same up to floating-point summation order |
 | `single_step_mode` | `"explicit"` | `"matrix_free"`: H⁻¹ is applied as an operator inside PCG, without dense A22, A22⁻¹ or n × n₂ blocks (§7.15). Solutions only: needs known variances, `solver.pev = "none"`, one trait and `tuning = "none"` |
 
 ### 5.11 `[index]` (optional)
@@ -613,8 +616,10 @@ variance_ratio = 1.0
 
 Used with `variances.mode = "bayes"` (and only then). For a categorical trait
 set `method = "threshold"` (§7.14): the random terms then come from
-`[model]`, the variances get uniform priors, and `pi0`, `prior_r2`, `nu`,
-`nu_e` are not used; the chain, convergence and seed keys work as below.
+`[model]`, and `pi0`, `prior_r2`, `nu_e` are not used; the chain, convergence
+and seed keys work as below. The variances get uniform priors unless
+`variance_prior = "scaled_inv_chi2"` (then `nu` and `prior_variances` below
+set proper priors).
 
 | Key | Default | Notes |
 |---|---|---|
@@ -627,6 +632,8 @@ set `method = "threshold"` (§7.14): the random terms then come from
 | `seed` | 20260925 | master seed; each chain gets an independent stream |
 | `prior_r2` | 0.5 | share of the phenotypic variance expected to be genetic; sets the default prior scales |
 | `nu`, `nu_e` | 5.0, 5.0 | degrees of freedom of the scaled inverse-χ² priors (> 2) |
+| `variance_prior` | `"uniform"` | threshold model only: `"scaled_inv_chi2"` gives each random-term variance a scaled inverse-χ² prior with `nu` degrees of freedom |
+| `prior_variances` | – | threshold model with `variance_prior = "scaled_inv_chi2"`: **required**, the prior scale of each random term in liability units, for example `{ animal = 0.1, pe = 0.1 }` |
 | `rhat_max` | 1.01 | convergence: split R-hat must be below it |
 | `ess_min` | 400 | convergence: bulk and tail ESS must reach it |
 | `max_iterations` | 30000 | the chains are doubled in length until the criteria pass or this budget is used |
@@ -962,6 +969,30 @@ simulated replicates with a true genetic correlation of 1, the full-rank fit
 stopped in 58; the rank-1 fit converged in all 100, estimated G0 and R0
 without detectable bias, and its EBVs were close to calibrated (squared error
 / PEV 1.02 and 1.08). A singular *residual* matrix still stops the run.
+For reduced-rank fits `ebv_multitrait.csv` also has the Kackar–Harville
+columns `pev_incl_vc_uncertainty_<trait>` and
+`reliability_incl_vc_uncertainty_<trait>`, computed from the asymptotic
+covariance of the loadings and residual parameters (in 100 simulated data sets
+it brought squared error / PEV from 1.02/1.08 to 1.01/1.04).
+
+**Choosing the rank from the data.** With
+
+```toml
+[reml]
+rank_selection = "aic"
+```
+
+ABP fits the full-rank model and every lower rank, lists each fit's
+log-likelihood, number of parameters and ΔAIC in the report, and chooses a
+rank. Fits that stop at the boundary are listed and excluded. A lower rank
+is chosen only if its AIC is smaller than that of the higher rank by at least
+2. This is deliberately conservative: in 100 simulated data sets with a true
+genetic correlation of 0.6, the plain smallest AIC wrongly chose rank 1 in 19
+(which forces the correlation to 1 and made the PEV of the second trait about
+four times too small); with the margin it did so in none. The price is that
+a true rank of 1 was recognised in 58 of 100 data sets instead of 97 — in the
+others the full-rank model (correlation about 0.94) is kept, which is still a
+valid model, although it has more parameters than needed. Evaluating every rank costs one REML fit per rank.
 
 ### 7.7 Economic index on EBVs
 
@@ -1463,7 +1494,23 @@ study it estimated the genetic liability variance at 0.108 ± 0.009 (true
 0.111) and never failed to converge; the permanent-environment variance was
 somewhat high (0.138 ± 0.010), and its reliabilities were close to calibrated
 (model/realized accuracy 0.95 ± 0.03). Example 14 takes about 1.5 minutes
-this way. The report states the source of the variances. Any random terms (for example a permanent environment) can be
+this way. The report states the source of the variances.
+
+Proper priors can replace the uniform ones:
+
+```toml
+[bayes]
+method = "threshold"
+variance_prior = "scaled_inv_chi2"
+nu = 4
+prior_variances = { animal = 0.1, pe = 0.1 }
+```
+
+Use them with care. In a study with 2–3 records per animal (validation
+report §7.11), priors centred at 0.05 and 0.2 (true value 0.111) moved the
+estimates to 0.09 and 0.125: the data say little about these variances, so
+the prior largely decides them. State the prior in any report of the results.
+Any random terms (for example a permanent environment) can be
 used; genetic groups, metafounders, LR validation and multi-trait models
 cannot.
 
@@ -1527,7 +1574,9 @@ reliability (about 0.04 with 300 samples on example 05). Also not available:
 REML (variances must be known), several traits, genomic tuning, genetic
 groups, metafounders and LR validation. A run with 200,000 animals, 30,000
 genotyped and 20,000 SNPs needed 6.75 GB (the explicit method would need more
-than 45 GB); see `docs/benchmarks.md`.
+than 45 GB); a complete `abp run` with 120,000 animals, 30,000 genotyped
+(PLINK input, `genomic.genotype_storage = "int8"`) took 261 s and 7.4 GB;
+see `docs/benchmarks.md`.
 
 ---
 

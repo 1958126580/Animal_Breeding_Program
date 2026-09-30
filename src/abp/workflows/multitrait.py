@@ -82,7 +82,7 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
         if d["reml"]["rank_selection"] == "aic":
             sel = select_rank(mt_data, structure.k_inv, structure.logdet_k, d["reml"],
                               memory_budget_bytes=budget)
-            selection = {k: sel[k] for k in ("table", "chosen_rank", "criterion")}
+            selection = {k: sel[k] for k in ("table", "chosen_rank", "criterion", "margin")}
             log.info("rank selection by AIC: %s -> rank %d",
                      [(r_["rank"], round(r_["aic"], 3) if "aic" in r_ else r_["error"]["code"])
                       for r_ in sel["table"]], sel["chosen_rank"])

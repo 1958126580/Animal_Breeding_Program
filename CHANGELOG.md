@@ -4,6 +4,25 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.7.0] - 2026-09-30
+
+Seventh development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Proper variance priors for the threshold Gibbs sampler in the spec: `bayes.variance_prior = "scaled_inv_chi2"`, `bayes.nu`, per-term `bayes.prior_variances` (`ThresholdGibbsConfig.s2` accepts a dict). Uniform priors stay the default. Prior-sensitivity study `docs/validation/threshold_prior_study.json`.
+- Kackar–Harville PEV for reduced-rank multi-trait REML fits (`kackar_harville_delta_reduced_rank`; `ReducedRankFit.x`, `.cov_x = 2 H⁻¹`); the `*_incl_vc_uncertainty_<trait>` columns are now written for reduced-rank runs too. In the 100-replicate rank-1 study MSE/PEV went from 1.021/1.076 to 1.007/1.038.
+- Rank selection for multi-trait REML: `reml.rank_selection = "aic"` fits every rank and chooses one by AIC with a conservative margin (a lower rank only if its AIC is smaller by at least 2); table in the report and `results.json` (`select_rank`, `n_parameters`, `AIC_MARGIN`).
+- Compact genotype storage: `genomic.genotype_storage = "int8"` (PLINK decoded directly to int8, −1 = missing; `qc.genotype.to_int8`; `load_plink(..., storage=)`); the matrix-free APY path builds its blocks from the int8 dosages.
+- `benchmarks/ssmf_workflow_large.py`: `abp run` on generated files at scale (int8, APY, matrix-free, sampled PEV) with peak memory of the child process. `rr_calibration_study.py --g0 full` (false rank reductions) and choice counts per rule.
+- API sections 27–28; methods §25 (rank selection), §27 (priors), §28 (reduced-rank Kackar–Harville), §30 (compact storage).
+
+### Changed
+- **[results]** Allele frequencies and VanRaden G are computed in blocks of 4,096 markers for both storages (no full float copy of the genotypes). Results change only in the order of floating-point summation (EBVs equal to 1e-8 relative in the tests).
+- **[results]** Reduced-rank multi-trait REML runs write two additional columns per trait (existing columns unchanged).
+
+### Fixed
+- The manifest lost `diagnostics.<trait>.pev_sampling` (number of simulations, seed, mean Monte-Carlo SE) because a later step replaced the trait's diagnostics; now updated in place. Results were unaffected. Found by the workflow-level benchmark.
+
 ## [0.6.0] - 2026-09-30
 
 Sixth development round. Evidence and gaps: `docs/validation_report.md`.
