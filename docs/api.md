@@ -1,6 +1,6 @@
 # ABP Python API
 
-Version 0.5.0. Every snippet below is taken from `examples/api_example.py`,
+Version 0.6.0. Every snippet below is taken from `examples/api_example.py`,
 which the test suite runs (`tests/test_examples.py::test_api_example_script_runs`).
 The mathematics behind each function is in [`methods.md`](methods.md).
 
@@ -15,7 +15,7 @@ arrays are NumPy `float64`, and sparse matrices are SciPy CSR.
 | `abp.core` | pedigree (`pedigree`), unknown-parent groups (`upg`), metafounders (`metafounders`), matrix-free single-step operators (`ssop`), fixed-effect design (`design`), genomic relationships (`genomic`), model compiler (`model`), analysis spec (`spec`) |
 | `abp.io` | delimited-table reader with provenance (`tables`), PLINK 1 binary reader (`plink`) |
 | `abp.qc` | pedigree, phenotype and genotype QC with structured findings |
-| `abp.solvers` | MME assembly and solvers (`mme`), sparse selected inversion (`selinv`), sparse LDL' (`cholesky`), multi-trait REML (`multitrait_reml`), threshold model (`threshold`), PEV with REML uncertainty (`vc_uncertainty`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`), Bayesian marker models (`bayes`), MCMC diagnostics (`mcmc_diagnostics`) |
+| `abp.solvers` | MME assembly and solvers (`mme`), sparse selected inversion (`selinv`), sparse LDL' (`cholesky`), multi-trait REML (`multitrait_reml`), threshold model (`threshold`), threshold Gibbs sampler (`threshold_gibbs`), PEV with REML uncertainty (`vc_uncertainty`), sampled PEV (`pev_sampling`), single-trait BLUP (`blup`), REML (`reml`), multi-trait BLUP (`multitrait`), Bayesian marker models (`bayes`), MCMC diagnostics (`mcmc_diagnostics`) |
 | `abp.decision` | selection indices (`selection_index`), optimal contributions (`ocs`), mating allocation (`mating`) |
 | `abp.workflows` | end-to-end evaluation, LR validation (`validation_lr`), mating plans (`mating_plan`), outputs, manifests, reports |
 | `abp.errors` | `ABPError` and the error-code table |
@@ -441,3 +441,62 @@ ss_mf = blup(y2, X2, [RandomTerm("animal", Z2, h_op, ped2.ids, True)],
 | `DenseInverseOperator(g_inv)` / `APYOperator(g_cc, g_cn, g_nn_diag, core, n2)` | callables `v -> G*⁻¹ v` (dense, or APY without forming `G_APY⁻¹`); `.diag()` |
 | `apy_blocks_from_genotypes(Wc, d, core, policy, alpha, ridge, a22_core_cols, a22_diag)` | `G*_cc`, `G*_cn`, `diag(G*)_n` from centred genotypes |
 | `SingleStepHInverse(a_inv, geno_index, g_op, a22_op)` | usable as `RandomTerm.k_inv`; `blup` then assembles `A⁻¹` and applies the correction inside PCG (`MixedModelSystem.extra`); dense/sparse direct solvers and PEV are refused |
+| `DenseInverseOperator(g_inv, g_chol)`, `APYOperator.sample(rng)`, `SingleStepHInverse(..., ped=ped).sample(rng)` | draws from `N(0, G*)`, `N(0, G_APY)` and `N(0, H)` without forming `H` (round 6) |
+| `apy_blocks_from_dosage(M_int8, p, core, policy, alpha, ridge, a22_core_cols, a22_diag)` | the APY blocks from `int8` dosages (−1 = missing), centred block by block |
+| `a_block(ped, rows, cols)` | `A[rows][:, cols]` by Colleau products in column blocks |
+
+## 23. Threshold-model Gibbs sampler: `abp.solvers.threshold_gibbs`
+
+```python
+from abp.solvers.threshold_gibbs import ThresholdGibbsConfig, threshold_gibbs
+tg = threshold_gibbs(cat, Xc, [RandomTerm("animal", Zc, ped2.ainv(), ped2.ids, True,
+                                          k_diag=1 + ped2.inbreeding())], True,
+                     ThresholdGibbsConfig(chains=2, iterations=600, burn_in=200, thin=1,
+                                          max_iterations=600, seed=1))
+tg.variances["animal"]["mean"], tg.converged
+```
+
+`ThresholdGibbsConfig(chains, iterations, burn_in, thin, seed, rhat_max, ess_min,
+max_iterations, nu=-2, s2=0, start=None, fix_variances=False)`;
+`threshold_gibbs(y, X, terms, intercept, cfg, genetic_term=None)` returns
+`ThresholdGibbsResult` (`terms` with posterior means and variances, `fixed_mean`,
+`thresholds_mean`, `variances` with mean/median/SD/2.5%/97.5%, `summaries`,
+`ebv_diagnostics`, `converged`, `iterations`, `traces`, `acceptance`). The caller
+decides what to do with an unconverged result (the workflow withholds it).
+Helpers: `rtruncnorm(rng, mean, lo, hi)`, `precision_root(k_inv)`,
+`draw_location(problem, factor, liabilities, variances, rng)`.
+
+## 24. Multi-trait PEV including REML uncertainty
+
+```python
+from abp.solvers.vc_uncertainty import kackar_harville_delta_multitrait
+d_mt = kackar_harville_delta_multitrait(mt_d, ped2.ainv(), 1 + ped2.inbreeding(), fit_mt.G0,
+                                        fit_mt.R0, fit_mt.cov)
+```
+
+`MTREMLFit.cov` is the inverse average-information matrix of
+`(vech G0, vech R0)` (`None` when not positive definite). The function returns a
+`q × t × t` array to add to `MTResult.pev_blocks`.
+
+## 25. Sampled PEV: `abp.solvers.pev_sampling`
+
+```python
+smp = sampled_pev(ped2.n, X2, [RandomTerm("animal", Z2, h_smp, ped2.ids, True)],
+                  {"animal": 2.0, "residual": 4.0}, "animal", n_samples=50, seed=3)
+smp.pev, smp.reliability, smp.reliability_se
+```
+
+`sampled_pev(n, X, terms, variances, genetic_term, n_samples=200, seed=..., tol,
+max_iter)`: terms must be a matrix-free single-step term (with `ped` set) or iid
+terms.
+
+## 26. Reduced-rank REML gradient
+
+```python
+ev_rr = MR.ReducedRankEvaluator(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), ped2.logdet_a(), 1)
+m2ll, grad = ev_rr.value_and_gradient(MR._rr_pack(rr.loadings, rr.R0))
+```
+
+`value_and_gradient(x)` returns `−2 log L` and its analytic gradient in the
+parameters `x` (lower-trapezoidal `Λ`, then `chol R0` with log diagonal);
+`ReducedRankFit.newton_decrement` reports the convergence criterion.

@@ -28,7 +28,10 @@ Contents: [1 Estimands](#1-estimands) · [2 Pedigree](#2-pedigree-relationships)
 [23 PEV with REML uncertainty](#23-pev-including-the-uncertainty-of-reml-variances-kackarharville) ·
 [24 Threshold REML](#24-laplace-approximate-reml-for-the-threshold-model) ·
 [25 Reduced-rank G0](#25-reduced-rank-genetic-covariance-matrix-in-multi-trait-reml) ·
-[26 Matrix-free single step](#26-matrix-free-single-step)
+[26 Matrix-free single step](#26-matrix-free-single-step) ·
+[27 Threshold Gibbs](#27-gibbs-sampler-for-the-threshold-model) ·
+[28 Multi-trait PEV with REML uncertainty](#28-pev-including-reml-uncertainty-for-multi-trait-models) ·
+[29 Sampled PEV](#29-sampled-pev-for-the-matrix-free-single-step)
 
 ---
 
@@ -1073,9 +1076,24 @@ restricted likelihood is
 
 because `log|Var(f)| = r log|K|`. The parameters `(Λ, chol R0)` (log
 diagonal for `R0`) are unconstrained; `−2 log L` is minimised by L-BFGS-B with
-central-difference gradients (`2 n_par` likelihood evaluations per gradient).
-Convergence requires the largest gradient element below 10⁻³; otherwise
-`ABP-E403`. A singular `R0` or loadings of lower rank than requested give
+the **analytic gradient** (round 6). For the loadings, by the envelope
+theorem for `yᵀPy` and `d log|C_f| = 2 tr(C_f⁻¹ W_fᵀ R⁻¹ dW_f)`,
+
+    ∂(−2 log L)/∂Λ = 2T − 2VᵀF̂,   T_ab = Σ_i Σ_c (C_f⁻¹)_{f(i,b),c} (W_fᵀR⁻¹Z)_{c,(i,a)},
+    V = ZᵀR⁻¹ê (q × t),   F̂ = factor solutions (q × r);
+
+for `R0` the matrix gradient `Σ_P [n_P R_P⁻¹ − R_P⁻¹ S_P R_P⁻¹]` over the
+missing-trait patterns, `S_P = Σ_r (ê_r ê_rᵀ + W_r C_f⁻¹ W_rᵀ)`, chained
+through `chol R0`. Only entries of `C_f⁻¹` on the pattern of `C_f` are needed
+(sparse selected inversion); the gradient is evaluated at the rotated
+loadings `ΛQ` (`Q` orthogonal, so `G0` and the likelihood are unchanged) so
+that the lower-trapezoidal zeros of `Λ` do not remove entries from the
+pattern, and mapped back by `∂/∂Λ = (∂/∂(ΛQ)) Qᵀ`. Convergence: the Newton
+decrement `gᵀH⁻¹g ≤ 10⁻⁶` (the predicted remaining decrease of `−2 log L`),
+`H` from central differences of the analytic gradient; otherwise
+`ABP-E403`. (Round 5 used central-difference gradients and a gradient bound
+of 10⁻³, which was unattainable in 2 of 100 study fits whose `−2 log L ≈ 3600`
+is resolved to about 10⁻⁹.) A singular `R0` or loadings of lower rank than requested give
 `ABP-E300`. BLUP is solved for `f`: `û_i = Λ f̂_i`, `PEV_i = Λ C^{f_i f_i} Λᵀ`,
 reliabilities `1 − PEV_ii/(K_ii (ΛΛᵀ)_jj)`. No sampling errors are reported
 for this parameterisation. The rank is a modelling assumption; the report
@@ -1090,7 +1108,14 @@ full-rank fit stops at the boundary (`ABP-E300`); `reml.rank = r` fits rank
 (rank `t` reproduces the AI-REML optimum: log L to 10⁻⁷),
 `test_boundary_data_rank_one_fit_equals_independent_v_form_optimum`
 (independent Nelder–Mead on the V-form), `test_reduced_rank_blup_and_pev_equal_v_form`,
-`test_workflow_reduced_rank_fallback_and_direct_rank`, `test_spec_rules_for_reduced_rank`.
+`test_workflow_reduced_rank_fallback_and_direct_rank`, `test_spec_rules_for_reduced_rank`,
+`test_reduced_rank_analytic_gradient_equals_finite_differences` ((t, r) = (2, 1), (2, 2), (3, 2)).
+**Evidence** (`benchmarks/rr_calibration_study.py`, 100 replicates, 1,000 animals,
+true `G0` of rank 1): full-rank REML stopped at the boundary in 58 of 100
+(the others converged to `r_G` 0.942 ± 0.008); rank-1 REML converged in 100
+of 100 with `G0` and `R0` within 2 Monte-Carlo SE of the truth; BLUP with the
+estimates had MSE/PEV 1.021 ± 0.011 and 1.076 ± 0.031 (coverage 0.947 and
+0.940), with the true parameters 0.997.
 
 ## 26. Matrix-free single step
 
@@ -1129,7 +1154,93 @@ models, UPG, metafounders and LR validation.
 data, exact G⁻¹ and APY with 150 core animals: EBVs equal to 10⁻⁷ relative),
 `test_spec_rules_for_matrix_free`.
 
-## 27. References (additions)
+## 27. Gibbs sampler for the threshold model
+
+Code: `abp/solvers/threshold_gibbs.py`; workflow `abp/workflows/evaluate.py`
+(`bayes.method = "threshold"`). Registry id `threshold.gibbs`.
+
+Same model as §20 with the liability variances unknown (Sorensen, Andersen,
+Gianola & Korsgaard 1995). Priors: flat on `b` and on the free thresholds
+(ordered); uniform on `(0, ∞)` for each variance (scaled inverse χ² with
+`ν = −2`, `s² = 0`; the sampler also accepts proper `ν, s²`). One iteration:
+
+1. thresholds by Metropolis–Hastings with the liabilities integrated out
+   (Cowles 1996): sequential truncated-normal proposals that keep the order,
+   acceptance ratio of the ordinal likelihoods times the ratio of the
+   truncation constants; the proposal SD is tuned during burn-in only; then
+   each liability from `N(η_i, 1)` truncated to `(τ_{y−1}, τ_y]` by inversion on
+   the side of the smaller tail;
+2. `θ = (b, u)` as one block from `N(C⁻¹Wᵀl, C⁻¹)` by perturbation:
+   `θ = C⁻¹(Wᵀ(l + z₁) + [0; F z₂/σ])`, `FFᵀ = K⁻¹` (`F` from a sparse LDL' of
+   `K⁻¹`); `C` keeps its pattern, so only the numeric LDL' is redone
+   (`SparseLDL.refactor`);
+3. parameter expansion (Liu & Sabatti 2000): for each term the scale `c` of
+   `(u_k, σ_k²) → (c u_k, c² σ_k²)` is drawn from
+   `exp(−‖r − c v‖²/2) · c · p(c²σ_k²)` (`v = Z_k u_k`, `r` the liabilities minus
+   the other effects) by univariate slice sampling (Neal 2003) - without it
+   `σ²` and `u` are strongly dependent with few records per animal (effective
+   sample size 66 instead of 794 on example 14);
+4. `σ_k² | u_k ~ (u_kᵀK_k⁻¹u_k + ν s²)/χ²(q_k + ν)`.
+
+Chains, diagnostics and the stopping rule are those of §16 (R-hat, bulk/tail
+ESS, MCSE for every variance, threshold and breeding value; chains doubled
+until the criteria pass; otherwise `ABP-E405`). EBVs are posterior means,
+PEV posterior variances (they include the uncertainty of the variances).
+
+**Tests.** `test_truncated_normal_draws_match_scipy` (incl. bounds at 8 and
+−9 SD), `test_precision_root_reproduces_k_inverse`,
+`test_block_draw_has_the_exact_conditional_mean_and_covariance`,
+`test_binary_posterior_means_equal_quadrature` (3-D quadrature of the exact
+posterior), `test_three_category_threshold_posterior_equals_quadrature`,
+`test_variance_posterior_equals_independent_metropolis_reference` (adaptive
+random-walk Metropolis on the joint posterior with `scipy.stats.norm`:
+posterior mean of σ² 0.869 vs 0.865, MC SE 0.013), workflow and spec tests.
+**Evidence** (`benchmarks/threshold_study.py`, 30 replicates): genetic
+liability variance 0.108 ± 0.009 (true 0.111; Laplace 0.085 ± 0.013), permanent
+environment 0.138 ± 0.010 (true 0.111), 0 of 30 withheld, model/realized
+accuracy 0.948 ± 0.029.
+
+## 28. PEV including REML uncertainty for multi-trait models
+
+Code: `abp/solvers/vc_uncertainty.py::kackar_harville_delta_multitrait`;
+`abp/workflows/multitrait.py`. Registry id `blup.pev_vc` (extended).
+
+As §23 with `θ = (vech G0, vech R0)`, `Σ_θ` the inverse average information
+of multi-trait REML and per animal a `t × t` correction `J_i Σ_θ J_iᵀ`,
+`J_i = ∂û_i/∂θ` by central differences (step `10⁻⁴ √(S_jj S_kk)` on the
+symmetric pair), solved with the sparse factor. Columns
+`pev_incl_vc_uncertainty_<trait>` and `reliability_incl_vc_uncertainty_<trait>`
+in `ebv_multitrait.csv` (full-rank REML, not with metafounders).
+**Tests.** `test_multitrait_delta_equals_v_form_derivatives` (rtol 10⁻⁴),
+`test_example13_reports_multitrait_pev_including_vc_uncertainty`.
+**Evidence** (50 replicates, `mt_calibration_kh.json`): MSE/PEV 1.087 → 1.025
+(wwt), 1.094 → 1.048 (fat), 1.129 → 1.058 (fec); coverage 0.940/0.939/0.935 →
+0.948/0.944/0.942.
+
+## 29. Sampled PEV for the matrix-free single step
+
+Code: `abp/solvers/pev_sampling.py`; samplers in `abp/core/ssop.py`. Registry
+id `blup.pev_sampled`.
+
+García-Cortés et al. (1995): simulate `u* ~ N(0, σ²H)`, `e* ~ N(0, σ_e²I)`,
+`y* = Zu* + e*`, solve the same MME by PCG; `u* − û* ~ N(0, C⁻¹_uu)`. `u*` is
+drawn exactly without forming `H`: `a = T D^{1/2} z ~ N(0, A)` (gene dropping),
+`u₂ ~ N(0, G*)` (dense Cholesky, or APY: core from `G_cc`, non-core by the APY
+regression plus independent residuals with variances `m`), and
+`u₁ = a₁ + A₁₂A22⁻¹(u₂ − a₂)` through the `A22⁻¹` operator and a Colleau
+product (Legarra et al. 2009 give `H₁₁` and `H₁₂` as these conditional
+moments). Reported: `PEV_i = mean d²`, `reliability_i = 1 − mean d²/mean u*²`
+(a ratio estimator that needs no `diag(H)`) and its delta-method Monte-Carlo
+SE (`reliability_mc_se`); relative SE of PEV `≈ √(2/N)`.
+**Tests.** `test_h_sampler_has_the_single_step_covariance` (40,000 draws vs
+the explicit `H`), `test_apy_sampler_has_the_apy_covariance`,
+`test_sampled_reliabilities_agree_with_exact_ones` (dense G and APY: the
+spread of `(r̂ − r)/SE` is 0.8–1.25 and the mean error below 0.15 SE; the mean
+of these z-scores is slightly positive because each SE is estimated from the
+same samples as its estimate), `test_apy_blocks_from_int8_dosage_equal_the_float_version`,
+`test_a_block_equals_columns_of_a`.
+
+## 30. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.
@@ -1161,3 +1272,12 @@ data, exact G⁻¹ and APY with 150 core animals: EBVs equal to 10⁻⁷ relativ
 * Meyer K, Kirkpatrick M (2005) Genet Sel Evol 37:1–30.
 * Strandén I, Mäntysaari EA (2014) Proc 10th WCGALP, Vancouver.
 * Tempelman RJ, Gianola D (1993) Genet Sel Evol 25:305–319.
+* Cowles MK (1996) Stat Comput 6:101–111.
+* García-Cortés LA, Moreno C, Varona L, Altarriba J (1995) J Anim Breed Genet 112:176–182.
+* García-Cortés LA, Sorensen D (1996) Genet Sel Evol 28:121–126.
+* Hickey JM, Keane MG, Kenny DA, Cromie AR, Veerkamp RF (2009) Genet Sel Evol 41 (sampling methods for approximating PEV).
+* Legarra A, Aguilar I, Misztal I (2009) J Dairy Sci 92:4656–4663.
+* Liu JS, Sabatti C (2000) Biometrika 87:353–369.
+* Neal RM (2003) Ann Stat 31:705–767.
+* Papandreou G, Yuille AL (2010) Proc NIPS 23 (perturb-and-MAP sampling).
+* Sorensen DA, Andersen S, Gianola D, Korsgaard I (1995) Genet Sel Evol 27:229–249.

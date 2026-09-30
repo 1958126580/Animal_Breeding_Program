@@ -168,12 +168,13 @@ relationship matrix with genetic groups, a closed-form optimal-contribution
 problem, MCMC diagnostics against ArviZ reference values, (if compiled)
 the C++ Bayesian sweep against the Python reference, metafounder
 relationships, selected inversion, the sparse LDL' factorization and the
-Schur-complement form of A22⁻¹ used by the matrix-free single step. It must
+Schur-complement form of A22⁻¹ used by the matrix-free single step, and the
+sparse factorization of a matrix that is symmetric only to rounding. It must
 end with
 `RESULT: PASS`. It also reports whether the native C++ kernel is in use.
 
 ```
-ABP 0.5.0 self-test (native kernel: True)
+ABP 0.6.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
@@ -190,6 +191,7 @@ ABP 0.5.0 self-test (native kernel: True)
   [PASS] T13 selected inversion (Takahashi) = exact inverse on the pattern - kernel native_cpp/native_cpp
   [PASS] T14 sparse LDL' solve and log-determinant - kernel order native_cpp, symbolic native_cpp, numeric native_cpp
   [PASS] T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)
+  [PASS] T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix
 RESULT: PASS
 ```
 
@@ -542,7 +544,9 @@ values = { animal = 20.0, residual = 40.0 }
 | `method` | `"auto"` | `auto`, `dense`, `sparse_direct` or `pcg` (§8) |
 | `tol` | 1e-10 | PCG convergence: true relative residual |
 | `max_iter` | 10000 | PCG iteration limit |
-| `pev` | `"exact"` | `"none"` skips PEV and reliabilities (only needed when even the sparse factor does not fit in memory) |
+| `pev` | `"exact"` | `"none"` skips PEV and reliabilities (only needed when even the sparse factor does not fit in memory); `"sampled"` estimates them by simulation (matrix-free single step only, §7.15) |
+| `pev_samples` | 200 | number of simulations for `pev = "sampled"` (Monte-Carlo SE of a reliability about ∝ 1/√N) |
+| `pev_seed` | 20260925 | seed of the simulations |
 | `factorization` | `"auto"` | sparse direct factor: `ldl` (ABP's LDL' with minimum-degree ordering; the `auto` choice when the compiled kernel is installed) or `superlu` (SciPy's SuperLU, the independent reference) |
 
 ### 5.9 `[qc]`
@@ -605,13 +609,16 @@ effect = "random"
 variance_ratio = 1.0
 ```
 
-### 5.14 `[bayes]`: Bayesian marker models
+### 5.14 `[bayes]`: Bayesian marker models and the threshold Gibbs sampler
 
-Used with `variances.mode = "bayes"` (and only then).
+Used with `variances.mode = "bayes"` (and only then). For a categorical trait
+set `method = "threshold"` (§7.14): the random terms then come from
+`[model]`, the variances get uniform priors, and `pi0`, `prior_r2`, `nu`,
+`nu_e` are not used; the chain, convergence and seed keys work as below.
 
 | Key | Default | Notes |
 |---|---|---|
-| `method` | **required** | `BRR`, `BayesA`, `BayesB`, `BayesC`, `BayesCpi`, `BayesR` (§7.10) |
+| `method` | **required** | `BRR`, `BayesA`, `BayesB`, `BayesC`, `BayesCpi`, `BayesR` (§7.10), or `threshold` for a categorical trait (§7.14) |
 | `pi0` | 0.95 | prior probability that a marker effect is **exactly zero** (fixed for BayesB/BayesC; start value for BayesCpi) |
 | `chains` | 4 | at least 2; 4 or more recommended |
 | `iterations` | 6000 | per chain, including burn-in |
@@ -928,10 +935,13 @@ converges in 15 iterations (about 8 s) to genetic variances 3.96, 0.263 and
 replicates (validation report §7) the estimates were unbiased within about
 two Monte-Carlo standard errors, and multi-trait BLUP with the true
 covariances was calibrated for all three traits (F4 of earlier rounds was a
-single-replicate artefact). With REML covariances the PEV is 9–13% too
-small, because the estimation error of the covariances is not propagated
-(the single-trait correction of §7.3 is not available for multi-trait
-models).
+single-replicate artefact). With REML covariances the usual PEV is 9–13%
+too small, because it ignores the estimation error of the covariances.
+`ebv_multitrait.csv` therefore also has `pev_incl_vc_uncertainty_<trait>` and
+`reliability_incl_vc_uncertainty_<trait>` (the Kackar–Harville correction of
+§7.3 for all covariance parameters). In 50 replicates it brought the ratio of
+squared errors to PEV from 1.09/1.09/1.13 to 1.03/1.05/1.06 for the three
+traits.
 
 **Correlations at ±1: reduced rank.** Sometimes the likelihood keeps
 increasing towards a genetic correlation of ±1 (for example when one trait
@@ -947,10 +957,11 @@ it refits with a genetic covariance matrix of rank traits − 1,
 G0 = ΛΛ′, so the boundary is part of the model (Kirkpatrick & Meyer 2004).
 `reml.rank = 1` (for example) states the rank directly instead. The report
 marks the result as reduced-rank and gives the log-likelihood, so fits with
-different ranks can be compared; standard errors are not given. The
-reduced-rank fit uses a derivative-free optimiser: it is slower than
-AI-REML and meant for a few traits. A singular *residual* matrix still stops
-the run.
+different ranks can be compared; standard errors are not given. In 100
+simulated replicates with a true genetic correlation of 1, the full-rank fit
+stopped in 58; the rank-1 fit converged in all 100, estimated G0 and R0
+without detectable bias, and its EBVs were close to calibrated (squared error
+/ PEV 1.02 and 1.08). A singular *residual* matrix still stops the run.
 
 ### 7.7 Economic index on EBVs
 
@@ -1427,8 +1438,32 @@ restricted likelihood, but **this estimate is biased when animals have few
 records**: in the study below it put the genetic liability variance at
 0.085 ± 0.013 instead of 0.111, stopped at the search bound in 6 of 30
 replicates, and its reliabilities were then as optimistic as the linear
-model's (model/realized accuracy 0.80 ± 0.06). The report states the source
-of the variances. Any random terms (for example a permanent environment) can be
+model's (model/realized accuracy 0.80 ± 0.06). **The Gibbs sampler is the
+better choice** when variances must be estimated from the data:
+
+```toml
+[variances]
+mode = "bayes"
+
+[bayes]
+method = "threshold"
+iterations = 4000
+burn_in = 1000
+thin = 2
+max_iterations = 32000
+```
+
+It samples the liabilities, thresholds, effects and variances together
+(uniform priors on the variances), stops only when every variance, threshold
+and breeding value passes R-hat and ESS, and otherwise withholds the result
+(`ABP-E405`). EBVs are posterior means and PEV the posterior variance (it
+includes the uncertainty of the variances). Diagnostics and traces go to
+`mcmc_diagnostics_<trait>.json` and `mcmc_trace_<trait>.csv`. In the 30-replicate
+study it estimated the genetic liability variance at 0.108 ± 0.009 (true
+0.111) and never failed to converge; the permanent-environment variance was
+somewhat high (0.138 ± 0.010), and its reliabilities were close to calibrated
+(model/realized accuracy 0.95 ± 0.03). Example 14 takes about 1.5 minutes
+this way. The report states the source of the variances. Any random terms (for example a permanent environment) can be
 used; genetic groups, metafounders, LR validation and multi-trait models
 cannot.
 
@@ -1483,10 +1518,16 @@ pev = "none"
 ABP never forms these matrices: H⁻¹ is applied to vectors inside the
 iterative solver, A22⁻¹ from sparse blocks of A⁻¹ and G⁻¹ through the APY
 formula. The EBVs are the same as with the explicit construction (to the
-solver tolerance; checked in the tests). This path gives solutions only: no
-PEV or reliabilities, no REML (variances must be known), one trait, and no
-genomic tuning, genetic groups, metafounders or LR validation. See
-`docs/benchmarks.md` for measured memory and time.
+solver tolerance; checked in the tests). Exact PEV is not available on this
+path (it needs the inverse of the equations). With `solver.pev = "sampled"`
+ABP estimates PEV and reliabilities by simulating data from the model and
+solving again (`solver.pev_samples` times); `ebv_<trait>.csv` then has a
+`reliability_mc_se` column with the Monte-Carlo standard error of each
+reliability (about 0.04 with 300 samples on example 05). Also not available:
+REML (variances must be known), several traits, genomic tuning, genetic
+groups, metafounders and LR validation. A run with 200,000 animals, 30,000
+genotyped and 20,000 SNPs needed 6.75 GB (the explicit method would need more
+than 45 GB); see `docs/benchmarks.md`.
 
 ---
 
@@ -1700,10 +1741,9 @@ The complete list is in [`error_codes.md`](error_codes.md).
 
 What ABP does **not** do yet: maternal and social effects,
 random regression and test-day models, multi-trait threshold models,
-unbiased estimation of liability variances in sparse categorical data,
 survival models, genotype × environment models, dominance and epistasis,
-reliabilities or REML on the matrix-free single-step path, multi-trait
-or single-step Bayesian models, Bayesian LASSO/horseshoe priors, genomic
+exact reliabilities or REML on the matrix-free single-step path (sampled
+reliabilities are available), multi-trait or single-step Bayesian models, Bayesian LASSO/horseshoe priors, genomic
 OCS, VCF/BGEN/PLINK 2 readers, and GPU computation.
 
 What has **not** been verified: external validity on real data, comparisons

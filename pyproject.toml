@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "abp-breeding"
-version = "0.5.0"
+version = "0.6.0"
 description = "ABP: auditable genetic evaluation (pedigree/genomic BLUP, REML, selection index) for animal breeding"
 readme = "README.md"
 requires-python = ">=3.11"

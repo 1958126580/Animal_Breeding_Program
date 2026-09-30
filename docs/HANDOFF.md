@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-09-29, ABP 0.5.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-09-30, ABP 0.6.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -36,6 +36,13 @@ method in `docs/method_registry.toml`):
   multi-trait REML at the boundary (`reml.boundary`, `reml.rank`);
   matrix-free single step (`genomic.single_step_mode = "matrix_free"`,
   `abp/core/ssop.py`); self-test T15; F9 resolved; APY calibration study;
+* **round 6**: Gibbs sampler for threshold-model liability variances
+  (`bayes.method = "threshold"`, unbiased for the genetic variance, F11);
+  Kackar–Harville PEV for multi-trait REML (F12 resolved); sampled PEV and
+  reliabilities for the matrix-free single step (`solver.pev = "sampled"`);
+  analytic gradient and Newton-decrement convergence for reduced-rank REML
+  plus a 100-replicate study; int8 APY blocks and a 200,000-animal run;
+  fix of the sparse LDL' for asymmetric patterns; self-test T16;
 * single-trait BLUP (animal, repeatability), dense/sparse/PCG solvers, PEV,
   reliability; **exact PEV at any size whose factor fits in memory by sparse
   selected inversion** (round 3; Takahashi equations on the symbolic Cholesky
@@ -50,9 +57,14 @@ method in `docs/method_registry.toml`):
 * optimal contribution selection and mating plans (`abp mate`, proposals
   only);
 * workflow with atomic outputs, manifests and reports; CLI; launchers;
-  synthetic sheep generator; 14 examples; documentation; self-test T01–T15.
+  synthetic sheep generator; 14 examples; documentation; self-test T01–T16.
 
 ## 2. Commands that were run (Linux) and their results
+
+Round 6: full test suites (native and pure-Python kernels), self-test
+T01–T16, all examples and API sections 18–25, threshold study with the Gibbs
+scenario (30), reduced-rank study (100), multi-trait study with the corrected
+PEV (50), 200,000-animal matrix-free run; CI (validation report §3, §3a, §7.10).
 
 Round 5: full test suite with the native kernel (259 passed) and with
 `ABP_DISABLE_NATIVE=1` (254 passed, 5 native-only skipped), all 17 examples exit 0, `abp selftest` (T01–T15), all examples and the API
@@ -81,8 +93,9 @@ on 7 jobs (run 36447242937: 211 passed on Windows and Linux).
 Windows performance measurements (functional tests only, in CI), CUDA (no
 implementation), real-data validation and comparison software (no data or
 licenses), LR population accuracy (erratum not verifiable), posterior SBC,
-Kackar–Harville PEV for multi-trait REML, a calibration study of the
-reduced-rank fit, matrix-free single step beyond 50,000 animals.
+Kackar–Harville PEV for reduced-rank fits, proper variance priors for the
+threshold Gibbs sampler in the spec, the workflow's genotype loader with
+int8 storage.
 
 ## 4. Open scientific and engineering risks
 
@@ -94,11 +107,12 @@ See `docs/validation_report.md` §8. The most important:
 * **F9 resolved**: 200 replicates, bias 0.049 ± 0.024 kg (sampling variation).
 * **F10 addressed (opt-in)**: reduced-rank G0; default still stops with
   ABP-E300; singular R0 still stops.
-* **F11 (new)**: Laplace REML of liability variances biased (−23% genetic
-  variance, 6/30 at the bound); known liability variances recommended.
-* **F12 resolved for single-trait**: Kackar–Harville PEV calibrates pedigree
-  REML (MSE/PEV 1.017); multi-trait REML PEV is still ~9–13% optimistic.
-* Matrix-free single step gives no reliabilities (no diag(C⁻¹) on that path).
+* **F11 resolved by the Gibbs sampler** (genetic liability variance 0.108 ±
+  0.009, true 0.111); Laplace REML stays available and documented as biased.
+* **F12 resolved**: single- and multi-trait Kackar–Harville PEV calibrated.
+* **F13 (new)**: Gibbs pe variance +24% with uniform priors (posterior means
+  of small variances); **F14**: sampled reliabilities carry Monte-Carlo error
+  (reported per animal).
 * **F7**: genetic groups defined by long periods leave bias when the level
   drifts within a period.
 * **F8**: BayesCπ π₀ mixing can be slow; ABP withholds such results.
@@ -125,24 +139,20 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 5 completed tasks 1–5 listed here in round 4 (task 4 partly:
-estimation exists but is biased; multi-trait threshold models not started).
-Next:
+Round 6 completed tasks 1–4 listed here in round 5 (task 3 without an
+approximate deterministic reliability: sampling was chosen because its error
+is known). Next:
 
-1. Threshold model: an unbiased liability-variance estimator (Gibbs sampling
-   with data augmentation, reusing the MCMC diagnostics) and compare it with
-   the Laplace estimate in `benchmarks/threshold_study.py` (F11).
-2. Kackar–Harville PEV for multi-trait REML (covariance of vech(G0, R0) from
-   the AI matrix; derivatives by central differences as in
-   `abp/solvers/vc_uncertainty.py`).
-3. Approximate reliabilities on the matrix-free single-step path (e.g.
-   Misztal–Wiggans style or block-sampling estimates of diag(C⁻¹)), and a
-   run beyond 100,000 animals / 20,000 genotyped with genotypes stored as
-   int8.
-4. Calibration study of reduced-rank multi-trait REML (simulate rG = 0.99 and
-   rank-deficient G0) and an analytic gradient to replace central differences.
-5. Multi-trait threshold/linear models.
-6. Real-data validation (G5) and comparison software — blocked on the gaps
+1. Threshold model: expose proper variance priors (`bayes.nu`, `bayes.s2` for
+   `method = "threshold"`) and study their effect on the pe variance (F13);
+   multi-trait threshold/linear models.
+2. Workflow genotype storage as int8 (loader and matrix-free path), then a
+   workflow-level run at 30,000+ genotyped animals.
+3. Kackar–Harville PEV for reduced-rank fits (covariance of the loadings
+   from the numerical Hessian already computed for the Newton decrement).
+4. Automatic rank choice for reduced-rank REML (likelihood-ratio or AIC
+   across ranks, with a study).
+5. Real-data validation (G5) and comparison software — blocked on the gaps
    in §5.
 
 ## 7. Where things are
@@ -154,6 +164,7 @@ Next:
 | `src/abp/solvers/selinv.py` | sparse selected inversion (round 3) |
 | `src/abp/solvers/cholesky.py`, `multitrait_reml.py`, `threshold.py` | sparse LDL', multi-trait REML, threshold model (round 4); reduced-rank REML and Laplace REML (round 5) |
 | `src/abp/solvers/vc_uncertainty.py`, `src/abp/core/ssop.py` | Kackar–Harville PEV; matrix-free single-step operators (round 5) |
+| `src/abp/solvers/threshold_gibbs.py`, `src/abp/solvers/pev_sampling.py` | threshold Gibbs sampler; sampled PEV (round 6) |
 | `src/abp/_native.cpp` | C++20 kernels: inbreeding, Bayesian sweep, `ml_general`, `symbolic_cholesky`, `takahashi`, `mindegree_order`, `ldl_numeric`, `ldl_solve` |
 | `tests/` | test suite; `tests/reference/` holds the independent dense references (incl. `tabular_a_metafounders`) |
 | `examples/` | runnable examples and synthetic data (`*/truth` folders are for validation only) |

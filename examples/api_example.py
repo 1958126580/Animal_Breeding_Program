@@ -260,6 +260,44 @@ ss_ex = blup(y2, X2, [RandomTerm("animal", Z2, ss.h_inv, ped2.ids, True)],
 print("matrix-free single step equals explicit H^-1:",
       np.allclose(ss_mf.terms["animal"].solution, ss_ex.terms["animal"].solution, atol=1e-7))
 
+# --- 22. Gibbs sampler for the threshold model (liability variances unknown) ---------
+from abp.solvers.threshold_gibbs import ThresholdGibbsConfig, threshold_gibbs
+tg = threshold_gibbs(cat, Xc, [RandomTerm("animal", Zc, ped2.ainv(), ped2.ids, True,
+                                          k_diag=1 + ped2.inbreeding())], True,
+                     ThresholdGibbsConfig(chains=2, iterations=600, burn_in=200, thin=1,
+                                          max_iterations=600, seed=1))
+print("threshold Gibbs: posterior mean liability variance",
+      round(tg.variances["animal"]["mean"], 3), "| converged:", tg.converged,
+      "(short demonstration chain)")
+
+# --- 23. Multi-trait PEV including the uncertainty of G0 and R0 -----------------------
+from abp.solvers.vc_uncertainty import kackar_harville_delta_multitrait
+mt_d = MTData(Y_sim, Xs, rec_an)
+mt_res = build_and_solve(mt_d, ped2.ainv(), 1 + ped2.inbreeding(), fit_mt.G0, fit_mt.R0)
+d_mt = kackar_harville_delta_multitrait(mt_d, ped2.ainv(), 1 + ped2.inbreeding(), fit_mt.G0,
+                                        fit_mt.R0, fit_mt.cov)
+print("multi-trait PEV increase from REML uncertainty (mean, per trait):",
+      np.round(np.einsum("ijj->j", d_mt) / np.einsum("ijj->j", mt_res.pev_blocks), 4).tolist())
+
+# --- 24. Sampled reliabilities on the matrix-free single-step path -------------------
+import scipy.linalg as sla
+from abp.solvers.pev_sampling import sampled_pev
+h_smp = SingleStepHInverse(ped2.ainv().tocsr(), g_idx,
+                           DenseInverseOperator(spd_inverse_and_logdet(Gstar, "G*")[0],
+                                                sla.cholesky(Gstar, lower=True)),
+                           A22InverseOperator(ped2.ainv(), g_idx), ped=ped2)
+smp = sampled_pev(ped2.n, X2, [RandomTerm("animal", Z2, h_smp, ped2.ids, True)],
+                  {"animal": 2.0, "residual": 4.0}, "animal", n_samples=50, seed=3)
+print("sampled reliabilities: mean", round(float(smp.reliability.mean()), 3),
+      "| mean Monte-Carlo SE", round(float(smp.reliability_se.mean()), 3))
+
+# --- 25. Reduced-rank REML: likelihood and analytic gradient -------------------------
+from abp.solvers import multitrait_reml as MR
+ev_rr = MR.ReducedRankEvaluator(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), ped2.logdet_a(), 1)
+m2ll, grad = ev_rr.value_and_gradient(MR._rr_pack(rr.loadings, rr.R0))
+print("-2 logL at the rank-1 optimum", round(m2ll, 4), "| largest gradient element",
+      f"{np.max(np.abs(grad)):.1e}")
+
 # --- 11. Whole workflow from an analysis spec ----------------------------------
 root = Path(__file__).resolve().parent
 with tempfile.TemporaryDirectory() as tmp:

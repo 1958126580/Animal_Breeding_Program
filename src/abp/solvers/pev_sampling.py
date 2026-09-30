@@ -2,8 +2,8 @@
 
 For solvers that give solutions but not ``diag(C^{-1})`` (the matrix-free
 single step), prediction error variances are estimated by simulation
-(Garcia-Cortes, Moreno, Varona & Altarriba 1995, Genet Sel Evol 27:229;
-Hickey et al. 2009, Genet Sel Evol 41:23): for ``s = 1..N``
+(Garcia-Cortes, Moreno, Varona & Altarriba 1995, J Anim Breed Genet 112:176;
+Hickey et al. 2009, Genet Sel Evol 41): for ``s = 1..N``
 
     u*_k ~ N(0, sigma_k^2 K_k),  e* ~ N(0, sigma_e^2 I),  y* = sum_k Z_k u*_k + e*,
     u_hat* = BLUP(y*)  (same MME, same solver),   d = u* - u_hat* ~ N(0, C^{-1}_uu),

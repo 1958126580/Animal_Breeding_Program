@@ -4,6 +4,26 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.6.0] - 2026-09-30
+
+Sixth development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Gibbs sampler for the threshold model with unknown liability variances (`variances.mode = "bayes"`, `bayes.method = "threshold"`): Cowles threshold step, exact block draws of the location effects by perturbation with a reused sparse LDL' pattern, parameter-expanded scale moves, uniform variance priors; R-hat/ESS gating, traces and diagnostics as for the marker models (`abp.solvers.threshold_gibbs`).
+- Kackar–Harville PEV for multi-trait REML: `pev_incl_vc_uncertainty_<trait>` and `reliability_incl_vc_uncertainty_<trait>` in `ebv_multitrait.csv`; `MTREMLFit.cov`.
+- Sampled PEV and reliabilities for the matrix-free single step (`solver.pev = "sampled"`, `solver.pev_samples`, `solver.pev_seed`; `reliability_mc_se` column); exact draws from N(0, H), N(0, G_APY) without forming them (`abp.solvers.pev_sampling`, samplers in `abp.core.ssop`).
+- Analytic gradient for reduced-rank multi-trait REML (`ReducedRankEvaluator.value_and_gradient`); Newton-decrement convergence criterion (`ReducedRankFit.newton_decrement`).
+- `apy_blocks_from_dosage` (int8 genotypes), `a_block`; `SparseLDL.refactor`, `SparseLDL.l_times`.
+- Studies: threshold study scenario `threshold_gibbs`; `benchmarks/rr_calibration_study.py`; multi-trait study metrics with the corrected PEV; `benchmarks/ssmf_large.py` (200,000 animals). Self-test T16. API sections 23–26, methods §27–29.
+
+### Changed
+- **[results]** Reduced-rank REML optimises with the analytic gradient and stops on the Newton decrement (≤ 1e-6) instead of a gradient bound of 1e-3; estimates agree with round 5 to the optimiser tolerance, and fits that previously stopped with `ABP-E403` near the optimum now converge.
+- **[results]** Full-rank multi-trait REML runs write two additional columns per trait (existing columns unchanged).
+- `bayes.method` accepts `threshold`; categorical traits with `mode = "bayes"` require it, marker models refuse categorical traits.
+
+### Fixed
+- `SparseLDL` failed ("entry outside the symbolic pattern") on matrices that are symmetric only to rounding but have an asymmetric sparsity pattern (a product that cancels to ~1e-17 on one side and to 0 on the other). The matrix is now symmetrised before ordering. Found by the rank-2 reduced-rank fit; regression test and self-test T16.
+
 ## [0.5.0] - 2026-09-29
 
 Fifth development round. Evidence and gaps: `docs/validation_report.md`.

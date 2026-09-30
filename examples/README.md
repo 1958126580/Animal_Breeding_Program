@@ -38,6 +38,14 @@ commands below are known to work.
 * **Example 14, estimated liability variances:** replace the `[variances]`
   block by `mode = "reml"` (Laplace approximation; biased when animals have few
   records, see the manual §7.14).
+* **Example 14, Gibbs sampler (round 6):** replace the `[variances]` block by
+  `mode = "bayes"` and add `[bayes]` with `method = "threshold"`,
+  `iterations = 4000`, `burn_in = 1000`, `thin = 2`, `max_iterations = 32000`
+  (about 1.5 minutes; see the manual §7.14).
+* **Example 05, sampled reliabilities (round 6):** in the matrix-free variant
+  above use `pev = "sampled"` and e.g. `pev_samples = 300`.
+* **Example 13 (round 6):** its REML run writes
+  `pev_incl_vc_uncertainty_<trait>` and `reliability_incl_vc_uncertainty_<trait>`.
 * **Example 02:** its REML run already writes `pev_incl_vc_uncertainty` and
   `reliability_incl_vc_uncertainty` to `ebv_wwt.csv`.
 

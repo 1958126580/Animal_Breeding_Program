@@ -1,6 +1,6 @@
 """``abp selftest``: installation check against hand-derived analytical values.
 
-Every expected value below was derived by hand (T12, T13 and T15 in the comments), is printed in the cited
+Every expected value below was derived by hand (T12, T13, T15 and T16 in the comments), is printed in the cited
 source, or (T10) was computed by an independent implementation (ArviZ) -
 none is produced by ABP itself.  The checks exercise the production
 kernels on the target machine (BLAS/LAPACK, optional C++ kernel), so a pass
@@ -222,5 +222,13 @@ def run_selftest() -> tuple[bool, list[str]]:
     check("T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)",
           _close(op3(np.array([1.0, 0.0])), [4 / 3, -2 / 3])
           and _close(op3(np.array([0.0, 1.0])), [-2 / 3, 4 / 3]))
+
+    # T16 LDL' of tridiag(-1, 2, -1) with a 1e-17 entry stored on one side only (a matrix that
+    # is symmetric to rounding but has an asymmetric pattern): x = (1, 1, 1) for b = (1, 0, 1)
+    Ta = sp.lil_matrix(np.array([[2.0, -1, 0], [-1, 2, -1], [0, -1, 2]]))
+    Ta[0, 2] = 1e-17
+    fa = SparseLDL(Ta.tocsr())
+    check("T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix",
+          _close(fa.solve(np.array([1.0, 0.0, 1.0])), [1.0, 1.0, 1.0]))
     lines.append("RESULT: " + ("PASS" if ok_all else "FAIL"))
     return ok_all, lines

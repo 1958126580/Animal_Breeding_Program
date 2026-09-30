@@ -418,9 +418,19 @@
           "type": "string",
           "enum": [
             "exact",
-            "none"
+            "none",
+            "sampled"
           ],
-          "default": "exact"
+          "default": "exact",
+          "description": "'sampled': PEV and reliabilities estimated by simulation (matrix-free single step only; Monte-Carlo SE reported)."
+        },
+        "pev_samples": {
+          "type": "integer",
+          "default": 200
+        },
+        "pev_seed": {
+          "type": "integer",
+          "default": 20260925
         },
         "factorization": {
           "type": "string",
@@ -663,9 +673,10 @@
             "BayesB",
             "BayesC",
             "BayesCpi",
-            "BayesR"
+            "BayesR",
+            "threshold"
           ],
-          "description": "Marker prior; pi0 = probability of a zero effect."
+          "description": "Marker prior (pi0 = probability of a zero effect), or 'threshold': Gibbs sampler of the threshold model for a categorical trait (random terms from [model]; uniform priors on the liability variances; prior_r2, pi0, nu and nu_e are not used)."
         },
         "chains": {
           "type": "integer",

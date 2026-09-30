@@ -144,6 +144,36 @@ The explicit build is dominated by the dense `n × n₂` block used for
 first measurement in which another job shared the CPU gave the same memory
 figures (build 179 / 229 / 58 / 20 s); the table is the undisturbed rerun.
 
+## Round 6: large matrix-free single step, Gibbs sampler, sampled PEV
+
+`python benchmarks/ssmf_large.py` (`benchmarks/results/ssmf_large.json`, `.log`;
+200,000 animals in 20 generations, the last 30,000 genotyped with 20,000
+random SNPs stored as `int8`, 5,000 random core animals, 5% A22 blend,
+190,000 records, 202,000 equations):
+
+| Step | Wall time | Peak memory (process) |
+|---|---:|---:|
+| pedigree and inbreeding (native kernel) | 44.8 s | 0.13 GB |
+| int8 genotypes | 12.3 s | 0.84 GB |
+| A22 core columns (Colleau, blocks of 256) | 119.6 s | 3.7 GB |
+| APY blocks from int8 + APY operator | 76.3 s | 6.75 GB |
+| A22⁻¹ operator (sparse LDL' of A¹¹, 170,000 animals) | 48.2 s | 6.75 GB |
+| PCG solve (101 iterations, relative residual 9e-9) | 14.9 s | 6.75 GB |
+| sampled PEV, 20 simulations (99 PCG iterations each) | 187.9 s | 6.75 GB |
+
+The explicit single step would need a dense 200,000 × 30,000 block alone
+(44.7 GB). With 20 simulations the Monte-Carlo SE of a reliability averages
+0.15; it falls with the square root of the number of simulations.
+
+Other round-6 timings (build machine, see the logs): the threshold-model
+Gibbs sampler on example 14 (1,208 lambings, 2,571 location equations, 4 chains)
+converged after 8,000 iterations in about 85 s (2.6 ms per chain-iteration);
+without the parameter-expansion move it had not converged after 16,000
+iterations. The multi-trait Kackar–Harville correction on example 13 (24
+extra sparse solves of 6,390 equations) took about 25 s with sparse solves and
+262 s with dense ones. Reduced-rank REML with the analytic gradient fitted
+the boundary test data in 0.4 s (19 evaluations).
+
 ## Scale limits
 
 | Operation | Limit | Reason |

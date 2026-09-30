@@ -599,7 +599,7 @@ dependencies = ["numpy", "scipy"]
 method_id = "blup.pev_vc"
 name = "PEV and reliability including the uncertainty of REML variance estimates (Kackar-Harville)"
 estimand = "prediction error variance of empirical BLUP (variances estimated by REML)"
-scope = "single-trait REML runs (pedigree, genomic, single step), animal equations; not at a REML boundary"
+scope = "single-trait REML runs (pedigree, genomic, single step) and full-rank multi-trait REML runs (t x t correction per animal); not at a REML boundary; not with metafounders in multi-trait runs"
 math = "docs/methods.md#23-pev-including-the-uncertainty-of-reml-variances-kackarharville"
 sources = ["Kackar & Harville 1984 J Am Stat Assoc 79:853", "Harville & Jeske 1992 J Am Stat Assoc 87:724"]
 errata = []
@@ -607,13 +607,16 @@ exact_or_approximate = "first-order (delta-method) approximation; derivatives by
 complexity = "2 extra MME solves per variance component"
 code = ["src/abp/solvers/vc_uncertainty.py", "src/abp/solvers/reml.py", "src/abp/workflows/evaluate.py"]
 tests = ["tests/test_vc_uncertainty.py::test_delta_equals_v_form_derivatives",
+         "tests/test_vc_uncertainty.py::test_multitrait_delta_equals_v_form_derivatives",
+         "tests/test_vc_uncertainty.py::test_example13_reports_multitrait_pev_including_vc_uncertainty",
          "tests/test_vc_uncertainty.py::test_workflow_reports_pev_including_vc_uncertainty"]
 # G4: benchmarks/calibration_study.py (50 replicates, docs/validation/calibration_kh.json): pedigree REML
 # MSE/PEV 1.070 +- 0.033 (plug-in) -> 1.017 +- 0.031 (incl. VC uncertainty); coverage 0.942 -> 0.949.
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_50_replicates_pedigree_reml", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["single-trait models only (multi-trait REML PEV remains conditional)", "not computed at a REML boundary", "does not remove base-population mismatch (single step F6)"]
+# G4 multi-trait (round 6): mt_calibration_kh.json, MSE/PEV 1.087/1.094/1.129 -> 1.025/1.048/1.058.
+known_limits = ["not computed at a REML boundary", "does not remove base-population mismatch (single step F6)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -635,7 +638,7 @@ tests = ["tests/test_threshold.py::test_laplace_loglik_equals_independent_laplac
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "failed_biased_downward_in_sparse_categorical_data", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["biased with little information per animal (G4 study); known liability variances recommended", "no standard errors", "single trait only"]
+known_limits = ["biased with little information per animal (G4 study); known liability variances or the Gibbs sampler (threshold.gibbs) recommended", "no standard errors", "single trait only"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -646,26 +649,29 @@ scope = "multi-trait animal model, one additive term, missing traits; reml.bound
 math = "docs/methods.md#25-reduced-rank-genetic-covariance-matrix-in-multi-trait-reml"
 sources = ["Kirkpatrick & Meyer 2004 Genetics 168:2295", "Meyer & Kirkpatrick 2005 Genet Sel Evol 37:1"]
 errata = []
-exact_or_approximate = "exact restricted likelihood of the reduced-rank model; optimum by L-BFGS-B with central-difference gradients (largest gradient element < 1e-3)"
-complexity = "2 n_par likelihood evaluations (one factorization each) per gradient"
+exact_or_approximate = "exact restricted likelihood of the reduced-rank model; optimum by L-BFGS-B with the analytic gradient; converged when the Newton decrement < 1e-6"
+complexity = "one sparse factorization + selected inversion per likelihood-and-gradient evaluation; 2 n_par gradient evaluations for the final Newton-decrement check"
 code = ["src/abp/solvers/multitrait_reml.py", "src/abp/solvers/multitrait.py", "src/abp/workflows/multitrait.py"]
 tests = ["tests/test_multitrait_reml.py::test_reduced_rank_loglik_equals_v_form_with_singular_g0",
          "tests/test_multitrait_reml.py::test_full_rank_reduced_rank_fit_equals_ai_reml",
          "tests/test_multitrait_reml.py::test_boundary_data_rank_one_fit_equals_independent_v_form_optimum",
          "tests/test_multitrait_reml.py::test_reduced_rank_blup_and_pev_equal_v_form",
          "tests/test_multitrait_reml.py::test_workflow_reduced_rank_fallback_and_direct_rank",
-         "tests/test_multitrait_reml.py::test_spec_rules_for_reduced_rank"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+         "tests/test_multitrait_reml.py::test_spec_rules_for_reduced_rank",
+         "tests/test_multitrait_reml.py::test_reduced_rank_analytic_gradient_equals_finite_differences"]
+# G4: benchmarks/rr_calibration_study.py (100 replicates, true G0 of rank 1): 100/100 converged, G0/R0 within
+# 2 MC SE; BLUP MSE/PEV 1.02/1.08 with estimates (0.997 with true parameters); full-rank REML stopped in 58/100.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_100_replicates_rank1", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["derivative-free gradients: slow for many traits or large systems", "no standard errors", "rank is a user assumption (no automatic rank selection)", "not with metafounders", "no calibration study yet"]
+known_limits = ["no standard errors", "rank is a user assumption (no automatic rank selection)", "not with metafounders", "no Kackar-Harville PEV correction for reduced-rank fits"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
 method_id = "gen.ssgblup_matrix_free"
 name = "Matrix-free single step: H^-1 applied as an operator in PCG (sparse Schur-complement A22^-1, dense or APY G^-1)"
 estimand = "additive_ebv (single-step GBLUP solutions)"
-scope = "single-trait single step with known variances, solver.pev = 'none'; genomic policies error/ridge/blend, tuning none; exact G^-1 or APY"
+scope = "single-trait single step with known variances, solver.pev = 'none' or 'sampled' (blup.pev_sampled); genomic policies error/ridge/blend, tuning none; exact G^-1 or APY"
 math = "docs/methods.md#26-matrix-free-single-step"
 sources = ["Stranden & Mantysaari 2014 Proc 10th WCGALP", "Masuda et al. 2017 J Dairy Sci 100:9844", "Misztal, Legarra & Aguilar 2014 J Dairy Sci 97:3943"]
 errata = []
@@ -675,11 +681,62 @@ code = ["src/abp/core/ssop.py", "src/abp/solvers/mme.py", "src/abp/solvers/blup.
 tests = ["tests/test_single_step_matrix_free.py::test_a22_inverse_operator_equals_dense_inverse",
          "tests/test_single_step_matrix_free.py::test_apy_operator_from_genotypes_equals_dense_apy",
          "tests/test_single_step_matrix_free.py::test_matrix_free_evaluation_equals_explicit",
-         "tests/test_single_step_matrix_free.py::test_spec_rules_for_matrix_free"]
+         "tests/test_single_step_matrix_free.py::test_spec_rules_for_matrix_free",
+         "tests/test_single_step_matrix_free.py::test_apy_blocks_from_int8_dosage_equal_the_float_version",
+         "tests/test_single_step_matrix_free.py::test_a_block_equals_columns_of_a"]
+# G6: benchmarks/ssmf_large.py - 200,000 animals, 30,000 genotyped (int8, 20,000 SNPs), 5,000 core: 6.75 GB peak.
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["no PEV/reliabilities, no REML", "single trait only", "no tuning, UPG, metafounders or LR validation", "genotype matrix held in memory as float64"]
+known_limits = ["reliabilities only by sampling (Monte-Carlo SE reported)", "no REML", "single trait only", "no tuning, UPG, metafounders or LR validation", "the workflow holds genotypes as float64 (the int8 path is library-level: apy_blocks_from_dosage)"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "threshold.gibbs"
+name = "Gibbs sampler for the threshold (ordered probit) animal model with unknown liability variances"
+estimand = "liability-scale EBVs (posterior means), PEV (posterior variances), variance components and thresholds"
+scope = "single-trait categorical traits, any random terms with known structure (pedigree, iid); variances.mode = 'bayes', bayes.method = 'threshold'"
+math = "docs/methods.md#27-gibbs-sampler-for-the-threshold-model"
+sources = ["Sorensen, Andersen, Gianola & Korsgaard 1995 Genet Sel Evol 27:229", "Cowles 1996 Stat Comput 6:101", "Liu & Sabatti 2000 Biometrika 87:353", "Neal 2003 Ann Stat 31:705"]
+errata = []
+exact_or_approximate = "exact MCMC (asymptotically exact); convergence gated by R-hat/ESS"
+complexity = "per iteration: one numeric sparse LDL' of C (pattern reused), one solve, O(n) truncated normals"
+code = ["src/abp/solvers/threshold_gibbs.py", "src/abp/solvers/cholesky.py", "src/abp/workflows/evaluate.py"]
+tests = ["tests/test_threshold_gibbs.py::test_truncated_normal_draws_match_scipy",
+         "tests/test_threshold_gibbs.py::test_precision_root_reproduces_k_inverse",
+         "tests/test_threshold_gibbs.py::test_block_draw_has_the_exact_conditional_mean_and_covariance",
+         "tests/test_threshold_gibbs.py::test_binary_posterior_means_equal_quadrature",
+         "tests/test_threshold_gibbs.py::test_three_category_threshold_posterior_equals_quadrature",
+         "tests/test_threshold_gibbs.py::test_variance_posterior_equals_independent_metropolis_reference",
+         "tests/test_threshold_gibbs.py::test_workflow_threshold_gibbs_converges_and_writes_evidence",
+         "tests/test_threshold_gibbs.py::test_workflow_threshold_gibbs_withholds_unconverged_results",
+         "tests/test_threshold_gibbs.py::test_spec_rules_for_threshold_gibbs"]
+# G4: benchmarks/threshold_study.py (30 replicates): animal variance 0.108 +- 0.009 (true 0.111), pe 0.138 +- 0.010
+# (true 0.111), 0/30 withheld, model/realized accuracy 0.948 +- 0.029.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_30_replicates_genetic_variance_unbiased", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["single trait only", "flat variance priors by default: posterior means of small variances can be pulled up (pe variance +24% in the study)", "per-EBV diagnostics skipped above 5e7 stored draws", "no genetic groups, metafounders or LR validation"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "blup.pev_sampled"
+name = "PEV and reliability by simulation (Garcia-Cortes et al. 1995) for the matrix-free single step"
+estimand = "PEV and reliability of single-step EBVs where diag(C^-1) is not available"
+scope = "genomic.single_step_mode = 'matrix_free' with solver.pev = 'sampled'; single-step term plus iid terms"
+math = "docs/methods.md#29-sampled-pev-for-the-matrix-free-single-step"
+sources = ["Garcia-Cortes, Moreno, Varona & Altarriba 1995 J Anim Breed Genet 112:176", "Legarra, Aguilar & Misztal 2009 J Dairy Sci 92:4656"]
+errata = []
+exact_or_approximate = "unbiased PEV estimate (ratio estimator for reliability) with a delta-method Monte-Carlo SE per animal"
+complexity = "N PCG solves (plus N draws from N(0, H) by gene dropping, the A22^-1 operator and a Colleau product)"
+code = ["src/abp/solvers/pev_sampling.py", "src/abp/core/ssop.py", "src/abp/workflows/evaluate.py"]
+tests = ["tests/test_single_step_matrix_free.py::test_h_sampler_has_the_single_step_covariance",
+         "tests/test_single_step_matrix_free.py::test_apy_sampler_has_the_apy_covariance",
+         "tests/test_single_step_matrix_free.py::test_sampled_reliabilities_agree_with_exact_ones"]
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["Monte-Carlo error: reliability SE about 0.04 with 300 samples on example 05, 0.15 with 20 samples at 200,000 animals", "cost of N solves"]
 dependencies = ["numpy", "scipy"]
 
 # Methods of the specification that are NOT implemented in this version. They stay in
