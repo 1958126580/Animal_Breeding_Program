@@ -119,13 +119,21 @@ def run_multitrait(spec: AnalysisSpec, records: RecordSet, structure: GeneticStr
                           tol=sol["tol"], max_iter=sol["max_iter"], memory_budget_bytes=budget,
                           factorization=sol["factorization"], loadings=loadings)
     s = res.solve
-    kh = None                              # Kackar-Harville PEV blocks (REML, full rank)
+    kh = None                              # Kackar-Harville PEV blocks (REML)
     mf_kind = structure.kind in ("pedigree_mf", "single_step_mf")
+    delta = None
     if fit is not None and fit.cov is not None and res.pev_blocks is not None and not mf_kind:
         from ..solvers.vc_uncertainty import kackar_harville_delta_multitrait
         delta = kackar_harville_delta_multitrait(
             mt_data, structure.k_inv, structure.k_diag, G0, R0, fit.cov, method=sol["method"],
             memory_budget_bytes=budget, factorization=sol["factorization"])
+    elif (loadings is not None and rr.cov_x is not None and res.pev_blocks is not None
+          and not mf_kind):
+        from ..solvers.vc_uncertainty import kackar_harville_delta_reduced_rank
+        delta = kackar_harville_delta_reduced_rank(
+            mt_data, structure.k_inv, structure.k_diag, rr.x, t, rr.rank, rr.cov_x,
+            method=sol["method"], memory_budget_bytes=budget, factorization=sol["factorization"])
+    if delta is not None:
         pev_t = res.pev_blocks + delta
         prior = np.asarray(structure.k_diag, dtype=np.float64)[:, None] * np.diag(G0)[None, :]
         rel_t = np.clip(1.0 - np.einsum("ijj->ij", pev_t) / prior, 0.0, 1.0)

@@ -411,6 +411,13 @@ def test_workflow_reduced_rank_fallback_and_direct_rank(tmp_path):
     assert r["loglik"] == pytest.approx(ref.loglik, abs=1e-6)
     rel = t["reliability_summary"]
     assert 0 <= rel["min"] <= rel["max"] <= 1
+    import csv
+    with open(out.out_dir / "ebv_multitrait.csv", encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    for tr in ("y1", "y2"):                   # Kackar-Harville PEV for the reduced-rank fit
+        sep = np.array([float(r_[f"sep_{tr}"]) for r_ in rows])
+        pev_t = np.array([float(r_[f"pev_incl_vc_uncertainty_{tr}"]) for r_ in rows])
+        assert np.all(pev_t >= sep ** 2 - 1e-9) and np.any(pev_t > sep ** 2)
     # rank stated directly: no full-rank attempt, same optimum
     spec, _, _ = _write_boundary_case(tmp_path, "rank = 1")
     out2 = run_evaluation(spec, tmp_path / "o2", console=False)

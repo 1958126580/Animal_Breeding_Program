@@ -119,3 +119,40 @@ def test_example13_reports_multitrait_pev_including_vc_uncertainty(tmp_path):
         rel_t = np.array([float(r[f"reliability_incl_vc_uncertainty_{tr}"]) for r in rows])
         assert np.all(pev_t >= sep ** 2 - 1e-9) and np.any(pev_t > sep ** 2)
         assert np.all((rel_t >= 0) & (rel_t <= 1))
+
+
+def test_reduced_rank_delta_equals_v_form_derivatives():
+    from abp.solvers.multitrait_reml import _rr_unpack
+    from abp.solvers.vc_uncertainty import kackar_harville_delta_reduced_rank
+    from tests.test_multitrait_reml import _problem
+    ped, data, A = _problem(3, n_anim=40, n_rec=70)
+    x = np.array([1.2, 0.5, 0.9, 0.3, 0.6])          # Lambda (2 x 1), chol R0 (log diagonal)
+    rng = np.random.default_rng(2)
+    M = rng.standard_normal((5, 5))
+    cov = 0.01 * (M @ M.T + 5 * np.eye(5))
+    delta = kackar_harville_delta_reduced_rank(data, ped.ainv(), 1 + ped.inbreeding(), x, 2, 1,
+                                               cov, method="dense")
+    Y = data.Y
+    ri, ti = np.nonzero(~np.isnan(Y))
+    y = Y[ri, ti]
+    n, q, t = y.size, A.shape[0], 2
+    Z = np.zeros((n, q * t))
+    Z[np.arange(n), data.animal_col[ri] * t + ti] = 1
+    X = np.zeros((n, 6))
+    for j, Xj in enumerate(data.X_per_trait):
+        X[np.flatnonzero(ti == j), 3 * j:3 * j + 3] = Xj.toarray()
+
+    def u_hat(xx):
+        Lam, Rm = _rr_unpack(xx, 2, 1)
+        R = np.zeros((n, n))
+        for r in np.unique(ri):
+            idx = np.flatnonzero(ri == r)
+            R[np.ix_(idx, idx)] = Rm[np.ix_(ti[idx], ti[idx])]
+        Gu = np.kron(A, Lam @ Lam.T)
+        Vi = np.linalg.inv(Z @ Gu @ Z.T + R)
+        P = Vi - Vi @ X @ np.linalg.solve(X.T @ Vi @ X, X.T @ Vi)
+        return (Gu @ Z.T @ P @ y).reshape(q, t)
+    h = 1e-6
+    J = np.stack([(u_hat(x + h * e) - u_hat(x - h * e)) / (2 * h) for e in np.eye(5)], axis=2)
+    ref = np.einsum("iak,kl,ibl->iab", J, cov, J)
+    np.testing.assert_allclose(delta, ref, rtol=1e-4, atol=1e-10)

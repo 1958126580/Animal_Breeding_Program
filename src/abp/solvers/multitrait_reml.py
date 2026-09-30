@@ -654,6 +654,8 @@ class ReducedRankFit:
     gradient_norm: float
     start: dict
     newton_decrement: float | None = None
+    x: np.ndarray | None = None         # optimum in the parameterisation of _rr_pack
+    cov_x: np.ndarray | None = None     # asymptotic covariance of x: 2 H^-1 (H of -2 logL)
 
     def to_dict(self, traits: list[str]) -> dict:
         def corr(S):
@@ -706,6 +708,7 @@ def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: 
     # convergence: Newton decrement g'H^-1 g (predicted remaining decrease of -2 logL), with
     # H from central differences of the analytic gradient - scale-free, unlike |g|
     dec = float("inf")
+    cov_x = None
     if np.isfinite(f):
         hh = 1e-5
         H = np.empty((x.size, x.size))
@@ -717,6 +720,8 @@ def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: 
         try:
             np.linalg.cholesky(H)
             dec = float(g @ np.linalg.solve(H, g))
+            cov_x = 2.0 * np.linalg.inv(H)
+            cov_x = 0.5 * (cov_x + cov_x.T)
         except np.linalg.LinAlgError:
             dec = float("inf")
     if not np.isfinite(f) or not dec <= NEWTON_DEC_TOL_RR:
@@ -737,4 +742,4 @@ def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: 
     Lam0f, R0f = _rr_unpack(x0, t, r)
     return ReducedRankFit(Lam, Lam @ Lam.T, R0, r, -0.5 * f, ev.n_eval, "converged", gnorm,
                           {"source": source, "G0": (Lam0f @ Lam0f.T).tolist(),
-                           "R0": R0f.tolist()}, dec)
+                           "R0": R0f.tolist()}, dec, x.copy(), cov_x)

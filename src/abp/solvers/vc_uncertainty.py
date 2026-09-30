@@ -82,3 +82,33 @@ def kackar_harville_delta_multitrait(data, k_inv, k_diag, G0: np.ndarray, R0: np
             grads.append((sols[0] - sols[1]) / (2.0 * h))
     J = np.stack(grads, axis=2)                     # q x t x n_par
     return np.einsum("iak,kl,ibl->iab", J, cov, J)
+
+
+def kackar_harville_delta_reduced_rank(data, k_inv, k_diag, x: np.ndarray, t: int, r: int,
+                                      cov_x: np.ndarray, method: str = "auto",
+                                      memory_budget_bytes: int = 4 * 2**30,
+                                      factorization: str = "auto") -> np.ndarray:
+    """Reduced-rank version: ``Delta_i = J_i Sigma_x J_i'`` with ``x`` the parameters of
+    :func:`abp.solvers.multitrait_reml.mt_reml_fit_reduced_rank` (lower-trapezoidal
+    loadings, then ``chol R0`` with log diagonal), ``Sigma_x = 2 H^{-1}`` from the Hessian
+    of ``-2 logL`` at the optimum and ``J_i = d u_hat_i / dx`` by central differences
+    (step ``REL_STEP * max(1, |x_k|)``); ``u_hat_i = Lambda f_hat_i``."""
+    from .multitrait import build_and_solve
+    from .multitrait_reml import _rr_unpack
+    if method == "auto":
+        method = "sparse_direct"
+    grads = []
+    for k in range(x.size):
+        h = REL_STEP * max(1.0, abs(float(x[k])))
+        sols = []
+        for sign in (1.0, -1.0):
+            xx = np.array(x, dtype=np.float64, copy=True)
+            xx[k] += sign * h
+            Lam, R0 = _rr_unpack(xx, t, r)
+            res = build_and_solve(data, k_inv, k_diag, None, R0, method=method,
+                                  compute_pev=False, memory_budget_bytes=memory_budget_bytes,
+                                  factorization=factorization, loadings=Lam)
+            sols.append(res.ebv)
+        grads.append((sols[0] - sols[1]) / (2.0 * h))
+    J = np.stack(grads, axis=2)
+    return np.einsum("iak,kl,ibl->iab", J, cov_x, J)
