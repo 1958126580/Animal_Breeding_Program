@@ -154,7 +154,9 @@ Round 8: CI checked after every push; the runs for commits b0d3242
 ([36702726781](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36702726781)),
 d388116 (36706870919), d05b358 (36709822191) and 104e1f1
 ([36710892351](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36710892351))
-succeeded on all 7 jobs. The release commit's run is listed in the HANDOFF.
+succeeded on all 7 jobs. The release commit fa2894b (ABP 0.8.0): run
+[36727601564](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36727601564),
+7 of 7 jobs succeeded.
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer

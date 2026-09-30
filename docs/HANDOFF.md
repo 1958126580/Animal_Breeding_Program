@@ -81,7 +81,9 @@ Round 8: full test suites (native 311 passed; pure-Python kernels 306 passed,
 (30 replicates × 12,000 iterations, plus 3,000-iteration and true-prior runs), the
 cross-check against the first implementation, and the workflow-level (120,000
 animals) and library-level (200,000 animals) benchmarks after the speed-ups; CI
-after every push (validation report §3, §3a, §7.12).
+after every push, all green; release commit fa2894b (ABP 0.8.0): run
+[36727601564](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36727601564),
+7 of 7 jobs succeeded (validation report §3, §3a, §7.12).
 
 Round 7: full test suites (native 297 passed; pure-Python kernels
 292 passed, 5 native-only skipped), self-test T01–T17 with both kernels, all examples and the API example
