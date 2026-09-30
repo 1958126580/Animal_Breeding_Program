@@ -501,7 +501,8 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
         vc_extra = dict(vc_extra or {})
         vc_extra["reliability_mc_se"] = smp.reliability_se
         manifest["diagnostics"].setdefault(trait, {})["pev_sampling"] = {
-            "method": "simulation (Garcia-Cortes et al. 1995), ratio estimator",
+            "method": "simulation (Garcia-Cortes et al. 1995)",
+            "reliability_estimator": smp.estimator + " (mean h^2 / (mean h^2 + mean d^2))",
             "n_samples": smp.n_samples, "seed": smp.seed,
             "mean_pcg_iterations": float(np.mean(smp.pcg_iterations)),
             "mean_reliability_mc_se": float(smp.reliability_se.mean())}

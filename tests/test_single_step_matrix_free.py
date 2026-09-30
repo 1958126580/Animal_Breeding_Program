@@ -231,3 +231,56 @@ def test_int8_genotype_storage_gives_identical_ebvs(tmp_path, mode):
     x = np.array([e1[k] for k in e1])
     np.testing.assert_allclose(np.array([e2[k] for k in e1]), x, atol=1e-8 * np.abs(x).max())
     assert b.manifest["relationship"]["genotype_storage"] == "int8"
+
+
+def test_orthogonal_reliability_estimator_is_unbiased_and_less_noisy():
+    """Round 8: reliability = mean h^2 / (mean h^2 + mean d^2) against the exact
+    reliabilities of a small single step, over 60 seeds, next to the round-6 ratio
+    estimator 1 - mean d^2 / mean u^2 on the same draws.  Checks: both centred on the
+    truth, the orthogonal one less noisy (theory: by sqrt(r)), and its reported SE
+    matches the spread across seeds."""
+    import scipy.sparse as sp
+    from abp.core.genomic import single_step
+    from abp.core.ssop import DenseInverseOperator, SingleStepHInverse
+    from abp.solvers.blup import RandomTerm
+    from abp.solvers.pev_sampling import sampled_pev
+    ped, rng = _ped(n=80, seed=9)
+    g = np.sort(rng.choice(ped.n, 25, replace=False))
+    M = rng.integers(0, 3, (g.size, 300)).astype(float)
+    p = M.mean(axis=0) / 2
+    W = centered(M, p)
+    Gs, _ = apply_g_policy(W @ W.T / scaling_d(p), "blend", "none", ped.a_submatrix(g), 0.05,
+                           0.01)
+    h_inv = single_step(ped, g, Gs, a22=ped.a_submatrix(g)).h_inv.toarray()
+    rec = np.sort(rng.choice(ped.n, 50, replace=False))          # 50 records, 80 animals
+    Z = sp.csr_matrix((np.ones(rec.size), (np.arange(rec.size), rec)), shape=(rec.size, ped.n))
+    X = sp.csr_matrix(np.ones((rec.size, 1)))
+    va, ve = 2.0, 4.0
+    # exact: C = [X'X X'Z; Z'X Z'Z + H^-1 ve/va] / ve, PEV = C^uu
+    Zd, Xd = Z.toarray(), X.toarray()
+    C = np.block([[Xd.T @ Xd, Xd.T @ Zd], [Zd.T @ Xd, Zd.T @ Zd + h_inv * ve / va]]) / ve
+    pev = np.diag(np.linalg.inv(C))[1:]
+    r_true = 1.0 - pev / (va * np.diag(np.linalg.inv(h_inv)))
+    op = SingleStepHInverse(ped.ainv().tocsr(), g,
+                            DenseInverseOperator(np.linalg.inv(Gs), np.linalg.cholesky(Gs)),
+                            A22InverseOperator(ped.ainv(), g), ped=ped)
+    term = [RandomTerm("animal", Z, op, ped.ids, True)]
+    est = {"orthogonal": [], "ratio": []}
+    se = []
+    for seed in range(60):
+        for e in est:
+            s = sampled_pev(rec.size, X, term, {"animal": va, "residual": ve}, "animal",
+                            n_samples=40, seed=seed, tol=1e-12, estimator=e)
+            est[e].append(s.reliability)
+            if e == "orthogonal":
+                se.append(s.reliability_se)
+    R = {e: np.array(v) for e, v in est.items()}               # seeds x animals
+    sd = {e: (R[e] - r_true).std(axis=0, ddof=1) for e in R}
+    for e in R:                                                 # centred: |bias| < 4 MC SE
+        bias = (R[e] - r_true).mean(axis=0)
+        assert np.abs(bias.mean()) < 4 * np.sqrt(np.mean(sd[e] ** 2) / (60 * ped.n)) + 0.01
+    gain = sd["orthogonal"].mean() / sd["ratio"].mean()
+    predicted = np.mean(np.sqrt(r_true) * sd["ratio"]) / sd["ratio"].mean()
+    assert gain < 0.9 and abs(gain - predicted) < 0.15, (gain, predicted)
+    # the reported SE matches the spread across seeds (to 20%)
+    assert 0.8 < np.mean(se) / sd["orthogonal"].mean() < 1.2

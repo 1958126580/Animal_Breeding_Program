@@ -183,6 +183,23 @@ def _symmetric_pattern(C: sp.spmatrix) -> sp.csr_matrix:
     return S
 
 
+def _on_pattern(C: sp.csr_matrix, pat: sp.csr_matrix) -> sp.csr_matrix:
+    """``C`` stored on the (larger) pattern of ``pat``; every entry of ``C`` must lie on
+    it (explicit zeros fill the rest), otherwise ``ValueError``."""
+    n = pat.shape[1]
+    pc = pat.tocoo()
+    key = pc.row.astype(np.int64) * n + pc.col
+    order = np.argsort(key)
+    cc = C.tocoo()
+    want = cc.row.astype(np.int64) * n + cc.col
+    pos = np.searchsorted(key[order], want)
+    if np.any(pos >= key.size) or np.any(key[order][np.minimum(pos, key.size - 1)] != want):
+        raise ValueError("refactor needs a matrix with the same pattern")
+    data = np.zeros(pat.nnz)
+    np.add.at(data, order[pos], cc.data)
+    return sp.csr_matrix((data, pat.indices.copy(), pat.indptr.copy()), shape=pat.shape)
+
+
 class SparseLDL:
     """``C = P' L D L' P`` with minimum-degree ``P``; same interface as ``SparseLU``."""
 
@@ -232,8 +249,11 @@ class SparseLDL:
         (e.g. new variance ratios in a Gibbs sampler): ordering and symbolic
         pattern are reused; only ``d`` and ``L`` are recomputed."""
         C = _symmetric_pattern(C)
-        if C.shape != self.C.shape or C.nnz != self.C.nnz:
+        if C.shape != self.C.shape:
             raise ValueError("refactor needs a matrix with the same pattern")
+        if C.nnz != self.C.nnz or not (np.array_equal(C.indptr, self.C.indptr)
+                                       and np.array_equal(C.indices, self.C.indices)):
+            C = _on_pattern(C, self.C)          # entries that are exactly 0 this time
         B = sp.csc_matrix(C)[self.q][:, self.q]
         B.sort_indices()
         Bp = np.ascontiguousarray(B.indptr, dtype=np.int64)
