@@ -10,7 +10,8 @@ round 3: run
 [36447242937](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36447242937);
 round 5: run
 [36524938324](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36524938324);
-round 6: CI_R6; §3a).
+round 6: run
+[36657626436](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36657626436); §3a).
 Raw logs: `docs/validation/`. Status vocabulary: passed, failed, blocked,
 not_run.
 
@@ -117,6 +118,17 @@ Round 5: runs [36522550336](https://github.com/1958126580/Animal_Breeding_Progra
 succeeded in each; the Windows / Python 3.13 job of the last run reported
 ABP 0.5.0 from the launcher run into `%RUNNER_TEMP%\结果 输出` and the repeat
 returned exit status 2 (`ABP-E503`). The final documentation commit is listed in the HANDOFF.
+
+Round 6: the pushes from 5c3ead5 to b569515 (11 runs, 36580112523 to
+36651500257) failed on all 7 jobs because the published JSON schema was stale
+(`test_published_json_schema_is_current`; in the pure-Python job 1 failed, 278
+passed) — a process error: CI was not checked after each push this round (§9).
+From the release commit 82936e3 on, CI is green:
+[36652918117](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36652918117),
+36654338381 and, after the SuperLU fix,
+[36657626436](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36657626436)
+(commit 398ed2c): 7 of 7 jobs succeeded (Windows and Ubuntu × Python
+3.11–3.13, pure-Python kernels).
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer
