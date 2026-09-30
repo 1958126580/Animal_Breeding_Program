@@ -79,11 +79,12 @@ def main():
     M = step("genotypes_int8", genotypes)
     core = np.sort(rng.choice(a.genotyped, a.core, replace=False))
     cols = step("a22_core_columns", lambda: a_block(ped, g_index, g_index[core]))
-    blocks = step("apy_blocks_from_int8", lambda: apy_blocks_from_dosage(
-        M, M.mean(axis=0) / 2, core, "blend", 0.05, 0.01, cols, 1.0 + ped.inbreeding()[g_index]))
-    del M, cols
-    g_op = step("apy_operator", lambda: APYOperator(*blocks, core, a.genotyped))
-    del blocks
+    def apy():
+        blocks = apy_blocks_from_dosage(M, M.mean(axis=0) / 2, core, "blend", 0.05, 0.01, cols,
+                                        1.0 + ped.inbreeding()[g_index])
+        return APYOperator(*blocks, core, a.genotyped)
+    g_op = step("apy_blocks_from_int8_and_operator", apy)
+    M = cols = None                                  # release the genotypes and A columns
     a22 = step("a22_inverse_operator", lambda: A22InverseOperator(ped.ainv(), g_index))
     h = SingleStepHInverse(ped.ainv().tocsr(), g_index, g_op, a22, ped=ped)
     rec = np.arange(a.per_gen, n)
