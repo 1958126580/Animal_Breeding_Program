@@ -691,7 +691,6 @@ def mt_reml_fit_reduced_rank(data: MTData, k_inv, logdet_k: float | None, rank: 
     idx = np.argsort(w)[::-1][:r]
     Lam0 = V[:, idx] * np.sqrt(np.maximum(w[idx], 1e-6 * max(w.max(), 1e-12)))
     x0 = _rr_pack(Lam0, check_covariance(R0s, "R0 start"))
-    tol = float(cfg["tol"])
 
     def fg(x):
         try:
