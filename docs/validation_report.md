@@ -592,6 +592,54 @@ took 130 s instead of 182 s (native Colleau product, fewer genotype copies); the
 Monte-Carlo SE of the sampled reliabilities fell from 0.21 to 0.10 with the same 10
 simulations (orthogonal estimator).
 
+### 7.13 Round-9 studies
+
+**F16: Bayesian posterior PEV vs REML + Kackar–Harville (`bayes_vs_reml_study.json`,
+`.log`).** The `t2_full` and `t3_full` scenarios of the rank-selection study (1,000
+animals, random pedigree, one record per animal, traits after the first 30% missing,
+full-rank truth), 50 replicates each, the same data fitted four ways. MSE/PEV (1 =
+calibrated; > 1 optimistic) and coverage of nominal 95% intervals, means ± MC SE:
+
+| Scenario, trait (h²) | REML plug-in | REML + Kackar–Harville | Bayesian (posterior PEV) | true parameters |
+|---|---:|---:|---:|---:|
+| 2 traits, trait 1 (0.40) | 1.054 ± 0.020 | 1.039 ± 0.020 | 1.027 ± 0.019 | 1.013 ± 0.010 |
+| 2 traits, trait 2 (0.15) | 1.212 ± 0.071 | 1.142 ± 0.062 | **1.000 ± 0.040** | 1.002 ± 0.010 |
+T3_ROWS
+
+Coverage of trait 2 in the two-trait scenario: 0.925 (plug-in), 0.932 (Kackar–Harville),
+0.948 (Bayesian), 0.951 (true parameters). Realized accuracies were the same within
+0.003 for all fits with estimated parameters (trait 2: 0.549 REML, 0.552 Bayesian; true
+parameters 0.565).
+CONV_TEXT
+
+**Example 16** (`abp run`, Bayesian multi-trait linear model on the data of example 13:
+2,108 animals, three traits, flat priors): converged after 16,000 iterations (4 chains,
+the 4,000-iteration chains doubled twice), 937 s on a shared machine; REML (example 13)
+19 s. Posterior means of G0 against the REML estimates: variances 4.36 / 0.290 / 0.450
+against 3.96 / 0.263 / 0.401 (posterior means of variances lie above the REML mode),
+covariances 0.315 / −0.473 / −0.037 against 0.291 / −0.460 / −0.042; residual matrices
+within 3%. EBVs correlated 0.9993–0.9995 with REML BLUP. Mean PEV: wwt 2.645 (REML
+2.422; with Kackar–Harville 2.516), fat 0.184 (0.170; 0.175), fec 0.301 (0.272; 0.282) —
+the posterior PEVs are 5–7% larger than the first-order corrected REML PEVs, as in
+the study, where the corrected PEVs were still too small.
+
+**Example 15 with residual groups** (wwt and nlb1 in different groups, residual
+covariance fixed at 0): converged after 10,000 iterations (20,000 with the covariance
+estimated, round 8), 297 s; all R-hat ≤ 1.006, minimum (co)variance bulk ESS 432, worst
+EBV R-hat 1.004. Posterior means (95% intervals): liability genetic variance of nlb1
+0.20 (0.05–0.62), wwt genetic variance 3.57 (2.21–5.24), genetic correlation −0.07
+(−0.55 to 0.45); the simulation's values (about 0.1, 4.0, +0.1) lie inside. Round 8,
+with the residual covariance estimated: 0.35 (0.06–1.24), 3.94, −0.36 (−0.73 to 0.18)
+and a residual correlation of 0.28 that the simulation does not contain.
+
+**Inbreeding by pedigree depth (`inbreeding_benchmark.json`, `.log`;
+`docs/benchmarks.md`).** Identical F (to 8e−14) with the round-1 kernel on five
+pedigrees of 100,000–200,000 animals; 7–9 times faster where few sires per depth make
+Colleau columns cheap (16.4 → 1.8 s, 116.4 → 17.4 s, 189 → 22.7 s, 233 → 32.9 s), the
+same where traces are cheap (3.2 s both). Pedigree of the 200,000-animal single-step
+benchmark: 4.5 s instead of 45.4 s. The automatic choice was up to 1.6 times slower
+than forcing the columns on overlapping generations (conservative cost model).
+
 ### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
@@ -654,6 +702,9 @@ for the four-trait example.
 | 7 | Rank selection by the smallest AIC reduced a full-rank G0 in 19% of data sets (a method-choice defect, F15) | rank study with a full-rank truth | conservative margin of 2 | `test_rank_selection_margin_rule` |
 | 8 | `SparseLDL.refactor` refused a matrix whose pattern lost exact zeros (a diagonal start value of R0 or G0 makes entries of the multi-trait equations exactly 0) | first runs of the multi-trait threshold sampler | values placed on the stored pattern (`_on_pattern`); the sampler builds its factor on the full pattern | `test_coefficient_maps_equal_direct_assembly` |
 | 8 | The sampled-reliability estimator carried a zero-mean cross term (noise) and an O(1/N) ratio bias (−0.009 with 40 simulations) | analysis of the estimator; `pev_estimator_study.py` | orthogonal estimator with the bias removed | `test_orthogonal_reliability_estimator_is_unbiased_and_less_noisy` |
+| 9 | With `residual_groups`, the R0 prior text in `mcmc_diagnostics_multitrait.json` described the Korsgaard parameterisation of the whole matrix although the categorical trait was alone in its group (its residual variance simply fixed at 1); the sampler itself was right | reading the diagnostics of the rerun of example 15 | prior text built per block | `test_workflow_bayesian_multitrait_linear_model` (block text) |
+| 9 | Under a CPU fully used by other processes, the API example's multi-trait REML (multi-threaded OpenBLAS dense inverse) exceeded its 600 s test timeout although it takes 12–20 s alone (thread oversubscription; no code change involved) | local test run during the 3-worker study | not a code defect: tests rerun without the competing load; with `OPENBLAS_NUM_THREADS=1` the script took 20 s under the same load; recorded as an engineering risk (§8) | `test_api_example_script_runs` (unchanged) |
+| 9 | The new depth-kernel test asserted the native kernel name even with `ABP_DISABLE_NATIVE=1` (the module is importable, so the test was not skipped; `Pedigree.inbreeding` correctly used the Python reference): CI run 36807935977 failed on the pure-Python job, 6 of 7 jobs green | CI (checked after the push) | the expected name follows `native_kernel_available()` (test defect; production code unaffected) | `test_native_depth_kernel_matches_reference_on_every_path` (both kernel settings) |
 
 Round-8 errors in the construction of tests and scripts: the location-draw test first
 required the pooled SD of the covariance z-scores to be at least 0.85 (the entries are
@@ -729,5 +780,6 @@ kept the original acceptance threshold.
 | Independent mature simulator (AlphaSimR, QMSim, XSim) | not installed; ABP's generators are independent of its solver code but are not mature external simulators |
 | Workflow-level run at 200,000 animals | the workflow runs used 120,000 animals (30,000 genotyped); the 200,000-animal runs are library-level |
 | Multi-trait threshold model with several categorical traits or extra random terms | not implemented |
+| Bayesian multi-trait linear model with extra random terms (e.g. permanent environment) or proper R0 priors | not implemented (one additive term; flat R0) |
 | Second-order Kackar–Harville correction (F16) | not implemented |
 | Installation from a built wheel or installer | no binary packaging yet (source install only) |

@@ -173,7 +173,9 @@ def test_native_depth_kernel_matches_reference_on_every_path():
     big = Pedigree.from_parent_ids(*_random_pedigree(3000, 30, seed=21, window=60))
     assert big.inbreeding_kernel is None
     big.inbreeding()
-    assert big.inbreeding_kernel == "native_cpp_depth_ml_colleau"
+    assert big.inbreeding_kernel == ("native_cpp_depth_ml_colleau"
+                                     if pmod.native_kernel_available()
+                                     else "python_meuwissen_luo")    # ABP_DISABLE_NATIVE
     bad = np.array([-1, 1], dtype=np.int64)
     with pytest.raises(ValueError):
         pmod._native.inbreeding_depth(bad, np.array([-1, -1], dtype=np.int64))

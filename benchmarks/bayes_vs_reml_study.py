@@ -17,7 +17,8 @@ one mean per trait) with
 
 Scores per trait over all animals: MSE/mean PEV, coverage of nominal 95% intervals,
 realized accuracy.  Chains: 4 x ``--iterations`` (burn-in 1/4, thin 4); whether the
-R-hat/ESS criteria passed is recorded and the results are scored either way.  Truth is
+R-hat/ESS criteria passed, the worst R-hat and the smallest bulk ESS of the
+(co)variances are recorded and the results are scored either way.  Truth is
 used only for scoring.  Means +- Monte-Carlo SE over replicates.
 
 Usage: python benchmarks/bayes_vs_reml_study.py [--scenarios t2_full t3_full]
@@ -97,6 +98,9 @@ def replicate(seed: int) -> dict:
                                                   burn_in=ITER // 4, thin=4,
                                                   max_iterations=ITER, seed=seed))
     out["bayes_converged"] = g.converged
+    out["bayes_max_rhat"] = float(max(v["rhat"] for v in g.summaries.values()))
+    out["bayes_min_ess_bulk"] = float(min(v["ess_bulk"] for v in g.summaries.values()))
+    out["bayes_max_ebv_rhat"] = g.ebv_diagnostics.get("max_rhat")
     out["bayes_wall_s"] = time.time() - t0
     out["bayes_G0"] = g.G0["mean"]
     out["bayes"] = _scores(U, g.ebv, g.pev)
@@ -114,6 +118,8 @@ def _ms(v):
 
 def summarize(reps, t):
     s = {"bayes_converged": sum(r["bayes_converged"] for r in reps),
+         "bayes_max_rhat": _ms([r["bayes_max_rhat"] for r in reps if "bayes_max_rhat" in r])
+         if any("bayes_max_rhat" in r for r in reps) else None,
          "reml_failed": sum("reml_status" in r for r in reps)}
     for sc in ("reml_plugin", "reml_kh", "bayes", "true_parameters"):
         rr = [r[sc] for r in reps if sc in r]
@@ -136,18 +142,21 @@ def main():
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--animals", type=int, default=1000)
     ap.add_argument("--iterations", type=int, default=4000)
+    ap.add_argument("--seeds", type=int, nargs="+", default=None,
+                    help="run these seeds instead of 1..replicates")
     ap.add_argument("--out", default=str(ROOT / "docs" / "validation" /
                                          "bayes_vs_reml_study.json"))
     a = ap.parse_args()
     N_ANIMALS, ITER = a.animals, a.iterations
     doc = {"study": "Bayesian posterior PEV vs REML + Kackar-Harville (finding F16)",
-           "replicates": a.replicates, "seeds": f"1..{a.replicates}", "animals": N_ANIMALS,
+           "replicates": len(a.seeds) if a.seeds else a.replicates,
+           "seeds": a.seeds or f"1..{a.replicates}", "animals": N_ANIMALS,
            "iterations": ITER, "scenarios": {}}
     for name in a.scenarios:
         SCENARIO = name
         L, R0 = SCENARIOS[name]
         t0 = time.time()
-        seeds = list(range(1, a.replicates + 1))
+        seeds = a.seeds or list(range(1, a.replicates + 1))
         if a.workers > 1:
             from multiprocessing import Pool
             with Pool(a.workers) as pool:
