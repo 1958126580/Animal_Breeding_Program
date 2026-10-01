@@ -1573,10 +1573,12 @@ Three cautions:
   inverse-Wishart prior with a realistic `prior_covariance`; a small `nu` keeps it
   weak. The prior then influences the result — report it.
 * **Little information about the categorical trait.** In example 15 (254 ewes
-  with a first litter) the posterior interval of the liability genetic variance is
-  0.06–1.24 and of the genetic correlation with weaning weight −0.73 to 0.18;
-  the simulation's values (about 0.1 and +0.1) lie inside, but the point estimates
-  (0.35, −0.36) are far from them.
+  with a first litter; residual covariance fixed at 0, see below) the 95% posterior
+  interval of the liability genetic variance is 0.05–0.62 and of the genetic
+  correlation with weaning weight −0.55 to 0.45; the simulation's values (about 0.1
+  and +0.1) lie inside. With the residual covariance estimated (version 0.8) the
+  intervals were 0.06–1.24 and −0.73 to 0.18 and the point estimates (0.35, −0.36)
+  further from them.
 * **Residual covariances that are zero by design.** A lamb trait and a trait
   recorded later on the same animal as a ewe share no temporary environment.
   `residual_groups = { wwt = 1, nlb1 = 2 }` fixes their residual covariance at
@@ -1590,8 +1592,8 @@ covariance matched the truth) and its reliabilities were close to calibrated
 (squared error / PEV 1.03, coverage 0.945). The genetic correlation followed the
 prior: 0.27 with a prior centred at zero covariance and 0.51 with one centred at
 the true value 0.5 — choose `prior_covariance` from published estimates, not as a
-placeholder. It needs many iterations (12,000 for 800 animals; 20,000 for
-example 15).
+placeholder. It needs many iterations (12,000 for 800 animals; example 15:
+10,000 with the residual groups, 20,000 without).
 
 ### 7.15 Very many genotyped animals: APY
 

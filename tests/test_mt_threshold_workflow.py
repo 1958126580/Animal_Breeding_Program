@@ -176,6 +176,7 @@ ess_min = 100""", method="multitrait")
     diag = json.loads((out.out_dir / "mcmc_diagnostics_multitrait.json").read_text("utf-8"))
     assert diag["residual_groups"] == [["wt"], ["liab"]]
     assert diag["R0"]["mean"][0][1] == 0.0 and "fixed at 0" in diag["priors"]["R0"]
+    assert "['liab']: flat, R0_BB | E_B ~ IW" in diag["priors"]["R0"]
 
 
 def test_spec_rules_for_the_multitrait_threshold_model():

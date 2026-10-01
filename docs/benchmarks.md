@@ -31,8 +31,8 @@ BGLR has been run (`not_run`).
 
 The deep-pedigree Python time (89.6 s) is the profiling evidence behind ADR
 0002. Inbreeding cost grows with the number of (animal, ancestor) pairs, so
-deep pedigrees remain the most expensive case. A faster algorithm for very
-large, deep pedigrees is a roadmap item.
+deep pedigrees remain the most expensive case. Round 9 added a depth-wise
+kernel that switches to Colleau columns where they are cheaper (see "Round 9").
 
 ## Mixed-model equations (single trait, known variances)
 
@@ -253,3 +253,26 @@ sparse maps (no re-assembly). Example 15 (2,108 animals, 4,300 equations): 20,00
 iterations × 4 chains in 899 s on a machine shared with a 4-worker study before the
 coefficient maps, 454 s after them (with the test suite running alongside). Study (800 animals, 12,000 iterations × 4 chains): 391 s per
 replicate with 4 replicates in parallel.
+
+## Round 9: inbreeding by pedigree depth
+
+`python benchmarks/inbreeding_benchmark.py` (`docs/validation/inbreeding_benchmark.json`,
+`.log`; one thread, the machine shared with a 3-worker study). Round-1 kernel
+(`inbreeding_ml`, Meuwissen–Luo) against the depth kernel (`inbreeding_depth`):
+automatic choice per depth, traces forced, Colleau columns forced. All F agree with the
+round-1 kernel to 8e−14.
+
+| Pedigree | Animals | Round-1 kernel | Depth kernel (automatic) | traces forced | columns forced |
+|---|---:|---:|---:|---:|---:|
+| 20 discrete generations, 50 sires each | 200,000 | 16.4 s | 1.8 s | 18.3 s | 1.6 s |
+| 20 discrete generations, 1,000 sires each | 200,000 | 116.4 s | 17.4 s | 122.1 s | 19.5 s |
+| 10 discrete generations, 2,000 sires each | 200,000 | 3.2 s | 3.2 s | 3.4 s | 18.9 s |
+| overlapping generations, 300 sires in any window | 100,000 | 189.3 s | 22.7 s | 204.4 s | 17.9 s |
+| overlapping generations, every male a sire | 100,000 | 232.7 s | 32.9 s | 245.4 s | 20.9 s |
+
+The automatic choice is never far from the faster path and avoids the slow one
+(columns would cost 18.9 s where the traces take 3.4 s); in the overlapping-generation
+cases it is up to 1.6 times slower than forcing the columns, because the cost model
+(ancestors of the first 16 pairs of a depth) is conservative there. The pedigree of the
+200,000-animal single-step benchmark (`ssmf_large.py`: 20 generations, 200 sires):
+4.5 s instead of 45.4 s.

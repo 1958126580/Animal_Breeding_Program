@@ -99,9 +99,17 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
                       "effects, inverse-Wishart G0 and R0")
         r0_txt = "flat on the positive definite matrices: R0 | E ~ IW(E'E, n - t - 1)"
     if groups is not None:
-        r0_txt += ("; block diagonal, residual covariances between the groups "
-                   f"{[[traits[j] for j in B] for B in groups]} fixed at 0, each block "
-                   "sampled separately")
+        parts = []
+        for B in groups:
+            names = [traits[j] for j in B]
+            if cat in B and len(B) == 1:
+                parts.append(f"{names}: residual variance fixed at 1 (liability scale)")
+            elif cat in B:
+                parts.append(f"{names}: flat on (b, S) of [[1, b'], [b, S + b b']]")
+            else:
+                parts.append(f"{names}: flat, R0_BB | E_B ~ IW(E_B'E_B, n - |B| - 1)")
+        r0_txt = ("block diagonal, residual covariances between the groups fixed at 0, "
+                  "each block sampled from its own conditional; " + "; ".join(parts))
     diag = {"method": method_txt, "model": model_name,
             "traits": traits, "categorical_trait": None if cat is None else traits[cat],
             "residual_groups": (None if groups is None
