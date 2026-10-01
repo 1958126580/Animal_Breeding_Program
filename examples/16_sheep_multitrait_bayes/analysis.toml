@@ -1,0 +1,75 @@
+# Example 16: Bayesian multi-trait linear model - the traits of example 13 (wwt, fat,
+# fec), with the genetic and residual covariance matrices sampled by Gibbs instead of
+# estimated by REML. EBVs are posterior means and their PEVs posterior variances, so
+# the uncertainty of the (co)variances is part of the reported reliabilities.
+# Flat priors on G0 and R0 (IW with nu = -(t + 1)); every trait has one record per
+# animal on most of the lambs, so the posterior is proper here.
+# The synthetic generator's base-population values are, for comparison only:
+#   genetic SD 2.0 / 0.5 / 0.55, genetic correlations wwt-fat 0.30, others 0;
+#   residual SD 3.5 / 0.7 / 0.95, residual correlations 0.30 / 0.10 / 0.10.
+schema_version = "1"
+
+[project]
+name = "sheep_multitrait_bayes"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, lamb crops 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "founders born 2018-2019 (unknown parents): unrelated, non-inbred, mean 0"
+applicability = "demonstration only"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "../sheep_data/data/lambs.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[[traits]]
+name = "wwt"
+unit = "kg"
+min = 5.0
+max = 80.0
+
+[[traits]]
+name = "fat"
+unit = "mm"
+min = 0.0
+max = 15.0
+
+[[traits]]
+name = "fec"
+unit = "ln(epg+1)"
+min = 0.0
+max = 12.0
+
+
+[model]
+traits = ["wwt", "fat", "fec"]
+fixed = [
+  { column = "cg", type = "factor", traits = ["wwt", "fat", "fec"] },
+  { column = "birth_type", type = "factor", traits = ["wwt", "fat"] },
+  { column = "dam_age", type = "factor", traits = ["wwt"] },
+]
+random = [{ name = "animal", kind = "additive", relationship = "pedigree" }]
+
+[variances]
+mode = "bayes"
+
+[bayes]
+method = "multitrait"
+chains = 4
+iterations = 4000
+burn_in = 1000
+thin = 5
+max_iterations = 16000
+
+[qc]
+out_of_range = "quarantine"
+
+[output]
+top_n = 15

@@ -365,3 +365,74 @@ def test_coefficient_maps_equal_direct_assembly():
     f2.refactor_values(P.coefficient_values(P.rinv(R2), np.linalg.inv(G2)))
     b = rng.standard_normal(P.n_eq)
     np.testing.assert_allclose(f2.solve(b), f1.solve(b), rtol=1e-10, atol=1e-12)
+
+
+def test_linear_model_with_fixed_covariances_equals_multitrait_blup():
+    """Round 9, Bayesian multi-trait linear model (no categorical trait): with known
+    G0 and R0 the posterior is Gaussian with mean = BLUP and covariance = C^-1, so the
+    posterior means and variances must equal multi-trait BLUP and its PEV blocks
+    (abp.solvers.multitrait, an independent implementation) within MC error."""
+    from abp.solvers.multitrait import MTData, build_and_solve
+    ped, rng = _ped(60, 31, 10)
+    n = ped.n
+    Y = np.column_stack([rng.normal(10, 2, n), rng.normal(5, 1, n), rng.normal(0, 3, n)])
+    Y[rng.random(n) < 0.3, 1] = np.nan
+    Y[rng.random(n) < 0.2, 2] = np.nan
+    Y[np.all(np.isnan(Y), axis=1), 0] = 10.0
+    Xs = [sp.csr_matrix(np.column_stack([np.ones(int(m.sum())),
+                                         (np.arange(n)[m] % 2 == 0).astype(float)]))
+          for m in (~np.isnan(Y)).T]
+    G0 = np.array([[1.0, 0.3, 0.2], [0.3, 0.5, 0.1], [0.2, 0.1, 2.0]])
+    R0 = np.array([[3.0, 0.5, 0.4], [0.5, 1.0, 0.2], [0.4, 0.2, 5.0]])
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=6000, burn_in=500, thin=1,
+                                    max_iterations=6000, seed=3, start_G0=G0, start_R0=R0,
+                                    fix_covariances=True)
+    res = MT.mt_threshold_gibbs(Y, None, Xs, np.arange(n), ped.ainv(), cfg)
+    blup = build_and_solve(MTData(Y, Xs, np.arange(n)), ped.ainv(), 1 + ped.inbreeding(), G0, R0,
+                           method="dense")
+    sd = np.sqrt(np.einsum("ijj->ij", blup.pev_blocks))
+    assert np.max(np.abs(res.ebv - blup.ebv) / sd) < 0.06
+    np.testing.assert_allclose(res.pev_blocks, blup.pev_blocks, atol=0.04 * sd.max() ** 2)
+    assert res.thresholds_mean.size == 0 and res.categories.size == 0
+
+
+def test_r0_blocks_have_exact_zeros_and_block_posteriors():
+    """residual_groups: R0 is block-diagonal; a continuous block is IW(E_B'E_B, n-|B|-1)
+    (mean S/(n - 2|B| - 2)), the block with the categorical trait keeps R0[c, c] = 1."""
+    rng = np.random.default_rng(9)
+    n = 50
+    E = rng.standard_normal((n, 4)) @ np.diag([1.0, 2.0, 1.5, 1.0])
+    groups = [[0, 3], [1, 2]]
+    D = np.array([MT.draw_R0(E, 0, rng, groups) for _ in range(30000)])
+    for a in (0, 3):
+        for b in (1, 2):
+            assert np.all(D[:, a, b] == 0) and np.all(D[:, b, a] == 0)
+    assert np.all(D[:, 0, 0] == 1.0)
+    B = [1, 2]
+    S = E[:, B].T @ E[:, B]
+    want = S / (n - 2 * 2 - 2)
+    got = D[:, 1:3, 1:3].mean(axis=0)
+    se = D[:, 1:3, 1:3].std(axis=0) / np.sqrt(D.shape[0])
+    assert np.all(np.abs(got - want) < 4 * se)
+    # linear model, no categorical trait, one-trait blocks: scaled inverse chi-square
+    D1 = np.array([MT.draw_R0(E, None, rng, [[0], [1], [2], [3]]) for _ in range(20000)])
+    assert np.all(D1[:, 0, 1] == 0)
+    ref = (E ** 2).sum(axis=0) / (n - 1 - 1 - 2)            # S / (df - 2), df = n - 2
+    np.testing.assert_allclose(np.diagonal(D1, axis1=1, axis2=2).mean(axis=0), ref, rtol=0.03)
+
+
+def test_residual_groups_configuration_is_checked():
+    ped, rng = _ped(30, 1, 6)
+    n = ped.n
+    Y = np.column_stack([rng.integers(1, 3, n).astype(float), rng.normal(size=n)])
+    X = sp.csr_matrix(np.ones((n, 1)))
+    for groups in ([[0]], [[0, 1], [1]]):
+        cfg = MT.MTThresholdGibbsConfig(chains=2, iterations=10, burn_in=5, max_iterations=10,
+                                        residual_groups=groups)
+        with pytest.raises(ABPError):
+            MT.mt_threshold_gibbs(Y, 0, X, np.arange(n), ped.ainv(), cfg)
+    cfg = MT.MTThresholdGibbsConfig(chains=2, iterations=10, burn_in=5, max_iterations=10,
+                                    residual_groups=[[0], [1]],
+                                    start_R0=np.array([[1.0, 0.2], [0.2, 1.0]]))
+    with pytest.raises(ABPError):
+        MT.mt_threshold_gibbs(Y, 0, X, np.arange(n), ped.ainv(), cfg)

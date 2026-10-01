@@ -256,11 +256,21 @@ class Pedigree:
     def inbreeding(self) -> np.ndarray:
         """Inbreeding coefficients ``F`` (read-only array, internal order).
 
-        Uses the compiled Meuwissen-Luo kernel when available, otherwise the
-        Python reference; :attr:`inbreeding_kernel` reports which one ran.
+        Uses the compiled kernel when available (depth by depth, per depth the
+        cheaper of Meuwissen-Luo traces and Colleau columns of A; the same F),
+        otherwise the Python Meuwissen-Luo reference; :attr:`inbreeding_kernel`
+        reports which one ran.
         """
         if "F" not in self._cache:
-            if native_kernel_available():
+            if native_kernel_available() and hasattr(_native, "inbreeding_depth"):
+                raw, *st = _native.inbreeding_depth(
+                    np.ascontiguousarray(self.sire, dtype=np.int64),
+                    np.ascontiguousarray(self.dam, dtype=np.int64))
+                F = np.frombuffer(raw, dtype=np.float64).copy()
+                self._cache["F_kernel"] = "native_cpp_depth_ml_colleau"
+                self._cache["F_stats"] = dict(zip(("depths", "meuwissen_luo_pairs",
+                                                   "colleau_columns", "colleau_depths"), st))
+            elif native_kernel_available():
                 raw = _native.inbreeding_ml(np.ascontiguousarray(self.sire, dtype=np.int64),
                                             np.ascontiguousarray(self.dam, dtype=np.int64))
                 F = np.frombuffer(raw, dtype=np.float64).copy()

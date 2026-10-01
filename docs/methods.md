@@ -1421,7 +1421,79 @@ centre (0.27 with prior covariance 0, 0.51 with the prior at the true 0.5; F18).
 `benchmarks/mt_threshold_crosscheck.py`: agreement with the first implementation
 (imputation of missing observations) within 1.5 MC SE.
 
-## 32. References (additions)
+## 32. Bayesian multi-trait linear model; residual covariances fixed at zero
+
+Code: `abp/solvers/mt_threshold_gibbs.py` (`cat = None`, `draw_R0`),
+`abp/workflows/mt_threshold.py`. Registry ids `bayes.multitrait_linear`,
+`bayes.residual_groups`. Spec: `variances.mode = "bayes"`,
+`bayes.method = "multitrait"` (two or more continuous traits, no categorical trait),
+optional `bayes.residual_groups`.
+
+**Linear model.** The model of §31 without a categorical trait: every trait is
+observed on its own scale, there are no thresholds, no liabilities and no scale move.
+The sampler keeps steps 2, 2c, 3 and 4 of §31; the residual covariance matrix has the
+flat prior over the positive-definite matrices (`ν = −(t + 1)`) and is drawn exactly
+from its full conditional,
+
+`R0 | E ~ IW(E′E, n − t − 1)`
+
+(`E` the `n × t` matrix of residuals, missing values filled in step 3; Sorensen &
+Gianola 2002, ch. 13). `G0` takes the flat or the inverse-Wishart prior of §31. EBVs
+are posterior means and their PEVs posterior variances, so the uncertainty of `G0` and
+`R0` is part of the reported reliabilities — the alternative to REML with a
+Kackar–Harville correction (§28) when the covariances are poorly determined (F16).
+
+**Residual groups.** `bayes.residual_groups` gives each model trait an integer group;
+`R0` is then block diagonal with exact zeros between groups (for example a lamb trait
+and a trait recorded on the same animal as an adult, which share no temporary
+environment). The prior is the product of the per-block priors (each flat as above;
+the block holding the categorical trait uses the Korsgaard parameterisation of §31
+restricted to that block), and the residuals of different blocks are independent
+given the location effects, so each block `B` is drawn from its own exact conditional
+(`R0_BB | E_B ~ IW(E_B′E_B, n − |B| − 1)`, or the `(b, S)` draw of §31 step 5). The
+location step uses `R0` as given, so the zeros are honoured everywhere. A block of
+the categorical trait alone has `R0 = [[1]]`.
+
+**Tests** (`tests/test_mt_threshold_gibbs.py`, `tests/test_mt_threshold_workflow.py`):
+with the covariances fixed, the posterior means and variances of the breeding values
+equal multi-trait BLUP and its PEV (exact mixed-model equations, missing values);
+with block-diagonal `R0`, the between-group entries are exactly 0 in every draw and
+each block's draws match the closed-form inverse-Wishart moments; configuration
+errors (groups not partitioning the traits, a start value with non-zero
+between-group covariance) are refused; workflow outputs and spec rules for
+`method = "multitrait"` and `residual_groups`.
+
+## 33. Inbreeding coefficients by pedigree depth
+
+Code: `abp/_native.cpp` (`inbreeding_depth`), `Pedigree.inbreeding`. Registry id
+`pedigree.inbreeding` (kernel `native_cpp_depth_ml_colleau`).
+
+Animals are processed depth by depth (depth 0: both parents unknown; otherwise one
+more than the larger parental depth), so when depth `g` is reached `F` and the
+Mendelian sampling variances `d` are known for every animal of smaller depth and the
+relationship `a_sm` of each new sire × dam pair of depth `g` is an entry of `A`
+restricted to that prefix; `F = a_sm / 2`, full sibs share it. For each depth the
+kernel takes the cheaper of
+
+* Meuwissen & Luo (1992) traces, one per new pair (cost about the number of
+  ancestors traced, times a heap factor), and
+* Colleau (2002) columns: `y = A e_p` over the prefix by the two pedigree recursions
+  `A = T D T′`, one column per distinct parent `p` on the smaller side of the new
+  pairs (16 columns per pass), then `F = y_other / 2` (the indirect approach of
+  Colleau 2002 applied to the parents of the new pairs).
+
+The cost estimate uses the ancestor counts of the first 16 pairs of the depth, which
+are computed by the trace in any case. Both paths are exact; with random mating and
+few sires per generation the columns are much cheaper because their number is the
+number of sires, not of matings.
+
+**Tests** (`tests/test_pedigree.py`): with the trace forced, the columns forced and
+the automatic choice, `F` equals the Python Meuwissen–Luo reference and the dense
+`diag(A) − 1` (to 1e−13) on overlapping-generation pedigrees with unknown parents,
+full sibs and close inbreeding; bad ordering is rejected. **Evidence**:
+`benchmarks/run_benchmarks.py` (see the validation report, §7.13).
+
+## 34. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.
@@ -1466,3 +1538,5 @@ centre (0.27 with prior covariance 0, 0.51 with the prior at the true 0.5; F18).
 * Self SG, Liang K-Y (1987) J Am Stat Assoc 82:605–610.
 * Korsgaard IR, Lund MS, Sorensen D, Gianola D, Madsen P, Jensen J (2003) Genet Sel
   Evol 35:159–183.
+* Colleau J-J (2002) Genet Sel Evol 34:409–421.
+* Sorensen D, Gianola D (2002) Likelihood, Bayesian and MCMC Methods in Quantitative Genetics. Springer, New York.

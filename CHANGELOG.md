@@ -4,6 +4,22 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.9.0] - 2026-10-01
+
+Ninth development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Bayesian multi-trait linear model: `variances.mode = "bayes"`, `bayes.method = "multitrait"` (two or more continuous traits, one additive term, own fixed effects per trait, missing traits); `G0` and `R0` sampled with the breeding values (`R0 | E ~ IW(E'E, n - t - 1)`, flat; `G0` flat or inverse Wishart); EBVs are posterior means, PEVs posterior variances. Same outputs and convergence gating as the multi-trait threshold model (`mt_threshold_gibbs(Y, None, ...)`). Example 16 (the traits of example 13).
+- `bayes.residual_groups`: residual covariances fixed at exactly 0 between groups of traits, in both multi-trait Gibbs samplers (`MTThresholdGibbsConfig.residual_groups`, `draw_R0(..., groups=)`); each block drawn from its own exact conditional. Example 15 now puts weaning weight and first-parity litter size in different groups.
+- Inbreeding by pedigree depth (`_native.inbreeding_depth`, used by `Pedigree.inbreeding`; kernel name `native_cpp_depth_ml_colleau`): per depth the cheaper of Meuwissen–Luo traces and Colleau columns of A, the same F. 200,000 animals in 20 discrete generations: 1.8 s instead of 16.4 s (50 sires per generation) and 17.4 s instead of 116.4 s (1,000 sires); no slower where the traces are cheap.
+- `benchmarks/bayes_vs_reml_study.py` (finding F16: posterior PEV vs REML + Kackar–Harville), `benchmarks/inbreeding_benchmark.py`.
+- Methods §32–33, API section 30, manual §7.16, validation report §7.13.
+
+### Changed
+- **[results]** Example 15 fixes the residual covariance between weaning weight and nlb1 at 0 (previously estimated, correlation 0.28).
+- The report and `results.json` name the Bayesian multi-trait linear model (`bayes.method = "multitrait"`); `mcmc_diagnostics_multitrait.json` gains `model` and `residual_groups`, and `categorical_trait`/`thresholds` are `null` for the linear model.
+- Pedigree QC logs and manifests name the inbreeding kernel `native_cpp_depth_ml_colleau` (results unchanged: identical F in all tests and benchmarks).
+
 ## [0.8.0] - 2026-09-30
 
 Eighth development round. Evidence and gaps: `docs/validation_report.md`.

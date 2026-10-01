@@ -13,7 +13,8 @@ from abp.core.spec import validate_spec_dict
 from abp.errors import ABPError
 
 
-def _write(tmp_path, bayes_lines: str, n: int = 150, fixed: str = "") -> object:
+def _write(tmp_path, bayes_lines: str, n: int = 150, fixed: str = "",
+           method: str = "threshold") -> object:
     rng = np.random.default_rng(8)
     ids = [f"a{i}" for i in range(n)]
     male = np.arange(n) % 2 == 0
@@ -39,11 +40,12 @@ def _write(tmp_path, bayes_lines: str, n: int = 150, fixed: str = "") -> object:
         for a, s_, d_, m_ in zip(ids, s, d, male):
             fh.write(f"{a},{s_ or '0'},{d_ or '0'},{'M' if m_ else 'F'}\n")
     with open(tmp_path / "phe.csv", "w", encoding="utf-8") as fh:
-        fh.write("id,grp,wt,score\n")
+        fh.write("id,grp,wt,score,liab\n")
         for i, a in enumerate(ids):
             w = "NA" if i % 7 == 0 else f"{wt[i]:.3f}"          # some missing weights
             sc = "NA" if male[i] else str(score[i])            # score on females only
-            fh.write(f"{a},g{grp[i]},{w},{sc}\n")
+            lb = "NA" if male[i] else f"{L[i, 1]:.4f}"
+            fh.write(f"{a},g{grp[i]},{w},{sc},{lb}\n")
     spec = tmp_path / "a.toml"
     spec.write_text(f"""schema_version = "1"
 [project]
@@ -67,14 +69,17 @@ unit = "kg"
 name = "score"
 unit = "class"
 type = "categorical"
+[[traits]]
+name = "liab"
+unit = "sd"
 [model]
-traits = ["wt", "score"]
+traits = {'["wt", "score"]' if method == "threshold" else '["wt", "liab"]'}
 {fixed}
 random = [{{ name = "animal", kind = "additive", relationship = "pedigree" }}]
 [variances]
 mode = "bayes"
 [bayes]
-method = "threshold"
+method = "{method}"
 {bayes_lines}
 """, encoding="utf-8")
     return spec
@@ -132,6 +137,47 @@ max_iterations = 40""")
     assert failed and (failed[0] / "mcmc_diagnostics_multitrait.json").exists()
 
 
+def test_workflow_bayesian_multitrait_linear_model(tmp_path):
+    """bayes.method = "multitrait": continuous traits, (co)variances sampled by Gibbs;
+    residual_groups fixes the residual covariance at exactly 0."""
+    from abp.workflows.evaluate import run_evaluation
+    spec = _write(tmp_path, PRIOR.replace("0.3]]", "0.4]]") + """
+chains = 4
+iterations = 2000
+burn_in = 400
+thin = 2
+max_iterations = 8000
+rhat_max = 1.05
+ess_min = 100""", method="multitrait")
+    out = run_evaluation(spec, tmp_path / "o", console=False)
+    assert out.status == "passed"
+    r = out.results["traits"]
+    assert set(r) == {"wt", "liab"} and r["liab"]["unit"] == "sd"
+    assert r["wt"]["bayes"]["method"] == "multitrait" and r["wt"]["bayes"]["thresholds"] is None
+    assert r["liab"]["n_records"] == 75
+    diag = json.loads((out.out_dir / "mcmc_diagnostics_multitrait.json").read_text("utf-8"))
+    assert diag["categorical_trait"] is None and diag["converged"]
+    assert diag["model"] == "Bayesian multi-trait linear model"
+    assert "IW(E'E" in diag["priors"]["R0"] and diag["residual_groups"] is None
+    assert abs(diag["R0"]["mean"][0][1]) > 0
+    report = (out.out_dir / "report.md").read_text(encoding="utf-8")
+    assert "Bayesian multi-trait linear model, Gibbs sampler" in report
+
+    spec = _write(tmp_path, PRIOR.replace("0.3]]", "0.4]]") + """
+residual_groups = { wt = 1, liab = 2 }
+chains = 4
+iterations = 2000
+burn_in = 400
+thin = 2
+max_iterations = 8000
+rhat_max = 1.05
+ess_min = 100""", method="multitrait")
+    out = run_evaluation(spec, tmp_path / "o2", console=False)
+    diag = json.loads((out.out_dir / "mcmc_diagnostics_multitrait.json").read_text("utf-8"))
+    assert diag["residual_groups"] == [["wt"], ["liab"]]
+    assert diag["R0"]["mean"][0][1] == 0.0 and "fixed at 0" in diag["priors"]["R0"]
+
+
 def test_spec_rules_for_the_multitrait_threshold_model():
     base = {
         "schema_version": "1",
@@ -168,13 +214,33 @@ def test_spec_rules_for_the_multitrait_threshold_model():
     for b in bad:
         with pytest.raises(ABPError):
             validate_spec_dict(b)
+    # bayes.method = "multitrait" and residual_groups
+    lin = dict(base, traits=[{"name": "w", "unit": "kg"}, {"name": "s", "unit": "c"}],
+               bayes={"method": "multitrait"})
+    assert validate_spec_dict(lin)
+    assert validate_spec_dict(dict(lin, bayes={"method": "multitrait",
+                                               "residual_groups": {"w": 1, "s": 2}}))
+    assert validate_spec_dict(dict(base, bayes={"method": "threshold",
+                                                "residual_groups": {"w": 1, "s": 2}}))
+    bad = [
+        dict(base, bayes={"method": "multitrait"}),                   # categorical trait
+        dict(lin, model=dict(lin["model"], traits=["w"])),            # one trait
+        dict(lin, bayes={"method": "multitrait", "residual_groups": {"w": 1, "s": 1}}),
+        dict(lin, bayes={"method": "multitrait", "residual_groups": {"w": 1}}),
+        dict(lin, bayes={"method": "multitrait", "residual_groups": {"w": 1, "s": 1.5}}),
+    ]
+    for b in bad:
+        with pytest.raises(ABPError):
+            validate_spec_dict(b)
 
 
-def test_example15_spec_and_data_validate():
-    """Example 15 (weaning weight + first-parity litter size) passes spec and data
-    validation (the full run takes minutes and is part of the examples log)."""
+@pytest.mark.parametrize("name", ["15_sheep_wwt_nlb1_threshold", "16_sheep_multitrait_bayes"])
+def test_examples_15_16_spec_and_data_validate(name):
+    """Examples 15 (weaning weight + first-parity litter size, residual groups) and 16
+    (Bayesian multi-trait linear model) pass spec and data validation (the full runs
+    take minutes and are part of the examples log)."""
     from pathlib import Path
 
     from abp.cli import main
-    ex = Path(__file__).resolve().parents[1] / "examples" / "15_sheep_wwt_nlb1_threshold"
+    ex = Path(__file__).resolve().parents[1] / "examples" / name
     assert main(["validate", str(ex / "analysis.toml")]) == 0

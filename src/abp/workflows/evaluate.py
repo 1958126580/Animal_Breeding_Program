@@ -250,7 +250,8 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
     log.info("phenotype QC passed: %d records used, %d excluded (listed in qc_excluded_records.csv)",
              phe_qc.stats["n_records_used"], len(excluded))
 
-    if d["variances"]["mode"] == "bayes" and d["bayes"]["method"] != "threshold":
+    if d["variances"]["mode"] == "bayes" and d["bayes"]["method"] not in ("threshold",
+                                                                        "multitrait"):
         return _run_bayes(spec, records, phe_qc, ped_data, stage, manifest)
 
     # -- relationship structure --------------------------------------------

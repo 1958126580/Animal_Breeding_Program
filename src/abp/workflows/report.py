@@ -112,12 +112,18 @@ def render_report(results: dict, manifest: dict) -> str:
         if t.get("bayes"):
             bz = t["bayes"]
             L.append("")
-            what = (f"Threshold-model Gibbs sampler (liability scale; variance prior: "
-                    f"{bz.get('variance_prior', 'uniform')})" if bz["method"] == "threshold" else
-                    f"Bayesian marker regression ({bz['method']}")
+            ebv_like = bz["method"] in ("threshold", "multitrait")
+            if bz["method"] == "threshold":
+                what = (f"Threshold-model Gibbs sampler (liability scale; variance prior: "
+                        f"{bz.get('variance_prior', 'uniform')})")
+            elif bz["method"] == "multitrait":
+                what = (f"Bayesian multi-trait linear model, Gibbs sampler (variance prior: "
+                        f"{bz.get('variance_prior', 'uniform')})")
+            else:
+                what = f"Bayesian marker regression ({bz['method']}"
             L.append(f"{what}, {bz['chains']} chains, {bz['iterations']} iterations"
                      + (f", kernel {bz['kernel']}" if bz.get("kernel") else "")
-                     + (")" if bz["method"] != "threshold" else "")
+                     + (")" if not ebv_like else "")
                      + f"; all monitored quantities passed the convergence criteria: "
                        f"**{bz['converged']}**.")
             L.append("")
@@ -136,11 +142,11 @@ def render_report(results: dict, manifest: dict) -> str:
                                               for k, v in pp["statistics"].items()) + ".")
             if "not_computed" in g:
                 L.append("")
-                L.append(f"{'EBVs' if bz['method'] == 'threshold' else 'GEBVs'} of {g['n_animals']} animals: {g['not_computed']}. The SEP column "
+                L.append(f"{'EBVs' if ebv_like else 'GEBVs'} of {g['n_animals']} animals: {g['not_computed']}. The SEP column "
                          "below is the posterior standard deviation.")
             elif g:
                 L.append("")
-                L.append(f"{'EBVs' if bz['method'] == 'threshold' else 'GEBVs'} of {g['n_animals']} animals: worst R-hat {g['max_rhat']:.4f}, "
+                L.append(f"{'EBVs' if ebv_like else 'GEBVs'} of {g['n_animals']} animals: worst R-hat {g['max_rhat']:.4f}, "
                          f"smallest bulk ESS {g['min_ess_bulk']:.0f}. The SEP column below is the "
                          "posterior standard deviation.")
         L.append("")

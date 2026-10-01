@@ -1,6 +1,8 @@
-"""Workflow step for the multi-trait threshold model: one ordered categorical trait
-and continuous traits, (co)variances sampled by Gibbs (``variances.mode = "bayes"``,
-``bayes.method = "threshold"``, more than one model trait).
+"""Workflow step for the Bayesian multi-trait models, (co)variances sampled by Gibbs
+(``variances.mode = "bayes"``, more than one model trait): the multi-trait threshold
+model (``bayes.method = "threshold"``: one ordered categorical trait and continuous
+traits) and the multi-trait linear model (``bayes.method = "multitrait"``: continuous
+traits only).  ``bayes.residual_groups`` fixes residual covariances between groups at 0.
 
 Diagnostics and traces are written before the convergence decision (a withheld
 result keeps its evidence); unconverged chains stop the run with ``ABP-E405``.
@@ -35,7 +37,15 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
     t = len(traits)
     add_name = m["random"][0]["name"]
     types = {tr["name"]: tr["type"] for tr in d["traits"]}
-    cat = next(j for j, tr in enumerate(traits) if types[tr] == "categorical")
+    cat = next((j for j, tr in enumerate(traits) if types[tr] == "categorical"), None)
+    model_name = ("multi-trait threshold model" if cat is not None
+                  else "Bayesian multi-trait linear model")
+    groups = None
+    if b["residual_groups"]:
+        gid = {}
+        for j, tr in enumerate(traits):
+            gid.setdefault(int(b["residual_groups"][tr]), []).append(j)
+        groups = [gid[k] for k in sorted(gid)]
     Y = np.column_stack([records.traits[tr] for tr in traits])
     rec = np.flatnonzero(~np.all(np.isnan(Y), axis=1))
     Y = Y[rec]
@@ -67,19 +77,35 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
         seed=b["seed"], rhat_max=b["rhat_max"], ess_min=b["ess_min"],
         max_iterations=b["max_iterations"],
         prior_nu=float(b["nu"]) if iw else None,
-        prior_G0=np.array(b["prior_covariance"][add_name], dtype=np.float64) if iw else None)
-    log.info("multi-trait threshold model (%d traits, categorical %r): Gibbs sampler, %d chains, "
-             "%d iterations (up to %d)", t, traits[cat], cfg.chains, cfg.iterations,
-             cfg.max_iterations)
+        prior_G0=np.array(b["prior_covariance"][add_name], dtype=np.float64) if iw else None,
+        residual_groups=groups)
+    log.info("%s (%d traits%s%s): Gibbs sampler, %d chains, %d iterations (up to %d)",
+             model_name, t, "" if cat is None else f", categorical {traits[cat]!r}",
+             "" if groups is None else f", residual groups {groups}",
+             cfg.chains, cfg.iterations, cfg.max_iterations)
     g = mt_threshold_gibbs(Y, cat, X_blocks, animal_col, structure.k_inv, cfg)
     prior_txt = (f"inverse Wishart IW(nu = {cfg.prior_nu:g}, nu G_prior), G_prior = "
                  f"{np.round(cfg.prior_G0, 6).tolist()}" if iw else
                  "flat on the positive definite matrices (IW with nu = -(t + 1), scale 0)")
-    diag = {"method": "multi-trait threshold model (one ordered categorical trait, continuous "
+    if cat is not None:
+        method_txt = ("multi-trait threshold model (one ordered categorical trait, continuous "
                       "traits), Gibbs sampler: data augmentation of missing values, Cowles "
                       "threshold step, block draws of the location effects, inverse-Wishart "
-                      "G0, R0 with R0[c,c] = 1 (Korsgaard et al. 2003)",
-            "traits": traits, "categorical_trait": traits[cat],
+                      "G0, R0 with R0[c,c] = 1 (Korsgaard et al. 2003)")
+        r0_txt = "flat on (b, S) of R0 = [[1, b'], [b, S + b b']]"
+    else:
+        method_txt = ("Bayesian multi-trait linear model (continuous traits), Gibbs sampler: "
+                      "data augmentation of missing values, block draws of the location "
+                      "effects, inverse-Wishart G0 and R0")
+        r0_txt = "flat on the positive definite matrices: R0 | E ~ IW(E'E, n - t - 1)"
+    if groups is not None:
+        r0_txt += ("; block diagonal, residual covariances between the groups "
+                   f"{[[traits[j] for j in B] for B in groups]} fixed at 0, each block "
+                   "sampled separately")
+    diag = {"method": method_txt, "model": model_name,
+            "traits": traits, "categorical_trait": None if cat is None else traits[cat],
+            "residual_groups": (None if groups is None
+                                else [[traits[j] for j in B] for B in groups]),
             "converged": g.converged, "iterations": g.iterations,
             "draws_per_chain": g.draws_per_chain, "chains": cfg.chains, "thin": cfg.thin,
             "burn_in": cfg.burn_in, "chain_seeds": g.seeds, "master_seed": cfg.seed,
@@ -87,10 +113,11 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
             "criteria": {"rhat_max": cfg.rhat_max, "ess_min": cfg.ess_min},
             "summaries": g.summaries, "ebv_diagnostics": g.ebv_diagnostics,
             "G0": g.G0, "R0": g.R0, "derived": g.derived,
-            "threshold_step": {"acceptance_after_burn_in": g.acceptance},
-            "priors": {"G0": prior_txt,
-                       "R0": "flat on (b, S) of R0 = [[1, b'], [b, S + b b']]",
-                       "fixed_effects": "flat", "thresholds": "flat subject to ordering"},
+            "threshold_step": ({"acceptance_after_burn_in": g.acceptance}
+                               if cat is not None else None),
+            "priors": {"G0": prior_txt, "R0": r0_txt, "fixed_effects": "flat",
+                       **({"thresholds": "flat subject to ordering"} if cat is not None
+                          else {})},
             "trace_file": "mcmc_trace_multitrait.csv"}
     atomic_write_json(stage.path("mcmc_diagnostics_multitrait.json"), diag)
     names = list(g.traces)
@@ -105,14 +132,14 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
                               "chain_seeds": g.seeds}
     if not g.converged:
         raise ABPError("MCMC_NOT_CONVERGED",
-                       f"multi-trait threshold model: Gibbs diagnostics not met after "
+                       f"{model_name}: Gibbs diagnostics not met after "
                        f"{g.iterations} iterations (criteria R-hat < {cfg.rhat_max}, "
                        f"ESS >= {cfg.ess_min})",
                        summaries={k: {x: v[x] for x in ("rhat", "ess_bulk", "ess_tail")}
                                   for k, v in g.summaries.items()}, ebv=g.ebv_diagnostics)
     G0 = np.array(g.G0["mean"])
     R0 = np.array(g.R0["mean"])
-    log.info("multi-trait threshold model converged after %d iterations; posterior mean G0 %s",
+    log.info("%s converged after %d iterations; posterior mean G0 %s", model_name,
              g.iterations, np.round(G0, 4).tolist())
     k_diag = np.asarray(structure.k_diag, dtype=np.float64)
     rel = np.clip(1.0 - g.pev / (k_diag[:, None] * np.diag(G0)[None, :]), 0.0, 1.0)
@@ -142,11 +169,12 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
                      n_rec[tr].get(a, 0)]
         rows_out.append(base)
     write_csv(stage.path("ebv_multitrait.csv"), header, rows_out)
-    bayes_out = {"method": "threshold", "chains": cfg.chains, "iterations": g.iterations,
+    bayes_out = {"method": b["method"], "chains": cfg.chains, "iterations": g.iterations,
                  "converged": g.converged, "variance_prior": prior_txt,
                  "summaries": g.summaries, "ebv_diagnostics": g.ebv_diagnostics,
-                 "thresholds": g.thresholds_mean.tolist(),
-                 "categories": [float(x) for x in g.categories],
+                 "thresholds": g.thresholds_mean.tolist() if cat is not None else None,
+                 "categories": ([float(x) for x in g.categories] if cat is not None
+                                else None),
                  "diagnostics_file": "mcmc_diagnostics_multitrait.json",
                  "trace_file": "mcmc_trace_multitrait.csv"}
     out: dict = {}
@@ -167,17 +195,15 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
         order = np.argsort(-e, kind="stable")[:top_n]
         h2 = g.derived[f"h2_{j}"]["mean"]
         out[tr] = {
-            "unit": "liability" if j == cat else records.units.get(tr, ""),
+            "unit": "liability" if cat is not None and j == cat else records.units.get(tr, ""),
             "n_records": int((~np.isnan(Y[:, j])).sum()),
             "n_animals_evaluated": q,
-            "variance_source": "bayes (multi-trait threshold model, Gibbs sampler; "
-                               "posterior means)",
+            "variance_source": f"bayes ({model_name}, Gibbs sampler; posterior means)",
             "variance_components": {add_name: float(G0[j, j]), "residual": float(R0[j, j])},
             "heritability": float(h2),
             "reml": None,
             "genetic_term": add_name,
-            "solver": {"method": "gibbs", "selection_reason": "multi-trait threshold model, "
-                                                              "variances.mode = bayes",
+            "solver": {"method": "gibbs", "selection_reason": f"{model_name}, variances.mode = bayes",
                        "n_equations": int(g.n_equations), "relative_residual": None,
                        "iterations": g.iterations, "wall_seconds": g.wall_seconds,
                        "pev": "posterior variance", "joint_multi_trait_system": True},

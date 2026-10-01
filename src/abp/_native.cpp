@@ -21,6 +21,9 @@
 // mindegree_order / ldl_numeric / ldl_solve: sparse LDL', see abp/solvers/cholesky.py.
 // ml_general(sire, dam, c, e, fext) -> bytes (2n float64: diag(A), then d)
 //   * metafounder generalisation, see abp/core/metafounders.py.
+// inbreeding_depth(sire, dam[, mode]) -> (bytes, depths, ml_pairs, colleau_columns, colleau_depths)
+//   * same F as inbreeding_ml, computed depth by depth with the cheaper of Meuwissen-Luo
+//     traces and Colleau columns per depth (see inbreeding_depth_kernel).
 // colleau_times(sire, dam, d, x, k) -> bytes (n*k float64): A x for x of shape n x k
 //   (row-major) by the two pedigree recursions of A = T D T' (Colleau 2002), see
 //   abp/core/pedigree.py::Pedigree.a_times (the SuperLU triangular solves are the
@@ -142,6 +145,253 @@ std::string colleau_kernel(const int64_t* sire, const int64_t* dam, const double
         }
     }
     return "";
+}
+
+// Inbreeding by pedigree depth (round 9).  Animals are processed depth by depth
+// (depth 0: both parents unknown; otherwise 1 + the larger parental depth), so when
+// depth g is reached F and d are known for every animal of depth < g, and the
+// relationships a(s, m) of the new (sire, dam) pairs of depth g are entries of A
+// restricted to that prefix.  Per depth the kernel picks the cheaper of
+//  * Meuwissen & Luo traces (one per new pair; cost ~ ancestors traced), and
+//  * Colleau columns: y = A e_p over the prefix for every distinct parent p on the
+//    smaller side of the new pairs (cost ~ 2 x prefix size per column, 16 columns at a
+//    time), then F = y[other parent] / 2 (indirect approach of Colleau 2002).
+// mode 0 chooses automatically, 1 forces Meuwissen & Luo, 2 forces Colleau columns (tests).
+// The choice uses the traced-ancestor count of the first (up to 16) pairs, which are
+// computed by Meuwissen & Luo in any case.  Both paths give F exactly (up to rounding).
+// stats[0..3]: depths, pairs by Meuwissen & Luo, Colleau columns, depths using Colleau.
+std::string inbreeding_depth_kernel(const int64_t* sire0, const int64_t* dam0, int64_t n,
+                                    int64_t mode, double* F_out, int64_t* stats) {
+    for (int64_t i = 0; i < n; ++i) {
+        if (sire0[i] >= i || dam0[i] >= i || sire0[i] < -1 || dam0[i] < -1) {
+            return "parents must precede offspring (animal index " + std::to_string(i) + ")";
+        }
+    }
+    const size_t N = static_cast<size_t>(n);
+    std::vector<int64_t> depth(N, 0);
+    int64_t maxd = 0;
+    for (int64_t i = 0; i < n; ++i) {
+        const int64_t ds = sire0[i] < 0 ? -1 : depth[static_cast<size_t>(sire0[i])];
+        const int64_t dd = dam0[i] < 0 ? -1 : depth[static_cast<size_t>(dam0[i])];
+        depth[static_cast<size_t>(i)] = 1 + std::max(ds, dd);
+        maxd = std::max(maxd, depth[static_cast<size_t>(i)]);
+    }
+    // stable counting sort by depth: perm[k] = original index of position k
+    std::vector<int64_t> start(static_cast<size_t>(maxd) + 2, 0);
+    for (int64_t i = 0; i < n; ++i) ++start[static_cast<size_t>(depth[static_cast<size_t>(i)]) + 1];
+    for (int64_t g = 0; g <= maxd; ++g) start[static_cast<size_t>(g) + 1] += start[static_cast<size_t>(g)];
+    std::vector<int64_t> perm(N), pos(N);
+    {
+        std::vector<int64_t> fill(start.begin(), start.end() - 1);
+        for (int64_t i = 0; i < n; ++i) {
+            const int64_t k = fill[static_cast<size_t>(depth[static_cast<size_t>(i)])]++;
+            perm[static_cast<size_t>(k)] = i;
+            pos[static_cast<size_t>(i)] = k;
+        }
+    }
+    std::vector<int64_t> S(N), M(N);
+    for (int64_t k = 0; k < n; ++k) {
+        const int64_t i = perm[static_cast<size_t>(k)];
+        S[static_cast<size_t>(k)] = sire0[i] < 0 ? -1 : pos[static_cast<size_t>(sire0[i])];
+        M[static_cast<size_t>(k)] = dam0[i] < 0 ? -1 : pos[static_cast<size_t>(dam0[i])];
+    }
+    std::vector<double> F(N, 0.0), d(N, 0.0), coef(N, 0.0);
+    std::priority_queue<int64_t> heap;
+    std::unordered_map<uint64_t, double> family;
+    family.reserve(N / 4 + 16);
+    auto key_of = [n](int64_t s, int64_t m) {
+        return static_cast<uint64_t>(std::min(s, m)) * static_cast<uint64_t>(n)
+               + static_cast<uint64_t>(std::max(s, m));
+    };
+    // Meuwissen & Luo trace of animal i (d known for i and its ancestors); returns
+    // the number of animals traced.
+    auto trace = [&](int64_t i, double& Fi) {
+        int64_t count = 0;
+        double acc = 0.0;
+        coef[static_cast<size_t>(i)] = 1.0;
+        heap.push(i);
+        while (!heap.empty()) {
+            const int64_t j = heap.top();
+            heap.pop();
+            ++count;
+            const double lj = coef[static_cast<size_t>(j)];
+            coef[static_cast<size_t>(j)] = 0.0;
+            acc += lj * lj * d[static_cast<size_t>(j)];
+            const double half = 0.5 * lj;
+            const int64_t par[2] = {S[static_cast<size_t>(j)], M[static_cast<size_t>(j)]};
+            for (int64_t p : par) {
+                if (p >= 0) {
+                    if (coef[static_cast<size_t>(p)] == 0.0) heap.push(p);
+                    coef[static_cast<size_t>(p)] += half;
+                }
+            }
+        }
+        Fi = acc - 1.0;
+        return count;
+    };
+    constexpr int64_t K = 16;
+    std::vector<double> X;
+    stats[0] = maxd + 1;
+    stats[1] = stats[2] = stats[3] = 0;
+    for (int64_t g = 0; g <= maxd; ++g) {
+        const int64_t a = start[static_cast<size_t>(g)], b = start[static_cast<size_t>(g) + 1];
+        // Mendelian sampling variances of depth g (parents are in the prefix)
+        for (int64_t i = a; i < b; ++i) {
+            const int64_t s = S[static_cast<size_t>(i)], m = M[static_cast<size_t>(i)];
+            const double Fs = s < 0 ? -1.0 : F[static_cast<size_t>(s)];
+            const double Fm = m < 0 ? -1.0 : F[static_cast<size_t>(m)];
+            d[static_cast<size_t>(i)] = 0.5 - 0.25 * (Fs + Fm);
+        }
+        // new pairs of this depth (first offspring of each)
+        std::vector<int64_t> first;
+        std::unordered_map<uint64_t, int64_t> seen;
+        for (int64_t i = a; i < b; ++i) {
+            const int64_t s = S[static_cast<size_t>(i)], m = M[static_cast<size_t>(i)];
+            if (s < 0 || m < 0) continue;
+            const uint64_t key = key_of(s, m);
+            if (family.count(key) == 0 && seen.emplace(key, i).second) first.push_back(i);
+        }
+        if (first.empty()) {
+            for (int64_t i = a; i < b; ++i) {
+                const int64_t s = S[static_cast<size_t>(i)], m = M[static_cast<size_t>(i)];
+                if (s >= 0 && m >= 0) F[static_cast<size_t>(i)] = family[key_of(s, m)];
+            }
+            continue;
+        }
+        const size_t n_sample = std::min<size_t>(first.size(), mode == 0 ? 16 : 0);
+        double traced = 0.0;
+        for (size_t f = 0; f < n_sample; ++f) {
+            const int64_t i = first[f];
+            double Fi = 0.0;
+            traced += static_cast<double>(trace(i, Fi));
+            family.emplace(key_of(S[static_cast<size_t>(i)], M[static_cast<size_t>(i)]), Fi);
+        }
+        stats[1] += static_cast<int64_t>(n_sample);
+        const size_t rest = first.size() - n_sample;
+        if (rest > 0) {
+            std::vector<int64_t> sires, dams;
+            for (size_t f = n_sample; f < first.size(); ++f) {
+                sires.push_back(S[static_cast<size_t>(first[f])]);
+                dams.push_back(M[static_cast<size_t>(first[f])]);
+            }
+            auto distinct = [](std::vector<int64_t> v) {
+                std::sort(v.begin(), v.end());
+                return static_cast<size_t>(std::unique(v.begin(), v.end()) - v.begin());
+            };
+            const size_t ns = distinct(sires), nd = distinct(dams);
+            const bool by_sire = ns <= nd;
+            const size_t ncol = by_sire ? ns : nd;
+            const double avg = n_sample ? traced / static_cast<double>(n_sample) : 0.0;
+            // a heap trace costs ~ log2 of the heap size per animal traced
+            const double cost_ml = static_cast<double>(rest) * avg * (1.0 + std::log2(avg + 1.0));
+            const double cost_col = 2.0 * static_cast<double>(a) * static_cast<double>(ncol)
+                                    + static_cast<double>(a);
+            if (mode == 2 || (mode == 0 && cost_col < cost_ml)) {
+                ++stats[3];
+                // columns: distinct parents p of the chosen side, each with its pairs
+                std::unordered_map<int64_t, std::vector<std::pair<int64_t, uint64_t>>> need;
+                for (size_t f = n_sample; f < first.size(); ++f) {
+                    const int64_t s = S[static_cast<size_t>(first[f])];
+                    const int64_t m = M[static_cast<size_t>(first[f])];
+                    const int64_t p = by_sire ? s : m, o = by_sire ? m : s;
+                    need[p].emplace_back(o, key_of(s, m));
+                }
+                std::vector<int64_t> cols;
+                cols.reserve(need.size());
+                for (const auto& kv : need) cols.push_back(kv.first);
+                std::sort(cols.begin(), cols.end());
+                stats[2] += static_cast<int64_t>(cols.size());
+                X.assign(static_cast<size_t>(a) * K, 0.0);
+                for (size_t c0 = 0; c0 < cols.size(); c0 += K) {
+                    const int64_t kc = std::min<int64_t>(K, static_cast<int64_t>(cols.size() - c0));
+                    std::fill(X.begin(), X.end(), 0.0);
+                    for (int64_t c = 0; c < kc; ++c)
+                        X[static_cast<size_t>(cols[c0 + static_cast<size_t>(c)] * K + c)] = 1.0;
+                    const int64_t top = cols[c0 + static_cast<size_t>(kc) - 1];
+                    for (int64_t i = top; i >= 0; --i) {       // v = T' e
+                        const double* vi = X.data() + i * K;
+                        const int64_t s = S[static_cast<size_t>(i)], m = M[static_cast<size_t>(i)];
+                        if (s >= 0) {
+                            double* vs = X.data() + s * K;
+                            for (int64_t c = 0; c < K; ++c) vs[c] += 0.5 * vi[c];
+                        }
+                        if (m >= 0) {
+                            double* vm = X.data() + m * K;
+                            for (int64_t c = 0; c < K; ++c) vm[c] += 0.5 * vi[c];
+                        }
+                    }
+                    for (int64_t i = 0; i < a; ++i) {          // y = T D v
+                        double* xi = X.data() + i * K;
+                        const double di = d[static_cast<size_t>(i)];
+                        for (int64_t c = 0; c < K; ++c) xi[c] *= di;
+                        const int64_t s = S[static_cast<size_t>(i)], m = M[static_cast<size_t>(i)];
+                        if (s >= 0) {
+                            const double* xs = X.data() + s * K;
+                            for (int64_t c = 0; c < K; ++c) xi[c] += 0.5 * xs[c];
+                        }
+                        if (m >= 0) {
+                            const double* xm = X.data() + m * K;
+                            for (int64_t c = 0; c < K; ++c) xi[c] += 0.5 * xm[c];
+                        }
+                    }
+                    for (int64_t c = 0; c < kc; ++c) {
+                        for (const auto& ok : need[cols[c0 + static_cast<size_t>(c)]])
+                            family.emplace(ok.second,
+                                           0.5 * X[static_cast<size_t>(ok.first * K + c)]);
+                    }
+                }
+            } else {
+                for (size_t f = n_sample; f < first.size(); ++f) {
+                    const int64_t i = first[f];
+                    double Fi = 0.0;
+                    trace(i, Fi);
+                    family.emplace(key_of(S[static_cast<size_t>(i)], M[static_cast<size_t>(i)]), Fi);
+                }
+                stats[1] += static_cast<int64_t>(rest);
+            }
+        }
+        for (int64_t i = a; i < b; ++i) {
+            const int64_t s = S[static_cast<size_t>(i)], m = M[static_cast<size_t>(i)];
+            if (s >= 0 && m >= 0) F[static_cast<size_t>(i)] = family[key_of(s, m)];
+        }
+    }
+    for (int64_t k = 0; k < n; ++k) F_out[perm[static_cast<size_t>(k)]] = F[static_cast<size_t>(k)];
+    return std::string();
+}
+
+PyObject* py_inbreeding_depth(PyObject*, PyObject* args) {
+    Py_buffer sb, db;
+    long long mode = 0;
+    if (!PyArg_ParseTuple(args, "y*y*|L", &sb, &db, &mode)) return nullptr;
+    PyObject* result = nullptr;
+    if (sb.len != db.len || sb.len % 8 != 0) {
+        PyErr_SetString(PyExc_ValueError, "sire and dam must be int64 buffers of equal length");
+    } else {
+        const int64_t n = static_cast<int64_t>(sb.len / 8);
+        PyObject* fb = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(n * 8));
+        if (fb != nullptr) {
+            double* out = reinterpret_cast<double*>(PyBytes_AS_STRING(fb));
+            int64_t st[4] = {0, 0, 0, 0};
+            std::string err;
+            Py_BEGIN_ALLOW_THREADS
+            err = inbreeding_depth_kernel(static_cast<const int64_t*>(sb.buf),
+                                          static_cast<const int64_t*>(db.buf), n,
+                                          static_cast<int64_t>(mode), out, st);
+            Py_END_ALLOW_THREADS
+            if (!err.empty()) {
+                Py_DECREF(fb);
+                PyErr_SetString(PyExc_ValueError, err.c_str());
+            } else {
+                result = Py_BuildValue("(NLLLL)", fb, static_cast<long long>(st[0]),
+                                       static_cast<long long>(st[1]),
+                                       static_cast<long long>(st[2]),
+                                       static_cast<long long>(st[3]));
+            }
+        }
+    }
+    PyBuffer_Release(&sb);
+    PyBuffer_Release(&db);
+    return result;
 }
 
 PyObject* py_colleau_times(PyObject*, PyObject* args) {
@@ -787,6 +1037,10 @@ PyMethodDef methods[] = {
     {"colleau_times", py_colleau_times, METH_VARARGS,
      "colleau_times(sire, dam, d, x, k) -> bytes of n*k float64: A x (x row-major n x k) "
      "by the pedigree recursions of A = T D T' (Colleau 2002)."},
+    {"inbreeding_depth", py_inbreeding_depth, METH_VARARGS,
+     "inbreeding_depth(sire, dam[, mode]) -> (bytes of float64 F, depths, ml_pairs, colleau_columns, "
+     "colleau_depths): inbreeding by pedigree depth, per depth the cheaper of Meuwissen & Luo "
+     "traces and Colleau columns."},
     {"inbreeding_ml", py_inbreeding_ml, METH_VARARGS,
      "inbreeding_ml(sire, dam) -> bytes of float64 inbreeding coefficients "
      "(Meuwissen & Luo 1992). Parents must precede offspring; -1 = unknown."},

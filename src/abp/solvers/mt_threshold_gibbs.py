@@ -101,6 +101,7 @@ class MTThresholdGibbsConfig:
     shear_moves: bool = True                #: parameter expansion for the genetic covariances
     prior_nu: float | None = None           #: IW degrees of freedom (default -(t + 1): flat)
     prior_G0: np.ndarray | None = None      #: prior guess of G0 (IW scale nu G_prior)
+    residual_groups: list | None = None     #: partition of trait indices; R0 = 0 between groups
 
 
 @dataclass
@@ -143,30 +144,35 @@ def split_design(X, Y: np.ndarray) -> list:
 class MTProblem:
     """Data and fixed structure shared by the chains."""
 
-    def __init__(self, Y: np.ndarray, cat: int, X_per_trait: list, animal_col: np.ndarray,
-                 k_inv):
+    def __init__(self, Y: np.ndarray, cat: int | None, X_per_trait: list,
+                 animal_col: np.ndarray, k_inv):
         Y = np.asarray(Y, dtype=np.float64)
         self.n, self.t = Y.shape
         t = self.t
         if t < 2:
-            raise ABPError("SPEC_INVALID", "the multi-trait threshold model needs >= 2 traits")
-        if not 0 <= cat < t:
+            raise ABPError("SPEC_INVALID", "the multi-trait sampler needs >= 2 traits")
+        if cat is not None and not 0 <= cat < t:
             raise ABPError("SPEC_INVALID", "categorical trait index out of range")
         self.c = cat
         obs = ~np.isnan(Y)
         if np.any(~obs.any(axis=1)):
             raise ABPError("SCHEMA_TYPE", "every record needs at least one observed trait")
-        yc = Y[obs[:, cat], cat]
-        if not np.all(yc == np.round(yc)):
-            raise ABPError("SCHEMA_TYPE", "the categorical trait needs integer category codes")
-        self.cats = np.unique(yc)
-        self.K = self.cats.size
-        if self.K < 2:
-            raise ABPError("MODEL_NOT_IDENTIFIABLE", "all records are in one category")
         self.Y, self.obs = Y, obs
-        self.cat_obs = obs[:, cat]
         self.yk = np.zeros(self.n, dtype=np.int64)
-        self.yk[self.cat_obs] = np.searchsorted(self.cats, Y[self.cat_obs, cat])
+        if cat is None:                     # linear multi-trait model: no thresholds
+            self.cats = np.array([])
+            self.K = 1
+            self.cat_obs = np.zeros(self.n, dtype=bool)
+        else:
+            yc = Y[obs[:, cat], cat]
+            if not np.all(yc == np.round(yc)):
+                raise ABPError("SCHEMA_TYPE", "the categorical trait needs integer category codes")
+            self.cats = np.unique(yc)
+            self.K = self.cats.size
+            if self.K < 2:
+                raise ABPError("MODEL_NOT_IDENTIFIABLE", "all records are in one category")
+            self.cat_obs = obs[:, cat]
+            self.yk[self.cat_obs] = np.searchsorted(self.cats, Y[self.cat_obs, cat])
         self.Xj = [sp.csr_matrix(X) for X in X_per_trait]
         if len(self.Xj) != t:
             raise ABPError("SPEC_INVALID", "one fixed design per trait is needed")
@@ -232,6 +238,8 @@ class MTProblem:
             if np.linalg.matrix_rank(Xd) < Xd.shape[1]:
                 raise ABPError("MODEL_NOT_IDENTIFIABLE", f"trait {j + 1}: the fixed-effect "
                                "design is not of full column rank on the records of this trait")
+        if self.c is None:
+            return
         Xd = self.Xj[self.c].toarray()
         yk = self.yk[self.cat_obs]
         for k in range(Xd.shape[1]):
@@ -261,8 +269,8 @@ class MTProblem:
         prow = np.repeat(np.arange(n_eq, dtype=np.int64), np.diff(pat.indptr))
         pkey = prow * n_eq + pat.indices                         # sorted (canonical CSR)
 
-        def locate(k, l):
-            key = k.astype(np.int64) * n_eq + l
+        def locate(row, col):
+            key = row.astype(np.int64) * n_eq + col
             pos = np.searchsorted(pkey, key)
             if np.any(pos >= pkey.size) or np.any(pkey[np.minimum(pos, pkey.size - 1)] != key):
                 raise ValueError("entry outside the pattern of C")
@@ -337,10 +345,33 @@ def draw_location(P: MTProblem, fac, y: np.ndarray, R0: np.ndarray, G0: np.ndarr
     return fac.solve(rhs)
 
 
-def draw_R0(E: np.ndarray, c: int, rng) -> np.ndarray:
-    """Exact draw of ``R0 | residuals`` under the flat prior on ``(b, S)`` with
-    ``R0[c, c] = 1`` (module notes, step 5); ``E`` is ``n x t`` (complete)."""
+def draw_R0(E: np.ndarray, c: int | None, rng, groups: list | None = None) -> np.ndarray:
+    """Exact draw of ``R0 | residuals`` (``E``: ``n x t``, complete).  ``groups``: a
+    partition of the traits into residual blocks (covariances between blocks are 0;
+    default one block).  Each block independently: the block with the categorical trait
+    ``c`` by the flat prior on ``(b, S)`` with ``R0[c, c] = 1`` (module notes, step 5),
+    any other block from ``IW(E_B'E_B, n - |B| - 1)`` (flat prior on the PD matrices)."""
     n, t = E.shape
+    if groups is None:
+        groups = [list(range(t))]
+    R0 = np.zeros((t, t))
+    for B in groups:
+        B = list(B)
+        EB = E[:, B]
+        if c is not None and c in B:
+            R0[np.ix_(B, B)] = _draw_R0_categorical(EB, B.index(c), rng)
+        else:
+            S = EB.T @ EB
+            R0[np.ix_(B, B)] = np.atleast_2d(invwishart.rvs(
+                df=n - len(B) - 1, scale=0.5 * (S + S.T), random_state=rng))
+    return R0
+
+
+def _draw_R0_categorical(E: np.ndarray, c: int, rng) -> np.ndarray:
+    """Korsgaard step for one block containing the categorical trait (index ``c``)."""
+    n, t = E.shape
+    if t == 1:
+        return np.ones((1, 1))
     o = [k for k in range(t) if k != c]
     ec = E[:, c]
     Eo = E[:, o]
@@ -392,7 +423,7 @@ class _Chain:
         self.sd = 0.1
         self.n_prop = self.n_acc = 0
         yo = P.Y[P.rec_idx, P.trait_idx]
-        self.y = np.where(P.trait_idx == P.c, 0.0, yo)
+        self.y = yo.copy() if P.c is None else np.where(P.trait_idx == P.c, 0.0, yo)
         self.e_full = np.zeros((P.n, t))
         self._draw_categorical(tuning=False, it=1, mh=False)
 
@@ -421,6 +452,8 @@ class _Chain:
 
     def _draw_categorical(self, tuning: bool, it: int, mh: bool = True):
         P = self.P
+        if P.c is None:
+            return
         eta = P.W @ self.theta
         m, s = self._cond_cat(eta)
         ob = P.cat_obs
@@ -536,13 +569,13 @@ class _Chain:
         self.theta = draw_location(P, self.fac, self.y, self.R0, self.G0, self.rng, self.Rinv)
         if self.cfg.fix_covariances:
             return
-        if self.cfg.scale_move:
+        if self.cfg.scale_move and P.c is not None:
             self._scale_move()
         if self.cfg.shear_moves:
             self._shear_moves()
         self._draw_missing_residuals()
         self.G0 = draw_G0(P.u(self.theta), P.k_inv, self.rng, P.nu, P.g_prior)
-        self.R0 = draw_R0(self.e_full, P.c, self.rng)
+        self.R0 = draw_R0(self.e_full, P.c, self.rng, P.groups)
         self._refactor()
 
 
@@ -552,10 +585,11 @@ def _summ(A: np.ndarray) -> dict:
             "q975": np.quantile(A, 0.975, axis=0).tolist()}
 
 
-def mt_threshold_gibbs(Y, cat: int, X, animal_col, k_inv, cfg: MTThresholdGibbsConfig
+def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThresholdGibbsConfig
                        ) -> MTThresholdGibbsResult:
     """Run the sampler.  ``Y``: ``n x t`` (NaN = missing; column ``cat`` holds integer
-    categories); ``X``: a list of per-trait designs (rows = records where the trait is
+    categories; ``cat = None``: all traits continuous - the Bayesian multi-trait linear
+    model, ``R0`` from an inverse Wishart); ``X``: a list of per-trait designs (rows = records where the trait is
     observed, each with an intercept) or one design shared by the traits (rows =
     records); ``animal_col``: column of each record's animal in ``K``; ``k_inv``:
     ``K^{-1}``."""
@@ -585,12 +619,25 @@ def mt_threshold_gibbs(Y, cat: int, X, animal_col, k_inv, cfg: MTThresholdGibbsC
         np.diag(np.where(np.arange(t) == c, 0.2, 0.3 * vy))
     R0s = _check_pd(cfg.start_R0, "start R0") if cfg.start_R0 is not None else \
         np.diag(np.where(np.arange(t) == c, 1.0, 0.7 * vy))
-    if abs(R0s[c, c] - 1.0) > 1e-12:
+    if c is not None and abs(R0s[c, c] - 1.0) > 1e-12:
         raise ABPError("SPEC_INVALID", "the residual variance of the categorical trait must be 1")
+    P.groups = None
+    if cfg.residual_groups is not None:
+        flat = sorted(int(j) for g in cfg.residual_groups for j in g)
+        if flat != list(range(t)) or any(len(g) == 0 for g in cfg.residual_groups):
+            raise ABPError("SPEC_INVALID", "residual_groups must partition the traits")
+        P.groups = [sorted(int(j) for j in g) for g in cfg.residual_groups]
+        label = np.empty(t, dtype=np.int64)
+        for k, g in enumerate(P.groups):
+            label[g] = k
+        if np.any((label[:, None] != label[None, :]) & (R0s != 0)):
+            raise ABPError("SPEC_INVALID", "start R0 must be 0 between residual groups")
     # starting thresholds from the category proportions, tau_1 = 0 (intercept absorbs it)
-    cum = np.cumsum(np.bincount(P.yk[P.cat_obs], minlength=P.K))[:-1] / P.cat_obs.sum()
-    raw = ndtri(np.clip(cum, 1e-6, 1 - 1e-6))
-    P.tau0 = raw - raw[0]
+    raw = np.zeros(1)
+    if c is not None:
+        cum = np.cumsum(np.bincount(P.yk[P.cat_obs], minlength=P.K))[:-1] / P.cat_obs.sum()
+        raw = ndtri(np.clip(cum, 1e-6, 1 - 1e-6))
+    P.tau0 = raw - raw[0] if c is not None else np.zeros(0)
     beta0 = np.zeros(P.P)
     for j in range(t):
         rows = P.obs[:, j]

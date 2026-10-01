@@ -177,7 +177,7 @@ end with
 ABP 0.8.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
-  [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_meuwissen_luo
+  [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_depth_ml_colleau
   [PASS] T04 intercept 3, EBV -/+0.5, PEV 0.75, reliability 0.25
   [PASS] T05 REML genetic score = -0.01463020355
   [PASS] T06 H-inverse = A-inverse when G* = A22
@@ -218,7 +218,7 @@ abp run examples/01_textbook_mrode_3_1/analysis.toml --out runs/ex01
 ```
 
 ```
-... INFO pedigree QC passed: 8 animals, max generation 2, mean F 0.0000 (native_cpp_meuwissen_luo kernel)
+... INFO pedigree QC passed: 8 animals, max generation 2, mean F 0.0000 (native_cpp_depth_ml_colleau kernel)
 ... INFO phenotype QC passed: 5 records used, 0 excluded (listed in qc_excluded_records.csv)
 ... INFO wwg: solved 10 equations with dense (requested explicitly in spec); relative residual 1.88e-16; 0.00 s
 status: passed
@@ -613,10 +613,12 @@ effect = "random"
 variance_ratio = 1.0
 ```
 
-### 5.14 `[bayes]`: Bayesian marker models and the threshold Gibbs sampler
+### 5.14 `[bayes]`: Bayesian marker models and the Gibbs samplers of the animal model
 
 Used with `variances.mode = "bayes"` (and only then). For a categorical trait
-set `method = "threshold"` (§7.14): the random terms then come from
+set `method = "threshold"` (§7.14); for several continuous traits with the
+covariance matrices sampled instead of estimated by REML set
+`method = "multitrait"` (§7.16). The random terms then come from
 `[model]`, and `pi0`, `prior_r2`, `nu_e` are not used; the chain, convergence
 and seed keys work as below. The variances get uniform priors unless
 `variance_prior = "scaled_inv_chi2"` (then `nu` and `prior_variances` below
@@ -624,7 +626,7 @@ set proper priors).
 
 | Key | Default | Notes |
 |---|---|---|
-| `method` | **required** | `BRR`, `BayesA`, `BayesB`, `BayesC`, `BayesCpi`, `BayesR` (§7.10), or `threshold` for a categorical trait (§7.14) |
+| `method` | **required** | `BRR`, `BayesA`, `BayesB`, `BayesC`, `BayesCpi`, `BayesR` (§7.10), `threshold` for a categorical trait, alone or with continuous traits (§7.14), or `multitrait` for two or more continuous traits (§7.16) |
 | `pi0` | 0.95 | prior probability that a marker effect is **exactly zero** (fixed for BayesB/BayesC; start value for BayesCpi) |
 | `chains` | 4 | at least 2; 4 or more recommended |
 | `iterations` | 6000 | per chain, including burn-in |
@@ -633,9 +635,10 @@ set proper priors).
 | `seed` | 20260925 | master seed; each chain gets an independent stream |
 | `prior_r2` | 0.5 | share of the phenotypic variance expected to be genetic; sets the default prior scales |
 | `nu`, `nu_e` | 5.0, 5.0 | degrees of freedom of the scaled inverse-χ² priors (> 2) |
-| `variance_prior` | `"uniform"` | threshold model only: `"scaled_inv_chi2"` gives each random-term variance a scaled inverse-χ² prior with `nu` degrees of freedom; `"inverse_wishart"` (multi-trait threshold model, §7.14) gives the genetic covariance matrix an inverse-Wishart prior IW(`nu`, `nu` × `prior_covariance`) |
+| `variance_prior` | `"uniform"` | `threshold`/`multitrait` only: `"scaled_inv_chi2"` (single-trait threshold model) gives each random-term variance a scaled inverse-χ² prior with `nu` degrees of freedom; `"inverse_wishart"` (multi-trait models, §7.14, §7.16) gives the genetic covariance matrix an inverse-Wishart prior IW(`nu`, `nu` × `prior_covariance`) |
 | `prior_variances` | – | threshold model with `variance_prior = "scaled_inv_chi2"`: **required**, the prior scale of each random term in liability units, for example `{ animal = 0.1, pe = 0.1 }` |
-| `prior_covariance` | – | multi-trait threshold model with `variance_prior = "inverse_wishart"`: **required**, the prior guess of the genetic covariance matrix (rows and columns in `model.traits` order; liability scale for the categorical trait), for example `{ animal = [[4.0, 0.0], [0.0, 0.1]] }`; `nu` must exceed traits − 1 |
+| `prior_covariance` | – | multi-trait models with `variance_prior = "inverse_wishart"`: **required**, the prior guess of the genetic covariance matrix (rows and columns in `model.traits` order; liability scale for the categorical trait), for example `{ animal = [[4.0, 0.0], [0.0, 0.1]] }`; `nu` must exceed traits − 1 |
+| `residual_groups` | – | multi-trait models only: an integer group per model trait, for example `{ wwt = 1, nlb1 = 2 }`; residual covariances between traits of different groups are fixed at exactly 0 (at least two groups) |
 | `rhat_max` | 1.01 | convergence: split R-hat must be below it |
 | `ess_min` | 400 | convergence: bulk and tail ESS must reach it |
 | `max_iterations` | 30000 | the chains are doubled in length until the criteria pass or this budget is used |
@@ -1574,9 +1577,11 @@ Three cautions:
   0.06–1.24 and of the genetic correlation with weaning weight −0.73 to 0.18;
   the simulation's values (about 0.1 and +0.1) lie inside, but the point estimates
   (0.35, −0.36) are far from them.
-* **Residual covariances are always estimated.** A residual covariance that is
-  zero by design (a lamb trait and a later ewe trait) cannot be fixed at zero in
-  this version.
+* **Residual covariances that are zero by design.** A lamb trait and a trait
+  recorded later on the same animal as a ewe share no temporary environment.
+  `residual_groups = { wwt = 1, nlb1 = 2 }` fixes their residual covariance at
+  exactly 0 (example 15 does this); traits in the same group keep a free
+  covariance.
 
 In a 30-replicate study (validation report §7.12) the joint model gave more
 accurate breeding values for the categorical trait than the single-trait threshold
@@ -1641,6 +1646,66 @@ genotyped and 20,000 SNPs needed 6.75 GB (the explicit method would need more
 than 45 GB); a complete `abp run` with 120,000 animals, 30,000 genotyped
 (PLINK input, `genomic.genotype_storage = "int8"`) took 206 s and 7.4 GB;
 see `docs/benchmarks.md`.
+
+### 7.16 Several continuous traits with sampled covariance matrices
+
+Multi-trait REML (§7.6) estimates the genetic and residual covariance matrices
+and then treats them as known; the Kackar–Harville correction adds a first-order
+allowance for their uncertainty. When the matrices are poorly determined (few
+records, low heritabilities) the Bayesian multi-trait linear model is the
+alternative: the covariance matrices, fixed effects and breeding values are sampled
+jointly (Gibbs sampler, methods §32), EBVs are posterior means and the PEVs
+posterior variances, so the reliabilities include the uncertainty of every
+parameter.
+
+```toml
+[variances]
+mode = "bayes"
+
+[bayes]
+method = "multitrait"
+chains = 4
+iterations = 4000
+burn_in = 1000
+thin = 5
+max_iterations = 16000
+```
+
+The model section is that of a multi-trait REML run (each trait its own fixed
+effects, missing traits allowed, one additive genetic term). Priors are flat by
+default; `variance_prior = "inverse_wishart"` with `nu` and `prior_covariance`
+gives `G0` a proper prior (§5.14). Outputs and convergence gating are those of the
+multi-trait threshold model (§7.14): `ebv_multitrait.csv`,
+`mcmc_diagnostics_multitrait.json`, `mcmc_trace_multitrait.csv`; results are
+withheld unless R-hat and ESS pass for every (co)variance and breeding value.
+
+`residual_groups` fixes residual covariances at exactly zero between groups of
+traits, for example when traits are recorded at different ages and share no
+temporary environment:
+
+```toml
+residual_groups = { wwt = 1, fat = 1, nlb1 = 2 }   # wwt-fat free, both 0 with nlb1
+```
+
+Example 16 analyses the three traits of example 13 this way:
+
+```bash
+abp run examples/16_sheep_multitrait_bayes/analysis.toml --out runs/ex16
+```
+
+It converged after 16,000 iterations (937 s; REML in example 13: 19 s). Posterior
+means of the genetic covariance matrix were close to the REML estimates (variances
+4.36, 0.290, 0.450 against 3.96, 0.263, 0.401 — a posterior mean of a variance
+lies above the REML estimate because the posterior is skewed to the right;
+genetic correlations 0.28, −0.34, −0.11 against 0.29, −0.37, −0.13). The EBVs
+correlated 0.999 with those of example 13. The posterior PEVs were 9–11% larger
+than the REML PEVs and 5–7% larger than with the Kackar–Harville correction. The
+reported reliabilities were nevertheless slightly higher (wwt 0.400 against 0.395),
+because the reliability divides by the posterior mean of the genetic variance,
+which is larger. Compare PEVs, not reliabilities, across the two methods.
+
+Whether the posterior PEVs are better calibrated than REML with the Kackar–Harville
+correction on small data is studied in the validation report (section 7.13, finding F16).
 
 ---
 

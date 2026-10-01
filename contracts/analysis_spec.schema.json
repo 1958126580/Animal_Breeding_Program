@@ -692,7 +692,8 @@
             "BayesC",
             "BayesCpi",
             "BayesR",
-            "threshold"
+            "threshold",
+            "multitrait"
           ],
           "description": "Marker prior (pi0 = probability of a zero effect), or 'threshold': Gibbs sampler of the threshold model for a categorical trait (random terms from [model]; uniform priors on the liability variances; prior_r2, pi0, nu and nu_e are not used)."
         },
@@ -780,6 +781,13 @@
             ]
           },
           "description": "multi-trait threshold model with variance_prior = 'inverse_wishart': prior guess G_prior of the genetic covariance matrix (traits in model.traits order; liability scale for the categorical trait)."
+        },
+        "residual_groups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "multi-trait threshold or 'multitrait' model: a group number per trait; residual covariances between traits of different groups are fixed at 0 (e.g. a lamb trait and a later ewe trait). Default: one group."
         }
       },
       "required": [

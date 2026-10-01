@@ -274,7 +274,7 @@ SCHEMA = Section({
     "bayes": Section({
         "method": Field("str", required=True,
                         choices=("BRR", "BayesA", "BayesB", "BayesC", "BayesCpi", "BayesR",
-                                 "threshold"),
+                                 "threshold", "multitrait"),
                         doc="Marker prior (pi0 = probability of a zero effect), or 'threshold': "
                             "Gibbs sampler of the threshold model for a categorical trait "
                             "(random terms from [model]; uniform priors on the liability "
@@ -308,6 +308,11 @@ SCHEMA = Section({
                                       "'inverse_wishart': prior guess G_prior of the genetic "
                                       "covariance matrix (traits in model.traits order; "
                                       "liability scale for the categorical trait)."),
+        "residual_groups": Field("float_map",
+                                 doc="multi-trait threshold or 'multitrait' model: a group "
+                                     "number per trait; residual covariances between traits "
+                                     "of different groups are fixed at 0 (e.g. a lamb trait "
+                                     "and a later ewe trait). Default: one group."),
     }),
     "validation": Section({
         "method": Field("str", required=True, choices=("lr",),
@@ -596,16 +601,28 @@ def validate_spec_dict(raw: dict) -> dict:
         raise _err("bayes", "variances.mode = 'bayes' and a [bayes] section go together")
     if raw.get("bayes") is None:
         d["bayes"] = None
-    elif d["bayes"]["method"] == "threshold" and t > 1:
+    elif d["bayes"]["method"] == "multitrait" and t == 1:
+        raise _err("bayes.method", "'multitrait' needs at least two model traits")
+    elif d["bayes"]["method"] in ("threshold", "multitrait") and t > 1:
         cat_traits = {tr["name"] for tr in d["traits"] if tr["type"] == "categorical"}
         n_cat = sum(1 for x in m["traits"] if x in cat_traits)
-        if n_cat != 1:
+        if d["bayes"]["method"] == "threshold" and n_cat != 1:
             raise _err("bayes.method", "the multi-trait threshold model needs exactly one "
                                        "categorical trait (the others continuous)")
+        if d["bayes"]["method"] == "multitrait" and n_cat != 0:
+            raise _err("bayes.method", "'multitrait' is for continuous traits; a categorical "
+                                       "trait needs method = 'threshold'")
         if len(m["random"]) != 1 or m["random"][0]["kind"] != "additive":
-            raise ABPError("UNSUPPORTED_COMBINATION", "the multi-trait threshold model has one "
+            raise ABPError("UNSUPPORTED_COMBINATION", "the Bayesian multi-trait models have one "
                            "additive genetic term (no other random terms) in this version")
-        if not m["intercept"]:
+        rg = d["bayes"]["residual_groups"]
+        if rg is not None:
+            if set(rg) != set(m["traits"]) or any(float(x) != int(x) for x in rg.values()):
+                raise _err("bayes.residual_groups", "give an integer group number for every "
+                                                    "model trait")
+            if len(set(rg.values())) == 1:
+                raise _err("bayes.residual_groups", "all traits are in one group (omit the key)")
+        if d["bayes"]["method"] == "threshold" and not m["intercept"]:
             raise _err("model.intercept", "the threshold model needs an intercept (the first "
                                           "threshold is fixed at 0)")
         bz = d["bayes"]
@@ -623,8 +640,8 @@ def validate_spec_dict(raw: dict) -> dict:
             if not bz["nu"] > t - 1:
                 raise _err("bayes.nu", f"an inverse Wishart prior needs nu > {t - 1}")
         elif bz["variance_prior"] != "uniform":
-            raise _err("bayes.variance_prior", "multi-trait threshold models use 'uniform' or "
-                                               "'inverse_wishart'")
+            raise _err("bayes.variance_prior", "the Bayesian multi-trait models use 'uniform' "
+                                               "or 'inverse_wishart'")
         elif bz["prior_covariance"] is not None:
             raise _err("bayes.prior_covariance", "only used with variance_prior = "
                                                  "'inverse_wishart'")
@@ -638,6 +655,8 @@ def validate_spec_dict(raw: dict) -> dict:
         if t > 1 or m["traits"][0] not in cat_traits:
             raise _err("bayes.method", "'threshold' needs a single categorical trait")
         bz = d["bayes"]
+        if bz["residual_groups"] is not None:
+            raise _err("bayes.residual_groups", "multi-trait models only")
         names = {r["name"] for r in m["random"]}
         if bz["variance_prior"] == "inverse_wishart" or bz["prior_covariance"] is not None:
             raise _err("bayes.variance_prior", "'inverse_wishart' and prior_covariance are for "
@@ -659,9 +678,11 @@ def validate_spec_dict(raw: dict) -> dict:
         if any(tr["type"] == "categorical" and tr["name"] in m["traits"] for tr in d["traits"]):
             raise _err("bayes.method", "categorical traits use bayes.method = 'threshold'")
         if (d["bayes"]["variance_prior"] != "uniform" or d["bayes"]["prior_variances"] is not None
-                or d["bayes"]["prior_covariance"] is not None):
-            raise _err("bayes.variance_prior", "variance_prior, prior_variances and "
-                                               "prior_covariance are for method = 'threshold'")
+                or d["bayes"]["prior_covariance"] is not None
+                or d["bayes"]["residual_groups"] is not None):
+            raise _err("bayes.variance_prior", "variance_prior, prior_variances, "
+                                               "prior_covariance and residual_groups are for "
+                                               "method = 'threshold' or 'multitrait'")
         if len(m["random"]) != 1 or m["random"][0]["relationship"] != "genomic":
             raise _err("model.random", "Bayesian marker models need exactly one additive term "
                                        "with relationship = 'genomic'")

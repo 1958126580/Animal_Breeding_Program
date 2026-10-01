@@ -4,6 +4,10 @@
 # nlb1 has one record per ewe, so its liability-scale genetic variance needs a
 # proper prior (with a flat prior the posterior is improper and the chains drift);
 # the prior below is an inverse Wishart IW(nu, nu G_prior) with a weak nu = 5.
+# wwt is recorded on the lamb at weaning and nlb1 on the same animal as a ewe at
+# her first lambing, about a year later, so the two records share no temporary
+# environment: residual_groups puts them in different groups, which fixes their
+# residual covariance at 0 (one poorly determined parameter fewer).
 schema_version = "1"
 
 [project]
@@ -59,6 +63,7 @@ method = "threshold"
 variance_prior = "inverse_wishart"
 nu = 5.0
 prior_covariance = { animal = [[4.0, 0.0], [0.0, 0.1]] }   # order of model.traits
+residual_groups = { wwt = 1, nlb1 = 2 }
 chains = 4
 iterations = 10000
 burn_in = 2000

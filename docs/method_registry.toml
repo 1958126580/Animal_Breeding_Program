@@ -19,7 +19,7 @@ math = "docs/methods.md#2-pedigree-relationships"
 sources = ["Henderson 1976 Biometrics 32:69", "Quaas 1976 Biometrics 32:949", "Meuwissen & Luo 1992 GSE 24:305", "Colleau 2002 GSE 34:409"]
 errata = []
 exact_or_approximate = "exact"
-complexity = "order O(n); A^-1 O(n); F proportional to (animal, ancestor) pairs; A x by two pedigree recursions (C++ kernel, round 8) or two sparse triangular solves (reference)"
+complexity = "order O(n); A^-1 O(n); F depth by depth, per depth the cheaper of Meuwissen-Luo traces ((pair, ancestor) visits) and Colleau columns (2 x prefix size per distinct parent, round 9); A x by two pedigree recursions (C++ kernel, round 8) or two sparse triangular solves (reference)"
 code = ["src/abp/core/pedigree.py", "src/abp/_native.cpp"]
 tests = ["tests/test_pedigree.py::test_t03_hand_derived_gold_standard",
          "tests/test_pedigree.py::test_against_tabular_reference",
@@ -28,11 +28,12 @@ tests = ["tests/test_pedigree.py::test_t03_hand_derived_gold_standard",
          "tests/test_pedigree.py::test_cycle_is_rejected",
          "tests/test_pedigree.py::test_native_kernel_matches_python_reference",
          "tests/test_pedigree.py::test_a_times_matches_dense_for_matrix_rhs",
+         "tests/test_pedigree.py::test_native_depth_kernel_matches_reference_on_every_path",
          "tests/test_pedigree.py::test_native_colleau_product_matches_reference"]
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["base = unrelated founders (use ped.metafounders for a related base)", "inbreeding cost grows with pedigree depth (8.7 s for 100k animals x 20 generations)"]
+known_limits = ["base = unrelated founders (use ped.metafounders for a related base)", "inbreeding cost grows with pedigree depth and the number of distinct parents per depth (depth kernel, round 9: see validation report 7.13)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -790,7 +791,50 @@ tests = ["tests/test_mt_threshold_gibbs.py::test_location_draw_has_the_exact_con
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_30_replicates_prior_dependent_covariance", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["exactly one categorical trait", "one additive term (no permanent environment or other random terms)", "residual covariances always estimated (a structural zero cannot be fixed)", "one categorical record per animal needs a proper G0 prior (F17)", "genetic covariance with a single-record categorical trait follows the prior centre (F18)", "slow mixing: tens of thousands of iterations for about 2,000 animals"]
+known_limits = ["exactly one categorical trait", "one additive term (no permanent environment or other random terms)", "one categorical record per animal needs a proper G0 prior (F17)", "genetic covariance with a single-record categorical trait follows the prior centre (F18)", "slow mixing: tens of thousands of iterations for about 2,000 animals"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "bayes.multitrait_linear"
+name = "Gibbs sampler for the multi-trait linear animal model (continuous traits, G0 and R0 sampled)"
+estimand = "EBVs (posterior means), PEV blocks (posterior covariances; include the uncertainty of G0 and R0), G0, R0, heritabilities, genetic correlations"
+scope = ">= 2 continuous traits, one additive term (pedigree or other known K), own fixed design per trait, missing traits; variances.mode = 'bayes', bayes.method = 'multitrait'"
+math = "docs/methods.md#32-bayesian-multi-trait-linear-model-residual-covariances-fixed-at-zero"
+sources = ["Sorensen & Gianola 2002 Likelihood, Bayesian and MCMC Methods in Quantitative Genetics (Springer), ch. 13", "Van Tassell & Van Vleck 1996 J Anim Sci 74:2586", "Liu & Sabatti 2000 Biometrika 87:353"]
+errata = []
+exact_or_approximate = "exact MCMC (partially collapsed Gibbs; shear moves); convergence gated by R-hat/ESS"
+complexity = "per iteration: one numeric sparse LDL' of the multi-trait MME, one solve, O(n t^2) conditional draws"
+code = ["src/abp/solvers/mt_threshold_gibbs.py", "src/abp/workflows/mt_threshold.py"]
+tests = ["tests/test_mt_threshold_gibbs.py::test_linear_model_with_fixed_covariances_equals_multitrait_blup",
+         "tests/test_mt_threshold_gibbs.py::test_g0_step_matches_an_independent_metropolis_sampler",
+         "tests/test_mt_threshold_gibbs.py::test_location_draw_has_the_exact_conditional_mean_and_covariance",
+         "tests/test_mt_threshold_workflow.py::test_workflow_bayesian_multitrait_linear_model",
+         "tests/test_mt_threshold_workflow.py::test_spec_rules_for_the_multitrait_threshold_model"]
+# G4: benchmarks/bayes_vs_reml_study.py (finding F16): see validation report 7.13.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "see_validation_report_7_13", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["one additive term (no permanent environment or other random terms)", "flat or inverse-Wishart G0 prior; flat R0 prior only", "slower than REML: thousands of iterations of one sparse factorization each"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "bayes.residual_groups"
+name = "Block-diagonal residual covariance matrix in the multi-trait Gibbs samplers"
+estimand = "R0 with exact zeros between groups of traits"
+scope = "bayes.method = 'threshold' (multi-trait) or 'multitrait'; bayes.residual_groups = integer group per model trait, >= 2 groups"
+math = "docs/methods.md#32-bayesian-multi-trait-linear-model-residual-covariances-fixed-at-zero"
+sources = ["Sorensen & Gianola 2002 (Springer), ch. 13", "Korsgaard, Lund, Sorensen, Gianola, Madsen & Jensen 2003 Genet Sel Evol 35:159"]
+errata = []
+exact_or_approximate = "exact (each block from its own full conditional)"
+complexity = "as the unrestricted draw"
+code = ["src/abp/solvers/mt_threshold_gibbs.py", "src/abp/core/spec.py"]
+tests = ["tests/test_mt_threshold_gibbs.py::test_r0_blocks_have_exact_zeros_and_block_posteriors",
+         "tests/test_mt_threshold_gibbs.py::test_residual_groups_configuration_is_checked",
+         "tests/test_mt_threshold_workflow.py::test_workflow_bayesian_multitrait_linear_model"]
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["structural zeros between groups only (no other patterns)", "Gibbs samplers only (not REML)"]
 dependencies = ["numpy", "scipy"]
 
 # Methods of the specification that are NOT implemented in this version. They stay in

@@ -563,3 +563,26 @@ Building blocks (tested separately): `MTProblem`, `draw_location`, `draw_R0`,
 `SparseLDL.refactor_values(data)` (round 8) refactorises from values stored on
 exactly the pattern of `SparseLDL.C` (no sparse re-assembly);
 `Pedigree.a_times` uses the compiled Colleau kernel when available.
+
+## 30. Bayesian multi-trait linear model, residual groups, inbreeding kernel (round 9)
+
+```python
+lin = mt_threshold_gibbs(Y, None, Xb, np.arange(ped2.n), ped2.ainv(), MTThresholdGibbsConfig(
+    chains=4, iterations=4000, burn_in=1000, thin=4, max_iterations=16000, seed=1))
+blk = mt_threshold_gibbs(Y, None, Xb, np.arange(ped2.n), ped2.ainv(), MTThresholdGibbsConfig(
+    chains=4, iterations=4000, burn_in=1000, thin=4, seed=1, residual_groups=[[0], [1]]))
+```
+
+`cat=None` gives the linear model: all traits continuous, no thresholds
+(`thresholds_mean` is empty), `R0 | E ~ IW(E′E, n − t − 1)`. `residual_groups` (a
+partition of the trait indices `0 … t−1`, at least two groups) makes `R0` block
+diagonal with exact zeros between groups; a `start_R0` must respect the zeros. In
+the spec: `bayes.method = "multitrait"` and `bayes.residual_groups = { trait = group }`
+(manual §5.14, §7.16). `draw_R0(E, c, rng, groups=None)` draws one `R0` (`c=None`:
+no categorical trait).
+
+`Pedigree.inbreeding()` uses the compiled depth kernel
+(`inbreeding_kernel == "native_cpp_depth_ml_colleau"`; the same `F` as the
+Meuwissen–Luo reference). `abp._native.inbreeding_depth(sire, dam, mode=0)` returns
+`(bytes of F, depths, meuwissen_luo_pairs, colleau_columns, colleau_depths)`; `mode`
+1 and 2 force the trace and the column path (tests).
