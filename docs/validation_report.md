@@ -1,6 +1,6 @@
-# Validation report: ABP 0.9.0
+# Validation report: ABP 0.10.0
 
-Date: 2026-10-01 (round 9; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
+Date: 2026-10-01 (rounds 9–10; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
 evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
 (round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
@@ -54,13 +54,14 @@ AlphaMate has been run.
 
 | Command | Result | Log |
 |---|---|---|
-| `python -m pytest -v` (native C++ kernel; round 9; `OPENBLAS_NUM_THREADS=1`, 3 study workers on the other cores) | **317 passed**, 0 failed, 0 skipped, 1045.8 s | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 9; same conditions) | **312 passed**, 0 failed, 5 skipped (native-only comparisons), 5199.1 s | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
-| `abp selftest` with and without the native kernel (round 9) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel; T03 names the depth kernel) | `docs/validation/selftest-linux.log` |
+| `python -m pytest -v` (native C++ kernel; round 10; machine otherwise idle) | **326 passed**, 0 failed, 0 skipped, 765.8 s (run before two statistical tests were made smaller for the pure-Python job; the smaller versions passed separately with both kernels) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 10) | PURE_RESULT | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `abp selftest` with and without the native kernel (round 10) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel; T03 names the depth kernel) | `docs/validation/selftest-linux.log` |
 | `python benchmarks/bayes_vs_reml_study.py --replicates 50 --workers 3 --iterations 4000` (round 9, F16; 2 scenarios) | completed (see §7.13) | `docs/validation/bayes_vs_reml_study.json`, `.log` |
 | `python benchmarks/bayes_vs_reml_study.py --scenarios t2_full --seeds 1 2 3 4 5 6 --iterations 16000` (round 9, convergence check) | see §7.13 | `docs/validation/bayes_vs_reml_study_16000it.json`, `.log` |
 | `python benchmarks/inbreeding_benchmark.py` (round 9) | completed; identical F, 5 pedigrees | `docs/validation/inbreeding_benchmark.json`, `.log` |
-| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–16, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 9) | all 19 exit status 0; example 15 (residual groups) converged after 10,000 iterations in 305 s, example 16 after 16,000 in 999 s (machine shared with the convergence-check study); posterior means identical to the earlier runs (same seeds) | `docs/validation/examples-linux.log` |
+| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–17, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 10, with the pure-Python test suite alongside) | all 20 exit status 0; example 15: 10,000 iterations, 236 s; example 16: 8,000 iterations, 378 s; example 17: 16,000 iterations, 361 s | `docs/validation/examples-linux.log` |
+| `python benchmarks/bayes_vs_reml_study.py --scenarios t3_full --seeds 1..30 --prior pheno` (round 10, F16 follow-up) | completed (§7.14) | `docs/validation/bayes_vs_reml_study_pheno_prior.json`, `.log` |
 | `python benchmarks/pev_estimator_study.py` (round 8) | completed; SD ratio 0.575 | `docs/validation/pev_estimator_study.json`, `.log` |
 | `python benchmarks/rank_selection_study.py --replicates 100 --workers 4` (round 8, 4 scenarios) | completed | `docs/validation/rank_selection_study.json`, `.log` |
 | `python benchmarks/mt_threshold_study.py --replicates 30 --workers 4 --iterations 12000` (round 8; also `--iterations 3000` and `--g-prior true --replicates 12 --iterations 6000`) | completed; 30/30 converged | `docs/validation/mt_threshold_study.json`, `mt_threshold_study_3000it.json`, `mt_threshold_study_trueprior.json`, `.log` |
@@ -679,6 +680,61 @@ same where traces are cheap (3.2 s both). Pedigree of the 200,000-animal single-
 benchmark: 4.5 s instead of 45.4 s. The automatic choice was up to 1.6 times slower
 than forcing the columns on overlapping generations (conservative cost model).
 
+### 7.14 Round-10 studies
+
+**Example 17: repeated records with a permanent environment** (`abp run`; synthetic,
+`make_data.py`; 1,208 records of 454 ewes, 1–4 lambings each, two traits). With the
+round-9 moves (scale move for a categorical trait only) the chains had not met the
+criteria after 16,000 iterations: R0 mixed well (bulk ESS > 6,000) but G0 and P0
+traded off (bulk ESS 98–186, R-hat up to 1.035); the result was withheld (`ABP-E405`)
+as designed. With the round-10 scale moves on (u_j, G0) and (pe_j, P0) for every trait:
+converged after 16,000 iterations (367 s), worst R-hat 1.007, smallest bulk ESS 572
+(G0[lwt] 186 → 2,022, P0[lwt] 120 → 1,532 in the first comparison run, which fitted
+flock and year as main effects). After the contemporary group was corrected to
+flock × year, posterior means (95% intervals) against the simulation's values:
+G0 lwt 4.82 (1.93–7.90; true 4.0), bcs 0.067 (0.018–0.125; 0.06), covariance 0.41
+(0.09–0.75; 0.3); P0 lwt 3.01 (0.61–6.01; 3.0), bcs 0.076 (0.025–0.129; 0.05); R0 lwt
+13.48 (12.20–14.90; 13.0), bcs 0.282 (0.254–0.313; 0.29); every true value inside its
+interval. The intervals for G0 and P0 are wide: 2–3 records per ewe separate genetic
+and permanent-environment variance weakly. *Example definition defect, found by
+comparison with the simulation:* the first version fitted flock and year as main
+effects although the data contain flock × year effects; R0[lwt] was then 15.7 against
+13 (the interaction went into the residual). The example now fits `flock_year`.
+
+**F16 follow-up: weak proper priors** (`bayes_vs_reml_study_pheno_prior.json`, `.log`;
+three-trait scenario, seeds 1–30, the same data as the round-9 flat-prior fits).
+Priors IW(ν = t + 2) for G0 and R0 centred on 0.3 and 0.7 of the observed phenotypic
+covariance (data only, not the truth). MSE/PEV (paired difference to the flat prior on
+the same seeds):
+
+| Trait (h²) | flat prior | weak prior | paired difference | REML + Kackar–Harville | true parameters |
+|---|---:|---:|---:|---:|---:|
+| 1 (0.40) | 1.050 ± 0.025 | 1.076 ± 0.026 | +0.025 ± 0.002 | 1.064 | 1.028 |
+| 2 (0.23) | 1.101 ± 0.049 | 1.028 ± 0.030 | −0.073 ± 0.022 | 1.221 | 1.007 |
+| 3 (0.25) | 1.195 ± 0.086 | 1.106 ± 0.039 | −0.088 ± 0.052 | 1.441 | 1.032 |
+
+Realized accuracy +0.006 ± 0.001 and +0.003 ± 0.001 for traits 2 and 3. The weak prior
+calibrates trait 2 and reduces the optimism of trait 3 (to 7% above the true-parameter
+value on these seeds), at a small but clear cost for the well-determined trait 1 (the
+prior pulls its genetic variance from 2.05 to 1.94; true 1.96). Posterior means of the
+genetic variances: 1.94 / 0.629 / 0.505 (true 1.96 / 0.6 / 0.5). Chains: 4 × 4,000
+iterations, none met the strict criteria (median worst R-hat 1.015), as in round 9.
+These fits ran the round-9 moves (scale move for a categorical trait only; this
+study has none), i.e. the same target as the released sampler. Conclusion for F16: a
+weak proper prior is preferable to the flat one for low-heritability traits on small
+data; neither removes the residual optimism of the least informed trait completely.
+
+**Examples 15 and 16 with the round-10 moves** (examples log): example 15 converged
+after 10,000 iterations as before (236 s), posterior means within Monte-Carlo error of
+round 9 (wwt genetic variance 3.60 against 3.57, nlb1 liability variance 0.201
+against 0.204); example 16 converged after 8,000 instead of 16,000 iterations (378 s
+instead of 999 s), posterior genetic variances 4.30 / 0.286 / 0.441 (round 9: 4.36 /
+0.290 / 0.450).
+
+**Scale moves: invariance and mixing** (`test_scale_moves_with_permanent_environment_leave_the_posterior_unchanged`):
+posterior means with and without the moves within 4 MC SE for G0, P0 and R0 entries;
+mean ESS gain of the four variances > 1.3 (asserted).
+
 ### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
@@ -705,7 +761,7 @@ for the four-trait example.
 | F12 | REML-based PEV was 7–13% optimistic in every study | **resolved** (rounds 5–7) | Kackar–Harville PEV: pedigree REML MSE/PEV 1.017 ± 0.031; multi-trait 1.025/1.048/1.058 (§7.10); reduced-rank fits (round 7, §7.11) |
 | F13 | Threshold Gibbs sampler with uniform variance priors: permanent-environment variance 0.138 ± 0.010 (true 0.111) | open (documented; round 7 study) | proper priors are in the spec (`bayes.variance_prior`); with prior scales 0.05 / 0.2 the estimates follow the prior (§7.11): with 2–3 records per animal these variances are weakly identified, and no prior choice removes that. More records per animal or known variances are the remedies |
 | F14 | Sampled reliabilities carry Monte-Carlo error (SE ≈ 0.04 with 300 simulations; 0.15 with 20 at 200,000 animals) | open (by design) | reported per animal (`reliability_mc_se`); choose `solver.pev_samples` for the precision needed (0.21 with 10 at 120,000 animals, §7.11; 0.10 with the round-8 estimator, §7.12) |
-| F16 | With full-rank multi-trait REML on 1,000 animals, the EBVs of low-heritability traits (h² 0.15–0.25, 30% missing) are optimistic even with the Kackar–Harville PEV (MSE/PEV 1.14–1.17, 3–3.5 MC SE above 1; round 9: 1.14–1.31) | **partly resolved** (round 9) | the Bayesian multi-trait linear model (`bayes.method = "multitrait"`, posterior PEV) is calibrated with two traits (1.000 ± 0.040) and closer with three (1.062 ± 0.036, 1.142 ± 0.055 against 1.157 and 1.310 with Kackar–Harville; §7.13); remaining optimism with three traits; chains of 4,000 iterations did not meet the R-hat/ESS criteria (see §7.13 for the longer-chain check); a second-order Kackar–Harville correction remains a candidate |
+| F16 | With full-rank multi-trait REML on 1,000 animals, the EBVs of low-heritability traits (h² 0.15–0.25, 30% missing) are optimistic even with the Kackar–Harville PEV (MSE/PEV 1.14–1.17, 3–3.5 MC SE above 1; round 9: 1.14–1.31) | **partly resolved** (rounds 9–10) | Bayesian multi-trait linear model: calibrated with two traits (1.000 ± 0.040); with three traits 1.06 / 1.14 under flat priors and 1.03 / 1.11 under weak data-centred IW priors (round 10, §7.14) against 1.22 / 1.44 with Kackar–Harville on the same seeds; the least informed trait stays 7% above the true-parameter benchmark; a second-order Kackar–Harville correction remains a candidate |
 | F17 | With one categorical record per animal, a flat prior on the liability genetic variance gives an improper posterior (single- and multi-trait threshold samplers: chains drift, results withheld) | open (documented; remedy available) | proper priors (`variance_prior = "scaled_inv_chi2"` / `"inverse_wishart"`) make the posterior proper; their influence must be reported (F13) |
 | F18 | Multi-trait threshold model with one categorical record per animal: the genetic correlation follows the prior's centre (0.27 ± 0.04 with a prior at zero covariance, 0.51 ± 0.04 with one at the true 0.5) | open (documented) | the data identify the covariance weakly; take `prior_covariance` from published estimates and report it; repeated or more records improve identification |
 | F15 | Rank selection by the smallest AIC wrongly reduced a full-rank G0 (r_G 0.6) to rank 1 in 19 of 100 data sets, making trait-2 PEV about four times too small | **resolved** (round 7) | ABP moves to a lower rank only if its AIC is smaller by ≥ 2: 0 of 100 wrong reductions; the cost is that a true rank 1 is found in 58/100 instead of 97/100 (the full-rank model is kept in the rest) (§7.11) |
@@ -745,6 +801,7 @@ for the four-trait example.
 | 9 | With `residual_groups`, the R0 prior text in `mcmc_diagnostics_multitrait.json` described the Korsgaard parameterisation of the whole matrix although the categorical trait was alone in its group (its residual variance simply fixed at 1); the sampler itself was right | reading the diagnostics of the rerun of example 15 | prior text built per block | `test_workflow_bayesian_multitrait_linear_model` (block text) |
 | 9 | Under a CPU fully used by other processes, the API example's multi-trait REML (multi-threaded OpenBLAS dense inverse) exceeded its 600 s test timeout although it takes 12–20 s alone (thread oversubscription; no code change involved) | local test run during the 3-worker study | not a code defect: tests rerun without the competing load; with `OPENBLAS_NUM_THREADS=1` the script took 20 s under the same load; recorded as an engineering risk (§8) | `test_api_example_script_runs` (unchanged) |
 | 9 | The new depth-kernel test asserted the native kernel name even with `ABP_DISABLE_NATIVE=1` (the module is importable, so the test was not skipped; `Pedigree.inbreeding` correctly used the Python reference): CI run 36807935977 failed on the pure-Python job, 6 of 7 jobs green | CI (checked after the push) | the expected name follows `native_kernel_available()` (test defect; production code unaffected) | `test_native_depth_kernel_matches_reference_on_every_path` (both kernel settings) |
+| 10 | The sparsity pattern of the multi-trait Gibbs coefficient matrix came from a numerical surrogate (`R0 = G0 = I + 0.5`); with repeated records an entry of W′R⁻¹W (−0.75) cancelled the prior entry (+0.75) exactly, so the pattern lacked entries the actual C needs (`ValueError: entry outside the pattern of C`) | the new exact test with repeated records (before release) | pattern from absolute values, SPD diagonally dominant values for the initial factor | `test_permanent_environment_with_fixed_covariances_equals_dense_mme` |
 
 Round-8 errors in the construction of tests and scripts: the location-draw test first
 required the pooled SD of the covariance z-scores to be at least 0.85 (the entries are

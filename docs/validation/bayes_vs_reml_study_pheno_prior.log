@@ -1,0 +1,9 @@
+# command: python benchmarks/bayes_vs_reml_study.py --scenarios t3_full --seeds 1..30 --iterations 4000 --workers 3 --prior pheno --out docs/validation/bayes_vs_reml_study_pheno_prior.json
+# date: 2026-10-01T12:35:39+00:00
+t3_full bayes converged 0/30, REML failed 0
+      reml_plugin trait1: MSE/PEV 1.084+-0.027 cov 0.940 acc 0.734 trait2: MSE/PEV 1.289+-0.096 cov 0.917 acc 0.565 trait3: MSE/PEV 1.592+-0.297 cov 0.901 acc 0.567
+          reml_kh trait1: MSE/PEV 1.064+-0.026 cov 0.942 acc 0.734 trait2: MSE/PEV 1.221+-0.083 cov 0.925 acc 0.565 trait3: MSE/PEV 1.441+-0.217 cov 0.908 acc 0.567
+            bayes trait1: MSE/PEV 1.076+-0.026 cov 0.941 acc 0.735 trait2: MSE/PEV 1.028+-0.030 cov 0.947 acc 0.576 trait3: MSE/PEV 1.106+-0.039 cov 0.937 acc 0.576
+  true_parameters trait1: MSE/PEV 1.028+-0.016 cov 0.948 acc 0.737 trait2: MSE/PEV 1.007+-0.015 cov 0.950 acc 0.582 trait3: MSE/PEV 1.032+-0.010 cov 0.946 acc 0.582
+wrote docs/validation/bayes_vs_reml_study_pheno_prior.json
+# exit_code: 0  wall_s: 6998

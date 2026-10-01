@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-10-01, ABP 0.9.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-10-01, ABP 0.10.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -63,6 +63,11 @@ method in `docs/method_registry.toml`):
   iterations); native inbreeding kernel by pedigree depth (Meuwissen–Luo traces or
   Colleau columns per depth, identical F; 200,000 animals 4.5 s instead of 45 s);
   F16 study (Bayesian posterior PEV vs REML + Kackar–Harville);
+* **round 10**: permanent-environment (iid) term in both multi-trait Gibbs samplers
+  (repeated records; P0 sampled; `pe_multitrait.csv`, `c2`; example 17); proper
+  inverse-Wishart priors for P0 and R0 (`prior_covariance.pe`, `.residual`); scale
+  moves for every trait on (u, G0) and (pe, P0) (example 17: converged instead of
+  withheld); F16 follow-up with weak data-centred priors;
 * single-trait BLUP (animal, repeatability), dense/sparse/PCG solvers, PEV,
   reliability; **exact PEV at any size whose factor fits in memory by sparse
   selected inversion** (round 3; Takahashi equations on the symbolic Cholesky
@@ -77,7 +82,7 @@ method in `docs/method_registry.toml`):
 * optimal contribution selection and mating plans (`abp mate`, proposals
   only);
 * workflow with atomic outputs, manifests and reports; CLI; launchers;
-  synthetic sheep generator; 16 examples; documentation; self-test T01–T18.
+  synthetic sheep generator; 17 examples; documentation; self-test T01–T18.
 
 ## 2. Commands that were run (Linux) and their results
 
@@ -170,10 +175,11 @@ See `docs/validation_report.md` §8. The most important:
   move the estimates towards their centre (round-7 study). Remedy: more
   records per animal or known variances. **F14**: sampled reliabilities carry
   Monte-Carlo error (SE 0.21 with 10 simulations at 120,000 animals).
-* **F16 (partly resolved, round 9)**: full-rank multi-trait REML on small data:
-  low-h² traits stay 14–31% optimistic even with the Kackar–Harville PEV. The
+* **F16 (partly resolved, rounds 9–10)**: full-rank multi-trait REML on small data:
+  low-h² traits stay 14–44% optimistic even with the Kackar–Harville PEV. The
   Bayesian multi-trait linear model is calibrated with two traits (MSE/PEV 1.000 ±
-  0.040) and better but still optimistic with three (1.06, 1.14); see §7.13.
+  0.040); with three traits 1.06 / 1.14 (flat priors) and 1.03 / 1.11 with weak
+  data-centred priors (round 10), at +0.025 for the best-determined trait; §7.13–7.14.
 * **Engineering (round 9)**: multi-threaded OpenBLAS under a fully loaded CPU slowed
   a 12 s REML example beyond 600 s (thread oversubscription); with one BLAS thread
   it took 20 s. Set `OPENBLAS_NUM_THREADS` when ABP shares a machine.
@@ -211,17 +217,15 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 9 completed task 2 (Bayesian multi-trait linear model, F16 study) and the
-residual-covariance part of task 1 listed here in round 8, and sped up inbreeding.
-Next:
+Round 10 completed the permanent-environment and proper-R0-prior parts of task 1 listed
+here in round 9, the mixing improvement (scale moves for every trait) and a first
+F16 follow-up (weak priors). Next:
 
-1. Multi-trait Gibbs samplers: several categorical traits (joint liabilities with
-   a correlation-matrix step), extra random terms (permanent environment), proper
-   R0 priors, and faster mixing (4,000 iterations never met R-hat < 1.01 / ESS 400
-   at 1,000 animals; example 16 needed 16,000).
-2. F16 remainder: with three traits the posterior PEV is still 6–14% optimistic for
-   the low-heritability traits; study the cause (chain length, flat-prior posterior
-   means of G0 above the truth) and a second-order Kackar–Harville correction.
+1. Multi-trait Gibbs samplers: several categorical traits (joint liabilities with a
+   correlation-matrix step); more than one iid term; maternal effects.
+2. F16 remainder: the least informed trait of three stays 7% optimistic even with
+   weak priors; test a second-order Kackar–Harville correction and longer chains on
+   the three-trait scenario.
 3. APY construction at scale: the dense `G_cn` product (float32 option with a
    documented error bound) and parallel Colleau products.
 4. Sampled PEV: combine the orthogonal estimator with control variates from an
@@ -239,7 +243,7 @@ Next:
 | `src/abp/solvers/cholesky.py`, `multitrait_reml.py`, `threshold.py` | sparse LDL', multi-trait REML, threshold model (round 4); reduced-rank REML and Laplace REML (round 5) |
 | `src/abp/solvers/vc_uncertainty.py`, `src/abp/core/ssop.py` | Kackar–Harville PEV; matrix-free single-step operators (round 5) |
 | `src/abp/solvers/threshold_gibbs.py`, `src/abp/solvers/pev_sampling.py` | threshold Gibbs sampler; sampled PEV (round 6) |
-| `src/abp/solvers/mt_threshold_gibbs.py`, `src/abp/workflows/mt_threshold.py` | multi-trait threshold model (round 8); Bayesian multi-trait linear model and residual groups (round 9) |
+| `src/abp/solvers/mt_threshold_gibbs.py`, `src/abp/workflows/mt_threshold.py` | multi-trait threshold model (round 8); Bayesian multi-trait linear model and residual groups (round 9); permanent environment, P0/R0 priors, scale moves for every trait (round 10) |
 | `src/abp/_native.cpp` | C++20 kernels: inbreeding (`inbreeding_ml`, depth kernel `inbreeding_depth`, round 9), Bayesian sweep, `ml_general`, `symbolic_cholesky`, `takahashi`, `mindegree_order`, `ldl_numeric`, `ldl_solve`, `colleau_times` |
 | `tests/` | test suite; `tests/reference/` holds the independent dense references (incl. `tabular_a_metafounders`) |
 | `examples/` | runnable examples and synthetic data (`*/truth` folders are for validation only) |

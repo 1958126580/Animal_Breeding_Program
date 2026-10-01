@@ -1697,9 +1697,9 @@ Example 16 analyses the three traits of example 13 this way:
 abp run examples/16_sheep_multitrait_bayes/analysis.toml --out runs/ex16
 ```
 
-It converged after 16,000 iterations (15–17 minutes; REML in example 13: 15–19 s). Posterior
+It converged after 8,000 iterations (about 6 minutes; 16,000 iterations and 15–17 minutes before the scale moves of version 0.10; REML in example 13: 15–19 s). Posterior
 means of the genetic covariance matrix were close to the REML estimates (variances
-4.36, 0.290, 0.450 against 3.96, 0.263, 0.401 — a posterior mean of a variance
+4.36, 0.290, 0.450 in the 0.9 run, 4.30, 0.286, 0.441 in the 0.10 run, against 3.96, 0.263, 0.401 — a posterior mean of a variance
 lies above the REML estimate because the posterior is skewed to the right;
 genetic correlations 0.28, −0.34, −0.11 against 0.29, −0.37, −0.13). The EBVs
 correlated 0.999 with those of example 13. The posterior PEVs were 9–11% larger
@@ -1746,7 +1746,12 @@ calibrated with two traits (squared error / PEV 1.00) and better but still
 optimistic with three (1.06 and 1.14). Its EBVs were very slightly more accurate
 (+0.003). It costs far more time: about 5 minutes per two-trait analysis of 1,000
 animals against 7 seconds for REML. Use it when the covariances are poorly
-determined and honest reliabilities matter more than run time.
+determined and honest reliabilities matter more than run time. With three traits, weak
+proper priors centred on a split of the phenotypic covariance (`variance_prior =
+"inverse_wishart"`, `nu` = traits + 2, `prior_covariance` for the additive term and
+`residual`) brought the low-heritability traits closer to calibration (1.03 and 1.11
+instead of 1.10 and 1.20 with flat priors) at a small cost for the best-determined
+trait (1.08 instead of 1.05).
 
 ---
 

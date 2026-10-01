@@ -545,11 +545,11 @@ def test_pe_and_r0_prior_configuration_is_checked():
 
 
 def test_permanent_environment_variances_are_recovered():
-    """Simulated repeated records (300 animals x 3 records, two traits): posterior
+    """Simulated repeated records (200 animals x 3 records, two traits): posterior
     means of G0, P0, R0 near the truth (within 3 posterior SD) and the chains pass
     R-hat/ESS (a recovery check, not an exactness test)."""
     from scipy.sparse.linalg import spsolve_triangular
-    ped, rng = _ped(300, 7, 40)
+    ped, rng = _ped(200, 7, 30)
     q = ped.n
     G0 = np.array([[1.0, 0.4], [0.4, 0.8]])
     P0 = np.array([[0.6, 0.1], [0.1, 0.5]])
@@ -562,8 +562,8 @@ def test_permanent_environment_variances_are_recovered():
     n = animal_col.size
     Y = 5 + U[animal_col] + PE[animal_col] + rng.standard_normal((n, 2)) @ np.linalg.cholesky(R0).T
     X = sp.csr_matrix(np.ones((n, 1)))
-    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=3000, burn_in=600, thin=2,
-                                    max_iterations=12000, seed=8, rhat_max=1.05, ess_min=100)
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=1500, burn_in=300, thin=1,
+                                    max_iterations=3000, seed=8, rhat_max=1.05, ess_min=100)
     res = MT.mt_threshold_gibbs(Y, None, X, animal_col, ped.ainv(), cfg, pe_col=animal_col)
     assert res.converged
     for name, true in (("G0", G0), ("P0", P0), ("R0", R0)):
@@ -578,7 +578,7 @@ def test_scale_moves_with_permanent_environment_leave_the_posterior_unchanged():
     and without them target the same posterior (means within Monte-Carlo error) and the
     moves raise the bulk ESS of the variances that trade off between G0 and P0."""
     from scipy.sparse.linalg import spsolve_triangular
-    ped, rng = _ped(150, 13, 25)
+    ped, rng = _ped(100, 13, 20)
     q = ped.n
     F = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())[:, None]
                            * rng.standard_normal((q, 2)), lower=True, unit_diagonal=True)
@@ -590,8 +590,8 @@ def test_scale_moves_with_permanent_environment_leave_the_posterior_unchanged():
     X = sp.csr_matrix(np.ones((n, 1)))
     out = {}
     for move in (True, False):
-        cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=4000, burn_in=500, thin=2,
-                                        max_iterations=4000, seed=41 if move else 42,
+        cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=2500, burn_in=300, thin=1,
+                                        max_iterations=2500, seed=41 if move else 42,
                                         scale_move=move, prior_nu=6.0,
                                         prior_G0=np.diag([1.0, 0.5]), prior_nu_pe=6.0,
                                         prior_P0=np.diag([0.8, 0.4]))

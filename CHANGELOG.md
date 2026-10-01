@@ -4,6 +4,23 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.10.0] - 2026-10-01
+
+Tenth development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Permanent-environment (iid) term in the multi-trait Gibbs samplers (`bayes.method = "multitrait"` or multi-trait `"threshold"`): repeated records per animal, `pe ~ N(0, I ⊗ P0)` with P0 sampled (flat or inverse-Wishart prior); outputs P0, `c2_<trait>`, `pe_multitrait.csv`; heritabilities on G + P + R (`mt_threshold_gibbs(..., pe_col=)`). Example 17 (two repeated ewe traits, synthetic data from `make_data.py`).
+- Proper inverse-Wishart priors for the permanent-environment and residual matrices: `bayes.prior_covariance` accepts the iid term's name and `residual` (with a categorical trait the R0 prior needs that trait in its own residual group).
+- `bayes_vs_reml_study.py --prior pheno` (weak data-centred priors) and `--seeds`. F16 follow-up (30 replicates, three traits): weak priors brought the low-heritability traits to MSE/PEV 1.03 / 1.11 (flat 1.10 / 1.20, Kackar–Harville 1.22 / 1.44 on the same seeds) at +0.025 for the best-determined trait.
+- Methods §32 (permanent environment, R0 prior), API section 31, manual §7.16 (repeated records), validation report §7.14.
+
+### Changed
+- **[results]** Scale moves (parameter expansion) for every trait on (u_j, G0) and (pe_j, P0) in both multi-trait Gibbs samplers (round 9: the categorical trait only). Same posterior; different random streams, so multi-trait Gibbs results change within Monte-Carlo error; mixing of the variances improves (example 17: not converged → converged).
+- Multi-trait models with known or REML variances still refuse extra random terms; the error message names the Gibbs alternative.
+
+### Fixed
+- The sparsity pattern of the multi-trait Gibbs coefficient matrix is built from absolute values: a numerical surrogate cancelled exactly with repeated records and dropped needed entries (found by the new exact test before release; no released analysis had repeated records in a multi-trait Gibbs model).
+
 ## [0.9.0] - 2026-10-01
 
 Ninth development round. Evidence and gaps: `docs/validation_report.md`.

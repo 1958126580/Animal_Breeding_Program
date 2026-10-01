@@ -781,6 +781,7 @@ tests = ["tests/test_mt_threshold_gibbs.py::test_location_draw_has_the_exact_con
          "tests/test_mt_threshold_gibbs.py::test_posterior_with_fixed_covariances_equals_importance_sampling",
          "tests/test_mt_threshold_gibbs.py::test_uncorrelated_traits_reduce_to_single_trait_models",
          "tests/test_mt_threshold_gibbs.py::test_expansion_moves_leave_the_posterior_unchanged",
+         "tests/test_mt_threshold_gibbs.py::test_threshold_model_with_permanent_environment_runs_and_keeps_r0cc",
          "tests/test_mt_threshold_gibbs.py::test_coefficient_maps_equal_direct_assembly",
          "tests/test_mt_threshold_gibbs.py::test_refusals",
          "tests/test_mt_threshold_workflow.py::test_workflow_multitrait_threshold_writes_outputs_and_evidence",
@@ -792,21 +793,28 @@ tests = ["tests/test_mt_threshold_gibbs.py::test_location_draw_has_the_exact_con
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_30_replicates_prior_dependent_covariance", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["exactly one categorical trait", "one additive term (no permanent environment or other random terms)", "one categorical record per animal needs a proper G0 prior (F17)", "genetic covariance with a single-record categorical trait follows the prior centre (F18)", "slow mixing: tens of thousands of iterations for about 2,000 animals"]
+known_limits = ["exactly one categorical trait", "one additive and at most one iid (permanent-environment) term (round 10)", "one categorical record per animal needs a proper G0 prior (F17)", "genetic covariance with a single-record categorical trait follows the prior centre (F18)", "slow mixing: tens of thousands of iterations for about 2,000 animals"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
 method_id = "bayes.multitrait_linear"
 name = "Gibbs sampler for the multi-trait linear animal model (continuous traits, G0 and R0 sampled)"
 estimand = "EBVs (posterior means), PEV blocks (posterior covariances; include the uncertainty of G0 and R0), G0, R0, heritabilities, genetic correlations"
-scope = ">= 2 continuous traits, one additive term (pedigree or other known K), own fixed design per trait, missing traits; variances.mode = 'bayes', bayes.method = 'multitrait'"
+scope = ">= 2 continuous traits, one additive term (pedigree or other known K) and optionally one iid permanent-environment term (repeated records, round 10), own fixed design per trait, missing traits; variances.mode = 'bayes', bayes.method = 'multitrait'"
 math = "docs/methods.md#32-bayesian-multi-trait-linear-model-residual-covariances-fixed-at-zero"
 sources = ["Sorensen & Gianola 2002 Likelihood, Bayesian and MCMC Methods in Quantitative Genetics (Springer), ch. 13", "Van Tassell & Van Vleck 1996 J Anim Sci 74:2586", "Liu & Sabatti 2000 Biometrika 87:353"]
 errata = []
-exact_or_approximate = "exact MCMC (partially collapsed Gibbs; shear moves); convergence gated by R-hat/ESS"
+exact_or_approximate = "exact MCMC (partially collapsed Gibbs; scale moves for every trait on (u, G0) and (pe, P0), shear moves); convergence gated by R-hat/ESS"
 complexity = "per iteration: one numeric sparse LDL' of the multi-trait MME, one solve, O(n t^2) conditional draws"
 code = ["src/abp/solvers/mt_threshold_gibbs.py", "src/abp/workflows/mt_threshold.py"]
 tests = ["tests/test_mt_threshold_gibbs.py::test_linear_model_with_fixed_covariances_equals_multitrait_blup",
+         "tests/test_mt_threshold_gibbs.py::test_permanent_environment_with_fixed_covariances_equals_dense_mme",
+         "tests/test_mt_threshold_gibbs.py::test_permanent_environment_variances_are_recovered",
+         "tests/test_mt_threshold_gibbs.py::test_scale_moves_with_permanent_environment_leave_the_posterior_unchanged",
+         "tests/test_mt_threshold_gibbs.py::test_r0_inverse_wishart_prior_has_closed_form_moments",
+         "tests/test_mt_threshold_gibbs.py::test_pe_and_r0_prior_configuration_is_checked",
+         "tests/test_mt_threshold_workflow.py::test_workflow_multitrait_with_permanent_environment",
+         "tests/test_mt_threshold_workflow.py::test_spec_rules_for_permanent_environment_and_r0_prior",
          "tests/test_mt_threshold_gibbs.py::test_g0_step_matches_an_independent_metropolis_sampler",
          "tests/test_mt_threshold_gibbs.py::test_location_draw_has_the_exact_conditional_mean_and_covariance",
          "tests/test_mt_threshold_workflow.py::test_workflow_bayesian_multitrait_linear_model",
@@ -816,7 +824,7 @@ tests = ["tests/test_mt_threshold_gibbs.py::test_linear_model_with_fixed_covaria
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "partial_calibrated_2_traits_optimistic_3_traits", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["one additive term (no permanent environment or other random terms)", "flat or inverse-Wishart G0 prior; flat R0 prior only", "slower than REML: thousands of iterations of one sparse factorization each"]
+known_limits = ["one additive and at most one iid term", "genetic and permanent-environment variances weakly separated with 2-3 records per animal (wide intervals; example 17)", "slower than REML: thousands of iterations of one sparse factorization each"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]

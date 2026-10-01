@@ -586,3 +586,27 @@ no categorical trait).
 Meuwissen–Luo reference). `abp._native.inbreeding_depth(sire, dam, mode=0)` returns
 `(bytes of F, depths, meuwissen_luo_pairs, colleau_columns, colleau_depths)`; `mode`
 1 and 2 force the trace and the column path (tests).
+
+## 31. Permanent environment, R0 prior and scale moves in the multi-trait Gibbs samplers (round 10)
+
+```python
+pe = mt_threshold_gibbs(Y, None, Xb, animal_col, ped2.ainv(), MTThresholdGibbsConfig(
+    chains=4, iterations=4000, burn_in=1000, thin=4, max_iterations=16000, seed=1,
+    prior_nu_pe=6.0, prior_P0=np.diag([0.5, 0.3]),          # optional proper P0 prior
+    prior_nu_r=6.0, prior_R0=np.diag([2.0, 1.0])),          # optional proper R0 prior
+    pe_col=animal_col)                                      # level of each record (0..m-1)
+pe.P0["mean"], pe.pe_mean, pe.derived["c2_0"]
+```
+
+`pe_col` adds `pe ~ N(0, I_m ⊗ P0)` (repeated records: several records of an animal
+share its level). `MTThresholdGibbsConfig` gains `start_P0`, `prior_nu_pe`/`prior_P0`
+(IW prior of P0; default flat) and `prior_nu_r`/`prior_R0` (IW prior of every block of
+continuous traits of R0; with a categorical trait that trait must form its own
+residual group). `MTThresholdGibbsResult` gains `P0` (summaries) and `pe_mean`
+(`m × t`); `derived` gains `c2_<j>`; heritabilities use `G + P + R`.
+`draw_R0(E, c, rng, groups=None, nu=None, R_prior=None)`. `scale_move=True` (default)
+now applies the scale move to every trait for `(u_j, G0)` and `(pe_j, P0)` (round 9:
+the categorical trait only). In the spec: an iid term in `[model].random` and
+`bayes.prior_covariance = { animal = ..., pe = ..., residual = ... }` (manual §5.14,
+§7.16).
+

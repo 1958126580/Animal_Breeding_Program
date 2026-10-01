@@ -54,7 +54,7 @@ build machine recorded in `docs/validation_report.md`.
 | M06 GBLUP | passed | VanRaden G with policies; SNP-BLUP equivalence tested |
 | M07 ssGBLUP | partial | exact H⁻¹, metafounders, APY; matrix-free single step with sampled reliabilities and int8 genotype storage in the workflow (no exact PEV or REML on that path) |
 | M08 Bayesian | partial | BRR, BayesA, BayesB, BayesC, BayesCπ, BayesR with MCMC diagnostics (M20 part); single-trait genotyped-only; multi-trait Bayesian animal model with sampled G0 and R0 (`bayes.method = "multitrait"`, round 9); no Bayesian LASSO/horseshoe, single-step Bayes or multi-trait marker models |
-| M09 multi-trait / repeatability / random regression | partial | multi-trait BLUP and multi-trait REML; repeatability model; no random regression |
+| M09 multi-trait / repeatability / random regression | partial | multi-trait BLUP and multi-trait REML; repeatability model; multi-trait repeatability (permanent environment) in the Bayesian multi-trait models (round 10); no random regression |
 | M10 threshold / survival / G×E | partial | single-trait threshold (probit) model and a multi-trait threshold model (one categorical + continuous traits, Gibbs) with known, Gibbs-sampled (uniform or proper priors) or Laplace-REML liability variances (Laplace biased in sparse data; weakly identified with 2–3 records per animal, F13); no survival or G×E models |
 | M11 selection index | passed | Smith-Hazel, restricted, EBV index |
 | M12 OCS and mating | passed | pedigree-based OCS with KKT certificate; integer plans; minimum-inbreeding mating with hard constraints; no genomic OCS or multi-generation planning |
