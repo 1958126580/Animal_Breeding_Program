@@ -210,11 +210,15 @@ def test_spec_rules_for_the_multitrait_threshold_model():
         dict(base, bayes={"method": "threshold", "variance_prior": "scaled_inv_chi2",
                           "prior_variances": {"animal": 0.2}}),
         dict(base, model=dict(base["model"], random=base["model"]["random"]
-                              + [{"name": "pe", "kind": "iid"}])),
+                              + [{"name": "pe", "kind": "iid"},
+                                 {"name": "pe2", "kind": "iid", "column": "id"}])),
     ]
     for b in bad:
         with pytest.raises(ABPError):
             validate_spec_dict(b)
+    # round 10: one permanent-environment term is allowed in the multi-trait Gibbs models
+    assert validate_spec_dict(dict(base, model=dict(base["model"], random=base["model"]["random"]
+                                                    + [{"name": "pe", "kind": "iid"}])))
     # bayes.method = "multitrait" and residual_groups
     lin = dict(base, traits=[{"name": "w", "unit": "kg"}, {"name": "s", "unit": "c"}],
                bayes={"method": "multitrait"})
@@ -235,7 +239,8 @@ def test_spec_rules_for_the_multitrait_threshold_model():
             validate_spec_dict(b)
 
 
-@pytest.mark.parametrize("name", ["15_sheep_wwt_nlb1_threshold", "16_sheep_multitrait_bayes"])
+@pytest.mark.parametrize("name", ["15_sheep_wwt_nlb1_threshold", "16_sheep_multitrait_bayes",
+                                  "17_sheep_ewe_repeated_bayes"])
 def test_examples_15_16_spec_and_data_validate(name):
     """Examples 15 (weaning weight + first-parity litter size, residual groups) and 16
     (Bayesian multi-trait linear model) pass spec and data validation (the full runs
@@ -245,3 +250,144 @@ def test_examples_15_16_spec_and_data_validate(name):
     from abp.cli import main
     ex = Path(__file__).resolve().parents[1] / "examples" / name
     assert main(["validate", str(ex / "analysis.toml")]) == 0
+
+
+def _write_repeated(tmp_path, bayes_lines: str, n: int = 120, n_rec: int = 3):
+    """Two continuous traits, n_rec records per non-founder animal, a permanent
+    environment shared by an animal's records."""
+    rng = np.random.default_rng(21)
+    ids = [f"a{i}" for i in range(n)]
+    male = np.arange(n) % 2 == 0
+    s, d = [], []
+    for i in range(n):
+        if i < 20:
+            s.append(None)
+            d.append(None)
+        else:
+            s.append(ids[rng.choice(np.flatnonzero(male[:i]))])
+            d.append(ids[rng.choice(np.flatnonzero(~male[:i]))])
+    ped = Pedigree.from_parent_ids(ids, s, d)
+    F = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())[:, None]
+                           * rng.standard_normal((n, 2)), lower=True, unit_diagonal=True)
+    U = F @ np.linalg.cholesky([[1.0, 0.3], [0.3, 0.6]]).T
+    PE = rng.standard_normal((n, 2)) @ np.linalg.cholesky([[0.5, 0.1], [0.1, 0.4]]).T
+    with open(tmp_path / "ped.csv", "w", encoding="utf-8") as fh:
+        fh.write("id,sire,dam,sex\n")
+        for a, s_, d_, m_ in zip(ids, s, d, male):
+            fh.write(f"{a},{s_ or '0'},{d_ or '0'},{'M' if m_ else 'F'}\n")
+    with open(tmp_path / "phe.csv", "w", encoding="utf-8") as fh:
+        fh.write("rec,id,parity,y1,y2\n")
+        k = 0
+        for i in range(n):
+            for p in range(n_rec):
+                e = rng.standard_normal(2) @ np.linalg.cholesky([[1.5, 0.3], [0.3, 1.0]]).T
+                y = np.array([10.0, 4.0]) + 0.3 * p + U[i] + PE[i] + e
+                y2 = "NA" if rng.random() < 0.2 else f"{y[1]:.4f}"
+                fh.write(f"r{k},{ids[i]},p{p + 1},{y[0]:.4f},{y2}\n")
+                k += 1
+    spec = tmp_path / "rep.toml"
+    spec.write_text(f"""schema_version = "1"
+[project]
+name = "mtpe"
+species = "sheep"
+synthetic_data = true
+[analysis]
+task = "additive_ebv"
+target_population = "test"
+information_cutoff = "2025-12-31"
+genetic_base = "unknown parents"
+[data]
+pedigree = "{(tmp_path / 'ped.csv').as_posix()}"
+phenotypes = "{(tmp_path / 'phe.csv').as_posix()}"
+[data.pedigree_columns]
+sex = "sex"
+[data.phenotype_columns]
+record_id = "rec"
+[[traits]]
+name = "y1"
+unit = "kg"
+[[traits]]
+name = "y2"
+unit = "kg"
+[model]
+traits = ["y1", "y2"]
+fixed = [{{ column = "parity", type = "factor" }}]
+random = [{{ name = "animal", kind = "additive", relationship = "pedigree" }},
+          {{ name = "pe", kind = "iid" }}]
+[variances]
+mode = "bayes"
+[bayes]
+method = "multitrait"
+{bayes_lines}
+""", encoding="utf-8")
+    return spec
+
+
+def test_workflow_multitrait_with_permanent_environment(tmp_path):
+    """Round 10: repeated records with a permanent-environment term in the Bayesian
+    multi-trait linear model; P0 summaries, c2, pe solutions and the IW priors for the
+    pe and residual matrices are written."""
+    from abp.workflows.evaluate import run_evaluation
+    spec = _write_repeated(tmp_path, """variance_prior = "inverse_wishart"
+nu = 6.0
+prior_covariance = { animal = [[1.0, 0.0], [0.0, 0.5]], pe = [[0.5, 0.0], [0.0, 0.5]], residual = [[1.5, 0.0], [0.0, 1.0]] }
+chains = 4
+iterations = 2000
+burn_in = 400
+thin = 2
+max_iterations = 8000
+rhat_max = 1.05
+ess_min = 100""")
+    out = run_evaluation(spec, tmp_path / "o", console=False)
+    assert out.status == "passed"
+    r = out.results["traits"]
+    assert r["y1"]["n_records"] == 360 and "pe" in r["y1"]["variance_components"]
+    diag = json.loads((out.out_dir / "mcmc_diagnostics_multitrait.json").read_text("utf-8"))
+    pe = diag["permanent_environment"]
+    assert pe["levels"] == 120 and pe["prior"].startswith("inverse Wishart")
+    assert diag["priors"]["R0"].startswith("inverse Wishart")
+    assert "P0_0_1" in diag["summaries"] and "c2_0" in diag["derived"]
+    rows = list(csv.DictReader(open(out.out_dir / "pe_multitrait.csv", encoding="utf-8")))
+    assert len(rows) == 120 and {"pe_y1", "pe_y2"} <= set(rows[0])
+
+
+def test_spec_rules_for_permanent_environment_and_r0_prior():
+    base = {
+        "schema_version": "1",
+        "project": {"name": "x", "species": "sheep", "synthetic_data": True},
+        "analysis": {"task": "additive_ebv", "target_population": "t",
+                     "information_cutoff": "2025-12-31", "genetic_base": "b"},
+        "data": {"pedigree": "p.csv", "phenotypes": "y.csv"},
+        "traits": [{"name": "w", "unit": "kg"}, {"name": "s", "unit": "c"}],
+        "model": {"traits": ["w", "s"],
+                  "random": [{"name": "animal", "kind": "additive", "relationship": "pedigree"},
+                             {"name": "pe", "kind": "iid"}]},
+        "variances": {"mode": "bayes"},
+        "bayes": {"method": "multitrait"},
+    }
+    assert validate_spec_dict(base)
+    I2 = [[1.0, 0.0], [0.0, 1.0]]
+    assert validate_spec_dict(dict(base, bayes={
+        "method": "multitrait", "variance_prior": "inverse_wishart", "nu": 5.0,
+        "prior_covariance": {"animal": I2, "pe": I2, "residual": I2}}))
+    cat = dict(base, traits=[{"name": "w", "unit": "kg"},
+                             {"name": "s", "unit": "c", "type": "categorical"}])
+    ok_cat = dict(cat, bayes={"method": "threshold", "variance_prior": "inverse_wishart",
+                              "nu": 5.0, "residual_groups": {"w": 1, "s": 2},
+                              "prior_covariance": {"animal": I2, "residual": I2}})
+    assert validate_spec_dict(ok_cat)
+    bad = [
+        dict(base, variances={"mode": "reml"}, bayes=None),            # pe needs the Gibbs model
+        dict(base, bayes={"method": "multitrait", "variance_prior": "inverse_wishart",
+                          "nu": 5.0, "prior_covariance": {"pe": I2}}),   # additive missing
+        dict(base, bayes={"method": "multitrait", "variance_prior": "inverse_wishart",
+                          "nu": 5.0, "prior_covariance": {"animal": I2, "other": I2}}),
+        dict(base, model=dict(base["model"], random=base["model"]["random"]
+                              + [{"name": "pe2", "kind": "iid", "column": "id"}])),
+        dict(cat, bayes={"method": "threshold", "variance_prior": "inverse_wishart",
+                         "nu": 5.0, "prior_covariance": {"animal": I2, "residual": I2}}),
+    ]
+    for b in bad:
+        b = {k: v for k, v in b.items() if v is not None}
+        with pytest.raises(ABPError):
+            validate_spec_dict(b)

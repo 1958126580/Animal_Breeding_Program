@@ -97,11 +97,16 @@ class MTThresholdGibbsConfig:
     start_G0: np.ndarray | None = None      #: default: 0.2 (liability) / 0.3 var(y) on the diagonal
     start_R0: np.ndarray | None = None      #: default: 1 (liability) / 0.7 var(y) on the diagonal
     fix_covariances: bool = False           #: keep G0, R0 at the start values (known)
-    scale_move: bool = True                 #: parameter expansion for the categorical trait
+    scale_move: bool = True                 #: scale moves for every trait (u/G0 and pe/P0)
     shear_moves: bool = True                #: parameter expansion for the genetic covariances
     prior_nu: float | None = None           #: IW degrees of freedom (default -(t + 1): flat)
     prior_G0: np.ndarray | None = None      #: prior guess of G0 (IW scale nu G_prior)
     residual_groups: list | None = None     #: partition of trait indices; R0 = 0 between groups
+    start_P0: np.ndarray | None = None      #: permanent environment start (default 0.1 var(y) / 0.1)
+    prior_nu_pe: float | None = None        #: IW degrees of freedom for P0 (default flat)
+    prior_P0: np.ndarray | None = None      #: prior guess of P0 (IW scale nu_pe P_prior)
+    prior_nu_r: float | None = None         #: IW degrees of freedom for R0 (continuous blocks)
+    prior_R0: np.ndarray | None = None      #: prior guess of R0 (IW scale nu_r R_prior per block)
 
 
 @dataclass
@@ -125,6 +130,8 @@ class MTThresholdGibbsResult:
     wall_seconds: float
     n_equations: int
     traces: dict = field(default_factory=dict)
+    P0: dict | None = None          # permanent-environment covariance summaries (pe term only)
+    pe_mean: np.ndarray | None = None   # m x t posterior means of the permanent environment
 
 
 def _check_pd(S: np.ndarray, what: str) -> np.ndarray:
@@ -145,7 +152,7 @@ class MTProblem:
     """Data and fixed structure shared by the chains."""
 
     def __init__(self, Y: np.ndarray, cat: int | None, X_per_trait: list,
-                 animal_col: np.ndarray, k_inv):
+                 animal_col: np.ndarray, k_inv, pe_col: np.ndarray | None = None):
         Y = np.asarray(Y, dtype=np.float64)
         self.n, self.t = Y.shape
         t = self.t
@@ -187,6 +194,16 @@ class MTProblem:
         if self.q <= 2 * t + 1:
             raise ABPError("MODEL_NOT_IDENTIFIABLE", "too few animals for the covariance priors")
         self.animal_col = np.asarray(animal_col, dtype=np.int64)
+        # optional permanent-environment (iid) term: pe ~ N(0, I_m (x) P0)
+        if pe_col is None:
+            self.pe_col, self.m = None, 0
+        else:
+            self.pe_col = np.asarray(pe_col, dtype=np.int64)
+            if self.pe_col.shape != (self.n,) or self.pe_col.min() < 0:
+                raise ValueError("pe_col needs one non-negative level index per record")
+            self.m = int(self.pe_col.max()) + 1
+            if self.m <= 2 * t + 1:
+                raise ABPError("MODEL_NOT_IDENTIFIABLE", "too few permanent-environment levels")
         self.root = precision_root(k_inv)
         self._check_fixed_effects()
         # observations, record-major: position of (record, trait) in the observation vector
@@ -207,9 +224,16 @@ class MTProblem:
         Zs = sp.csr_matrix((np.ones(self.n_obs), (np.arange(self.n_obs),
                                                   self.animal_col[rec_idx] * t + trait_idx)),
                            shape=(self.n_obs, self.q * t))
-        self.W = sp.hstack([Xs, Zs], format="csr")
+        blocks = [Xs, Zs]
+        if self.m:
+            blocks.append(sp.csr_matrix((np.ones(self.n_obs), (np.arange(self.n_obs),
+                                                               self.pe_col[rec_idx] * t
+                                                               + trait_idx)),
+                                        shape=(self.n_obs, self.m * t)))
+        self.W = sp.hstack(blocks, format="csr")
         self.Wt = self.W.T.tocsr()
-        self.n_eq = self.P + self.q * t
+        self.n_eq = self.P + self.q * t + self.m * t
+        self.pe_off = self.P + self.q * t
         # residual blocks: records grouped by the set of observed traits
         pats: dict = {}
         for r in range(self.n):
@@ -262,9 +286,20 @@ class MTProblem:
         from .cholesky import _symmetric_pattern
         t, W = self.t, self.W
         ones = np.ones((t, t))
-        surrogate = self.coefficient(self.rinv(np.eye(t) + 0.5 * ones), np.eye(t) + 0.5 * ones)
+        # structural pattern from absolute values: a numerical surrogate can cancel
+        # exactly (repeated records: an entry of W'R^-1 W equal and opposite to the
+        # prior entry), which would drop an entry that the actual C needs
+        Wa = abs(W)
+        prior = [sp.csr_matrix((self.P, self.P)), sp.kron(abs(sp.csr_matrix(self.k_inv)), ones)]
+        if self.m:
+            prior.append(sp.kron(sp.identity(self.m, format="csr"), ones))
+        surrogate = (Wa.T @ abs(self.rinv(np.eye(t) + 0.5 * ones)) @ Wa
+                     + sp.block_diag(prior, format="csr")).tocsr()
+        surrogate = surrogate + sp.diags(np.asarray(abs(surrogate).sum(axis=1)).ravel() + 1.0)
         pat = _symmetric_pattern(surrogate)
         self.cpat = pat
+        #: SPD (diagonally dominant) values on the full pattern, used to build the factor
+        self.surrogate_values = pat.data.copy()
         n_eq = self.n_eq
         prow = np.repeat(np.arange(n_eq, dtype=np.int64), np.diff(pat.indptr))
         pkey = prow * n_eq + pat.indices                         # sorted (canonical CSR)
@@ -304,10 +339,24 @@ class MTProblem:
         gidx = np.tile(np.arange(t * t), Kc.nnz)
         self.M_G = sp.csr_matrix((np.repeat(Kc.data, t * t), (locate(rows, cols), gidx)),
                                  shape=(pat.nnz, t * t))
+        # I_m (x) P0^{-1}
+        self.M_P = None
+        if self.m:
+            lev = np.arange(self.m)
+            rows = (self.pe_off + lev[:, None] * t + ab[None, :, 0]).ravel()
+            cols = (self.pe_off + lev[:, None] * t + ab[None, :, 1]).ravel()
+            self.M_P = sp.csr_matrix((np.ones(rows.size), (locate(rows, cols),
+                                                           np.tile(np.arange(t * t), self.m))),
+                                     shape=(pat.nnz, t * t))
 
-    def coefficient_values(self, Rinv: sp.csr_matrix, G0inv: np.ndarray) -> np.ndarray:
-        """Values of ``C`` on :attr:`cpat` (``Rinv`` from :meth:`rinv`)."""
-        return self.M_R @ Rinv.data + self.M_G @ np.ascontiguousarray(G0inv).ravel()
+    def coefficient_values(self, Rinv: sp.csr_matrix, G0inv: np.ndarray,
+                           P0inv: np.ndarray | None = None) -> np.ndarray:
+        """Values of ``C`` on :attr:`cpat` (``Rinv`` from :meth:`rinv`; ``P0inv`` only
+        with a permanent-environment term)."""
+        v = self.M_R @ Rinv.data + self.M_G @ np.ascontiguousarray(G0inv).ravel()
+        if self.M_P is not None:
+            v = v + self.M_P @ np.ascontiguousarray(P0inv).ravel()
+        return v
 
     def rinv(self, R0: np.ndarray) -> sp.csr_matrix:
         """Block-diagonal ``R^{-1}``: ``R0[o_r, o_r]^{-1}`` for every record."""
@@ -318,17 +367,25 @@ class MTProblem:
         d = np.concatenate(data)[self._rinv_order]
         return sp.csr_matrix((d, *self._rinv_ind), shape=(self.n_obs, self.n_obs))
 
-    def coefficient(self, Rinv: sp.csr_matrix, G0inv: np.ndarray) -> sp.csr_matrix:
-        prior = sp.block_diag([sp.csr_matrix((self.P, self.P)),
-                               sp.kron(sp.csr_matrix(self.k_inv), G0inv)], format="csr")
+    def coefficient(self, Rinv: sp.csr_matrix, G0inv: np.ndarray,
+                    P0inv: np.ndarray | None = None) -> sp.csr_matrix:
+        blocks = [sp.csr_matrix((self.P, self.P)), sp.kron(sp.csr_matrix(self.k_inv), G0inv)]
+        if self.m:
+            blocks.append(sp.kron(sp.identity(self.m, format="csr"), P0inv))
+        prior = sp.block_diag(blocks, format="csr")
         return (self.Wt @ Rinv @ self.W + prior).tocsr()
 
     def u(self, theta: np.ndarray) -> np.ndarray:
-        return theta[self.P:].reshape(self.q, self.t)
+        return theta[self.P:self.pe_off].reshape(self.q, self.t)
+
+    def pe(self, theta: np.ndarray) -> np.ndarray:
+        """Permanent-environment effects (``m x t``; empty without the term)."""
+        return theta[self.pe_off:].reshape(self.m, self.t)
 
 
 def draw_location(P: MTProblem, fac, y: np.ndarray, R0: np.ndarray, G0: np.ndarray,
-                  rng, Rinv: sp.csr_matrix | None = None) -> np.ndarray:
+                  rng, Rinv: sp.csr_matrix | None = None,
+                  P0: np.ndarray | None = None) -> np.ndarray:
     """One exact draw of ``theta ~ N(C^{-1} W'R^{-1} y, C^{-1})`` for the observation
     vector ``y`` (record-major, liabilities for the categorical trait); ``fac``
     factorises ``C`` at ``R0``, ``G0``."""
@@ -341,16 +398,23 @@ def draw_location(P: MTProblem, fac, y: np.ndarray, R0: np.ndarray, G0: np.ndarr
     rhs = P.Wt @ (Rinv @ (y + e))
     Lg = np.linalg.cholesky(np.linalg.inv(G0))                # L L' = G0^{-1}
     Zq = rng.standard_normal((P.q, t)) @ Lg.T
-    rhs[P.P:] += np.column_stack([P.root(Zq[:, j]) for j in range(t)]).ravel()
+    rhs[P.P:P.pe_off] += np.column_stack([P.root(Zq[:, j]) for j in range(t)]).ravel()
+    if P.m:
+        Lp = np.linalg.cholesky(np.linalg.inv(P0))            # L L' = P0^{-1}, root of I is I
+        rhs[P.pe_off:] += (rng.standard_normal((P.m, t)) @ Lp.T).ravel()
     return fac.solve(rhs)
 
 
-def draw_R0(E: np.ndarray, c: int | None, rng, groups: list | None = None) -> np.ndarray:
+def draw_R0(E: np.ndarray, c: int | None, rng, groups: list | None = None,
+            nu: float | None = None, R_prior: np.ndarray | None = None) -> np.ndarray:
     """Exact draw of ``R0 | residuals`` (``E``: ``n x t``, complete).  ``groups``: a
     partition of the traits into residual blocks (covariances between blocks are 0;
     default one block).  Each block independently: the block with the categorical trait
     ``c`` by the flat prior on ``(b, S)`` with ``R0[c, c] = 1`` (module notes, step 5),
-    any other block from ``IW(E_B'E_B, n - |B| - 1)`` (flat prior on the PD matrices)."""
+    any other block from ``IW(E_B'E_B + nu R_prior_BB, n + nu)``; the default
+    ``nu = -(|B| + 1)``, ``R_prior = 0`` is the flat prior on the PD matrices
+    (``IW(E_B'E_B, n - |B| - 1)``); ``nu, R_prior`` give the block the marginal prior
+    ``IW(nu, nu R_prior_BB)``."""
     n, t = E.shape
     if groups is None:
         groups = [list(range(t))]
@@ -362,8 +426,11 @@ def draw_R0(E: np.ndarray, c: int | None, rng, groups: list | None = None) -> np
             R0[np.ix_(B, B)] = _draw_R0_categorical(EB, B.index(c), rng)
         else:
             S = EB.T @ EB
+            nb = -(len(B) + 1.0) if R_prior is None else float(nu)
+            if R_prior is not None:
+                S = S + nb * np.asarray(R_prior, dtype=np.float64)[np.ix_(B, B)]
             R0[np.ix_(B, B)] = np.atleast_2d(invwishart.rvs(
-                df=n - len(B) - 1, scale=0.5 * (S + S.T), random_state=rng))
+                df=n + nb, scale=0.5 * (S + S.T), random_state=rng))
     return R0
 
 
@@ -402,20 +469,20 @@ def draw_G0(U: np.ndarray, k_inv, rng, nu: float | None = None,
 
 
 class _Chain:
-    def __init__(self, P: MTProblem, cfg: MTThresholdGibbsConfig, rng, G0, R0, beta0):
+    def __init__(self, P: MTProblem, cfg: MTThresholdGibbsConfig, rng, G0, R0, beta0,
+                 P0=None):
         from .cholesky import SparseLDL
         self.P, self.cfg, self.rng = P, cfg, rng
         self.G0, self.R0 = G0.copy(), R0.copy()
+        self.P0 = None if P0 is None else P0.copy()
         t = P.t
         self.theta = np.zeros(P.n_eq)
         self.theta[:P.P] = beta0
         self.tau = np.concatenate([[-np.inf], P.tau0, [np.inf]])
         # the factor is built on the full pattern (a surrogate without exact zeros);
         # the actual C (zeros while R0, G0 are diagonal) is then refactorised on it
-        ones = np.ones((t, t))
-        surrogate = sp.csr_matrix((P.coefficient_values(P.rinv(np.eye(t) + 0.5 * ones),
-                                                        np.eye(t) + 0.5 * ones),
-                                   P.cpat.indices, P.cpat.indptr), shape=P.cpat.shape)
+        surrogate = sp.csr_matrix((P.surrogate_values, P.cpat.indices, P.cpat.indptr),
+                                  shape=P.cpat.shape)
         self.fac = SparseLDL(surrogate)
         if self.fac.C.nnz != P.cpat.nnz:
             raise ABPError("FACTORIZATION_FAILED", "internal: pattern of C changed")
@@ -429,7 +496,9 @@ class _Chain:
 
     def _refactor(self):
         self.Rinv = self.P.rinv(self.R0)
-        self.fac.refactor_values(self.P.coefficient_values(self.Rinv, np.linalg.inv(self.G0)))
+        self.fac.refactor_values(self.P.coefficient_values(
+            self.Rinv, np.linalg.inv(self.G0),
+            None if self.P0 is None else np.linalg.inv(self.P0)))
 
     # -- step 1: thresholds (Cowles) and categorical liabilities -----------------
     def _cond_cat(self, eta):
@@ -488,23 +557,38 @@ class _Chain:
                        (self.tau[yk + 1] - mo) / so)
         self.y[P.pos[ob, P.c]] = mo + so * z
 
-    # -- step 2b: parameter expansion for the categorical trait ------------------
-    def _scale_move(self):
-        P, c, t = self.P, self.P.c, self.P.t
-        U = P.u(self.theta)
+    # -- step 2b: scale moves (parameter expansion) -------------------------------
+    def _scale_move(self, j: int, term: str = "u"):
+        """Generalised Gibbs step on the group ``x -> g x`` for column ``j`` of the
+        genetic (``term = "u"``: ``u_j -> g u_j``, ``G0 -> D G0 D``) or the
+        permanent-environment effects (``"pe"``: ``p_j -> g p_j``, ``P0 -> D P0 D``),
+        ``D = diag(1, .., g, .., 1)``.  The density of the effects given the transformed
+        covariance is invariant (the Jacobian ``g^q`` cancels ``|D|^{-q}``), so ``log g``
+        has the density likelihood x IW-prior Jacobian ``g^{t+1}`` x prior, sampled by
+        slice sampling (Liu & Sabatti 2000)."""
+        P, t = self.P, self.P.t
+        if term == "u":
+            V = P.u(self.theta)
+            lev = P.animal_col
+            nu, Psi, M = P.nu, P.psi, self.G0
+        else:
+            V = P.pe(self.theta)
+            lev = P.pe_col
+            nu = -(t + 1.0) if P.nu_pe is None else P.nu_pe
+            Psi = None if P.p_prior is None else P.nu_pe * P.p_prior
+            M = self.P0
         w = np.zeros(P.n_obs)
-        sel = P.trait_idx == c
-        w[sel] = U[P.animal_col[P.rec_idx[sel]], c]
+        sel = P.trait_idx == j
+        w[sel] = V[lev[P.rec_idx[sel]], j]
         a2 = float(w @ (self.Rinv @ w))
         if a2 <= 0.0:
             return
         r = self.y - P.W @ self.theta + w
         a1 = float(w @ (self.Rinv @ r))
-        nu, Psi = P.nu, P.psi
         if Psi is not None:
-            Gi = np.linalg.inv(self.G0)
-            p2 = Psi[c, c] * Gi[c, c]
-            p1 = 2.0 * float(Psi[c, :] @ Gi[:, c] - Psi[c, c] * Gi[c, c])
+            Mi = np.linalg.inv(M)
+            p2 = Psi[j, j] * Mi[j, j]
+            p1 = 2.0 * float(Psi[j, :] @ Mi[:, j] - Psi[j, j] * Mi[j, j])
 
         def logf(x):
             g = math.exp(x)
@@ -513,10 +597,13 @@ class _Chain:
                 out -= 0.5 * (p1 / g + p2 / (g * g))
             return out
         g = math.exp(_slice_sample(logf, 0.0, 0.5, self.rng))
-        U[:, c] *= g                                  # view into theta
+        V[:, j] *= g                                  # view into theta
         D = np.ones(t)
-        D[c] = g
-        self.G0 = self.G0 * np.outer(D, D)
+        D[j] = g
+        if term == "u":
+            self.G0 = self.G0 * np.outer(D, D)
+        else:
+            self.P0 = self.P0 * np.outer(D, D)
 
     # -- step 2c: shear moves for the genetic covariances --------------------------
     def _shear_moves(self):
@@ -566,16 +653,25 @@ class _Chain:
     def iterate(self, tuning: bool, it: int):
         P = self.P
         self._draw_categorical(tuning, it)
-        self.theta = draw_location(P, self.fac, self.y, self.R0, self.G0, self.rng, self.Rinv)
+        self.theta = draw_location(P, self.fac, self.y, self.R0, self.G0, self.rng, self.Rinv,
+                                   self.P0)
         if self.cfg.fix_covariances:
             return
-        if self.cfg.scale_move and P.c is not None:
-            self._scale_move()
+        if self.cfg.scale_move:
+            # categorical trait (identifies the liability scale) and, since round 10,
+            # every trait and the permanent environment (variance <-> effects mixing)
+            for j in range(P.t):
+                self._scale_move(j, "u")
+                if P.m:
+                    self._scale_move(j, "pe")
         if self.cfg.shear_moves:
             self._shear_moves()
         self._draw_missing_residuals()
         self.G0 = draw_G0(P.u(self.theta), P.k_inv, self.rng, P.nu, P.g_prior)
-        self.R0 = draw_R0(self.e_full, P.c, self.rng, P.groups)
+        if P.m:
+            self.P0 = draw_G0(P.pe(self.theta), sp.identity(P.m, format="csr"), self.rng,
+                              P.nu_pe, P.p_prior)
+        self.R0 = draw_R0(self.e_full, P.c, self.rng, P.groups, P.nu_r, P.r_prior)
         self._refactor()
 
 
@@ -585,14 +681,15 @@ def _summ(A: np.ndarray) -> dict:
             "q975": np.quantile(A, 0.975, axis=0).tolist()}
 
 
-def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThresholdGibbsConfig
-                       ) -> MTThresholdGibbsResult:
+def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThresholdGibbsConfig,
+                       pe_col=None) -> MTThresholdGibbsResult:
     """Run the sampler.  ``Y``: ``n x t`` (NaN = missing; column ``cat`` holds integer
     categories; ``cat = None``: all traits continuous - the Bayesian multi-trait linear
     model, ``R0`` from an inverse Wishart); ``X``: a list of per-trait designs (rows = records where the trait is
     observed, each with an intercept) or one design shared by the traits (rows =
     records); ``animal_col``: column of each record's animal in ``K``; ``k_inv``:
-    ``K^{-1}``."""
+    ``K^{-1}``; ``pe_col``: optional level (0..m-1) of each record in a permanent-
+    environment term ``pe ~ N(0, I_m (x) P0)`` (repeated records)."""
     t0 = time.perf_counter()
     if cfg.chains < 2:
         raise ABPError("SPEC_INVALID", "at least 2 chains are required for R-hat (4 recommended)")
@@ -600,7 +697,7 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
         raise ABPError("SPEC_INVALID", "need 0 <= burn_in < iterations and thin >= 1")
     Y = np.asarray(Y, dtype=np.float64)
     Xs = list(X) if isinstance(X, (list, tuple)) else split_design(X, Y)
-    P = MTProblem(Y, cat, Xs, animal_col, k_inv)
+    P = MTProblem(Y, cat, Xs, animal_col, k_inv, pe_col)
     t, c = P.t, P.c
     P.nu = -(t + 1.0) if cfg.prior_nu is None else float(cfg.prior_nu)
     P.g_prior = None
@@ -614,6 +711,19 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
         P.psi = P.nu * P.g_prior
     elif cfg.prior_nu is not None:
         raise ABPError("SPEC_INVALID", "prior_nu needs prior_G0")
+    P.nu_pe, P.p_prior = None, None
+    if cfg.prior_P0 is not None:
+        if P.m == 0:
+            raise ABPError("SPEC_INVALID", "prior_P0 needs a permanent-environment term")
+        if cfg.prior_nu_pe is None or cfg.prior_nu_pe <= t - 1:
+            raise ABPError("SPEC_INVALID", f"a proper P0 prior needs prior_nu_pe > {t - 1}")
+        P.nu_pe = float(cfg.prior_nu_pe)
+        P.p_prior = _check_pd(cfg.prior_P0, "prior P0")
+        if P.p_prior.shape != (t, t):
+            raise ABPError("SPEC_INVALID", f"prior P0 must be {t} x {t}")
+    elif cfg.prior_nu_pe is not None:
+        raise ABPError("SPEC_INVALID", "prior_nu_pe needs prior_P0")
+    P.nu_r, P.r_prior = None, None
     vy = np.array([np.nanvar(Y[:, j]) if j != c else 1.0 for j in range(t)])
     G0s = _check_pd(cfg.start_G0, "start G0") if cfg.start_G0 is not None else \
         np.diag(np.where(np.arange(t) == c, 0.2, 0.3 * vy))
@@ -621,6 +731,10 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
         np.diag(np.where(np.arange(t) == c, 1.0, 0.7 * vy))
     if c is not None and abs(R0s[c, c] - 1.0) > 1e-12:
         raise ABPError("SPEC_INVALID", "the residual variance of the categorical trait must be 1")
+    P0s = None
+    if P.m:
+        P0s = _check_pd(cfg.start_P0, "start P0") if cfg.start_P0 is not None else \
+            np.diag(np.where(np.arange(t) == c, 0.1, 0.1 * vy))
     P.groups = None
     if cfg.residual_groups is not None:
         flat = sorted(int(j) for g in cfg.residual_groups for j in g)
@@ -632,6 +746,22 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
             label[g] = k
         if np.any((label[:, None] != label[None, :]) & (R0s != 0)):
             raise ABPError("SPEC_INVALID", "start R0 must be 0 between residual groups")
+    if cfg.prior_R0 is not None:
+        if cfg.prior_nu_r is None:
+            raise ABPError("SPEC_INVALID", "prior_R0 needs prior_nu_r")
+        P.r_prior = _check_pd(cfg.prior_R0, "prior R0")
+        if P.r_prior.shape != (t, t):
+            raise ABPError("SPEC_INVALID", f"prior R0 must be {t} x {t}")
+        blocks = P.groups or [list(range(t))]
+        for B in blocks:
+            if c is not None and c in B and len(B) > 1:
+                raise ABPError("SPEC_INVALID", "an R0 prior applies to blocks of continuous "
+                               "traits; put the categorical trait in its own residual group")
+            if (c is None or c not in B) and not cfg.prior_nu_r > len(B) - 1:
+                raise ABPError("SPEC_INVALID", f"a proper R0 prior needs nu > {len(B) - 1}")
+        P.nu_r = float(cfg.prior_nu_r)
+    elif cfg.prior_nu_r is not None:
+        raise ABPError("SPEC_INVALID", "prior_nu_r needs prior_R0")
     # starting thresholds from the category proportions, tau_1 = 0 (intercept absorbs it)
     raw = np.zeros(1)
     if c is not None:
@@ -649,19 +779,22 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
     for ch in child:
         rng = np.random.default_rng(ch)
         if cfg.fix_covariances:
-            G0, R0 = G0s, R0s
+            G0, R0, P0 = G0s, R0s, P0s
         else:
             f = np.exp(rng.uniform(-0.5, 0.5, t))
             G0 = G0s * np.outer(f, f)
             R0 = R0s.copy()
-        chains.append(_Chain(P, cfg, rng, G0, R0, beta0))
+            P0 = None if P0s is None else P0s * np.outer(f, f)
+        chains.append(_Chain(P, cfg, rng, G0, R0, beta0, P0))
     tri = [(i, j) for i in range(t) for j in range(i, t)]
     scal = [f"G0_{i}_{j}" for i, j in tri] + \
         [f"R0_{i}_{j}" for i, j in tri if not (i == c and j == c)] + \
+        ([f"P0_{i}_{j}" for i, j in tri] if P.m else []) + \
         [f"rG_{i}_{j}" for i, j in tri if i < j] + [f"h2_{j}" for j in range(t)] + \
+        ([f"c2_{j}" for j in range(t)] if P.m else []) + \
         [f"tau_{j}" for j in P.free]
     store = {k: [[] for _ in chains] for k in scal}
-    Gs, Rs = [], []
+    Gs, Rs, Ps = [], [], []
     keep_ebv = P.q * t * (cfg.max_iterations // cfg.thin) * cfg.chains <= EBV_STORE_LIMIT
     ebv_draws = [[] for _ in chains]
     s_theta = np.zeros(P.n_eq)
@@ -681,16 +814,22 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
                 chn.iterate(tuning, it)
                 if it > cfg.burn_in and (it - cfg.burn_in) % cfg.thin == 0:
                     G, R = chn.G0, chn.R0
+                    Pm = chn.P0 if P.m else np.zeros((t, t))
                     vals = {f"G0_{i}_{j}": G[i, j] for i, j in tri}
                     vals.update({f"R0_{i}_{j}": R[i, j] for i, j in tri})
+                    vals.update({f"P0_{i}_{j}": Pm[i, j] for i, j in tri})
                     vals.update({f"rG_{i}_{j}": G[i, j] / math.sqrt(G[i, i] * G[j, j])
                                  for i, j in tri if i < j})
-                    vals.update({f"h2_{j}": G[j, j] / (G[j, j] + R[j, j]) for j in range(t)})
+                    tot = np.diag(G) + np.diag(Pm) + np.diag(R)
+                    vals.update({f"h2_{j}": G[j, j] / tot[j] for j in range(t)})
+                    vals.update({f"c2_{j}": Pm[j, j] / tot[j] for j in range(t)})
                     vals.update({f"tau_{j}": chn.tau[j] for j in P.free})
                     for key in scal:
                         store[key][k].append(float(vals[key]))
                     Gs.append(G.copy())
                     Rs.append(R.copy())
+                    if P.m:
+                        Ps.append(Pm.copy())
                     Ud = P.u(chn.theta)
                     if keep_ebv:
                         ebv_draws[k].append(Ud.ravel().astype(np.float32))
@@ -724,7 +863,7 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
     pev_blocks = (s_uu / total - Um[:, :, None] * Um[:, None, :]) * total / max(total - 1, 1)
     derived = {}
     for key in scal:
-        if key.startswith(("rG_", "h2_")):
+        if key.startswith(("rG_", "h2_", "c2_")):
             v = np.array(store[key]).ravel()
             derived[key] = {"mean": float(v.mean()), "sd": float(v.std(ddof=1)),
                             "q025": float(np.quantile(v, 0.025)),
@@ -737,4 +876,6 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
         _summ(Ga), _summ(Ra), derived, summaries, ediag, bool(ok), it, n_saved,
         [int(s.generate_state(1)[0]) for s in child],
         (acc_n / acc_prop) if acc_prop else None, time.perf_counter() - t0, P.n_eq,
-        traces={key: np.array(store[key]) for key in scal})
+        traces={key: np.array(store[key]) for key in scal},
+        P0=_summ(np.array(Ps)) if P.m else None,
+        pe_mean=P.pe(mean).copy() if P.m else None)

@@ -780,7 +780,7 @@
               }
             ]
           },
-          "description": "multi-trait threshold model with variance_prior = 'inverse_wishart': prior guess G_prior of the genetic covariance matrix (traits in model.traits order; liability scale for the categorical trait)."
+          "description": "multi-trait Gibbs models with variance_prior = 'inverse_wishart': prior guess of the genetic covariance matrix (key: the additive term; required), of the permanent-environment matrix (key: the iid term) and of R0 (key 'residual'); IW(nu, nu * guess); traits in model.traits order, liability scale for the categorical trait."
         },
         "residual_groups": {
           "type": "object",

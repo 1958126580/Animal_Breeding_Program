@@ -637,7 +637,7 @@ set proper priors).
 | `nu`, `nu_e` | 5.0, 5.0 | degrees of freedom of the scaled inverse-χ² priors (> 2) |
 | `variance_prior` | `"uniform"` | `threshold`/`multitrait` only: `"scaled_inv_chi2"` (single-trait threshold model) gives each random-term variance a scaled inverse-χ² prior with `nu` degrees of freedom; `"inverse_wishart"` (multi-trait models, §7.14, §7.16) gives the genetic covariance matrix an inverse-Wishart prior IW(`nu`, `nu` × `prior_covariance`) |
 | `prior_variances` | – | threshold model with `variance_prior = "scaled_inv_chi2"`: **required**, the prior scale of each random term in liability units, for example `{ animal = 0.1, pe = 0.1 }` |
-| `prior_covariance` | – | multi-trait models with `variance_prior = "inverse_wishart"`: **required**, the prior guess of the genetic covariance matrix (rows and columns in `model.traits` order; liability scale for the categorical trait), for example `{ animal = [[4.0, 0.0], [0.0, 0.1]] }`; `nu` must exceed traits − 1 |
+| `prior_covariance` | – | multi-trait models with `variance_prior = "inverse_wishart"`: **required** for the additive term, the prior guess of the genetic covariance matrix (rows and columns in `model.traits` order; liability scale for the categorical trait), for example `{ animal = [[4.0, 0.0], [0.0, 0.1]] }`; optionally also the permanent-environment term (its name) and `residual` (R0; with a categorical trait only when that trait has its own residual group). Each listed matrix gets IW(`nu`, `nu` × guess); unlisted ones keep flat priors; `nu` must exceed traits − 1 |
 | `residual_groups` | – | multi-trait models only: an integer group per model trait, for example `{ wwt = 1, nlb1 = 2 }`; residual covariances between traits of different groups are fixed at exactly 0 (at least two groups) |
 | `rhat_max` | 1.01 | convergence: split R-hat must be below it |
 | `ess_min` | 400 | convergence: bulk and tail ESS must reach it |
@@ -1707,6 +1707,36 @@ than the REML PEVs and 5–7% larger than with the Kackar–Harville correction.
 reported reliabilities were nevertheless slightly higher (wwt 0.400 against 0.395),
 because the reliability divides by the posterior mean of the genetic variance,
 which is larger. Compare PEVs, not reliabilities, across the two methods.
+
+**Repeated records: permanent environment.** When animals have several records per
+trait (litters of a ewe, lactations of a cow), add an iid term to `[model]`; its
+levels come from `column` (default the animal id), and ABP samples its covariance
+matrix P0 with the others:
+
+```toml
+random = [
+  { name = "animal", kind = "additive", relationship = "pedigree" },
+  { name = "pe", kind = "iid" },          # permanent environment of the animal
+]
+```
+
+Results then include P0 (in `mcmc_diagnostics_multitrait.json`, under
+`permanent_environment`), the share of each trait's variance due to the permanent
+environment (`c2_<j>`), heritabilities on the total variance
+(G + P + R), and the permanent-environment solutions in `pe_multitrait.csv`. Example 17
+analyses two repeated ewe traits this way (1,208 records of 454 ewes; 6 minutes):
+
+```bash
+abp run examples/17_sheep_ewe_repeated_bayes/analysis.toml --out runs/ex17
+```
+
+With 2–3 records per animal the data separate the genetic and the permanent-
+environment variance only weakly: in example 17 the 95% intervals are wide (lwt:
+G 1.9–7.9, P 0.6–6.0 kg²; true 4.0 and 3.0) and the two estimates are negatively
+correlated. ABP 0.10 rescales the effects and their covariance matrix jointly every
+iteration ("scale moves"); without them the example had not converged after 16,000
+iterations (bulk ESS about 100), with them it converges (ESS ≥ 570). Proper priors
+for P0 and R0 can be added to `prior_covariance` (§5.14).
 
 How well calibrated are the posterior PEVs? In a simulation with 1,000 animals,
 full-rank covariance matrices and low-heritability traits (validation report,

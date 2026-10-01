@@ -35,7 +35,8 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
     b = d["bayes"]
     traits = list(m["traits"])
     t = len(traits)
-    add_name = m["random"][0]["name"]
+    add_name = next(r["name"] for r in m["random"] if r["kind"] == "additive")
+    pe_term = next((r for r in m["random"] if r["kind"] == "iid"), None)
     types = {tr["name"]: tr["type"] for tr in d["traits"]}
     cat = next((j for j, tr in enumerate(traits) if types[tr] == "categorical"), None)
     model_name = ("multi-trait threshold model" if cat is not None
@@ -71,19 +72,33 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
         fixed_labels.append(fd)
     q = len(structure.labels)
     animal_col = np.array([structure.index[a] for a in animals], dtype=np.int64)
+    pe_col, pe_levels = None, []
+    if pe_term is not None:
+        vals = [records.factors[pe_term["column"]][k] for k in rec]
+        pe_levels = sorted(set(vals))
+        lv = {v: i for i, v in enumerate(pe_levels)}
+        pe_col = np.array([lv[v] for v in vals], dtype=np.int64)
     iw = b["variance_prior"] == "inverse_wishart"
+    pc = (b["prior_covariance"] or {}) if iw else {}
+    pe_prior = pc.get(pe_term["name"]) if pe_term is not None else None
+    r_prior = pc.get("residual")
     cfg = MTThresholdGibbsConfig(
         chains=b["chains"], iterations=b["iterations"], burn_in=b["burn_in"], thin=b["thin"],
         seed=b["seed"], rhat_max=b["rhat_max"], ess_min=b["ess_min"],
         max_iterations=b["max_iterations"],
         prior_nu=float(b["nu"]) if iw else None,
         prior_G0=np.array(b["prior_covariance"][add_name], dtype=np.float64) if iw else None,
-        residual_groups=groups)
-    log.info("%s (%d traits%s%s): Gibbs sampler, %d chains, %d iterations (up to %d)",
+        residual_groups=groups,
+        prior_nu_pe=float(b["nu"]) if pe_prior is not None else None,
+        prior_P0=np.array(pe_prior, dtype=np.float64) if pe_prior is not None else None,
+        prior_nu_r=float(b["nu"]) if r_prior is not None else None,
+        prior_R0=np.array(r_prior, dtype=np.float64) if r_prior is not None else None)
+    log.info("%s (%d traits%s%s%s): Gibbs sampler, %d chains, %d iterations (up to %d)",
              model_name, t, "" if cat is None else f", categorical {traits[cat]!r}",
              "" if groups is None else f", residual groups {groups}",
+             "" if pe_term is None else f", {pe_term['name']!r}: {len(pe_levels)} levels",
              cfg.chains, cfg.iterations, cfg.max_iterations)
-    g = mt_threshold_gibbs(Y, cat, X_blocks, animal_col, structure.k_inv, cfg)
+    g = mt_threshold_gibbs(Y, cat, X_blocks, animal_col, structure.k_inv, cfg, pe_col=pe_col)
     prior_txt = (f"inverse Wishart IW(nu = {cfg.prior_nu:g}, nu G_prior), G_prior = "
                  f"{np.round(cfg.prior_G0, 6).tolist()}" if iw else
                  "flat on the positive definite matrices (IW with nu = -(t + 1), scale 0)")
@@ -98,7 +113,13 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
                       "data augmentation of missing values, block draws of the location "
                       "effects, inverse-Wishart G0 and R0")
         r0_txt = "flat on the positive definite matrices: R0 | E ~ IW(E'E, n - t - 1)"
-    if groups is not None:
+    if r_prior is not None:
+        r0_txt = (f"inverse Wishart IW(nu = {cfg.prior_nu_r:g}, nu R_prior) per block of "
+                  f"continuous traits, R_prior = {np.round(cfg.prior_R0, 6).tolist()}"
+                  + ("" if cat is None else "; categorical trait alone, variance fixed at 1")
+                  + ("" if groups is None else "; block diagonal, residual covariances "
+                     f"between the groups {[[traits[j] for j in B] for B in groups]} fixed at 0"))
+    if groups is not None and r_prior is None:
         parts = []
         for B in groups:
             names = [traits[j] for j in B]
@@ -123,6 +144,12 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
             "G0": g.G0, "R0": g.R0, "derived": g.derived,
             "threshold_step": ({"acceptance_after_burn_in": g.acceptance}
                                if cat is not None else None),
+            "permanent_environment": (None if pe_term is None else {
+                "term": pe_term["name"], "column": pe_term["column"],
+                "levels": len(pe_levels), "P0": g.P0,
+                "prior": (f"inverse Wishart IW(nu = {cfg.prior_nu_pe:g}, nu P_prior), P_prior "
+                          f"= {np.round(cfg.prior_P0, 6).tolist()}" if pe_prior is not None
+                          else "flat on the positive definite matrices")}),
             "priors": {"G0": prior_txt, "R0": r0_txt, "fixed_effects": "flat",
                        **({"thresholds": "flat subject to ordering"} if cat is not None
                           else {})},
@@ -177,6 +204,11 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
                      n_rec[tr].get(a, 0)]
         rows_out.append(base)
     write_csv(stage.path("ebv_multitrait.csv"), header, rows_out)
+    if pe_term is not None:
+        write_csv(stage.path("pe_multitrait.csv"), [pe_term["column"]]
+                  + [f"pe_{tr}" for tr in traits],
+                  [[lvl] + [float(v) for v in g.pe_mean[i]] for i, lvl in enumerate(pe_levels)])
+    P0m = np.array(g.P0["mean"]) if pe_term is not None else None
     bayes_out = {"method": b["method"], "chains": cfg.chains, "iterations": g.iterations,
                  "converged": g.converged, "variance_prior": prior_txt,
                  "summaries": g.summaries, "ebv_diagnostics": g.ebv_diagnostics,
@@ -207,7 +239,9 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
             "n_records": int((~np.isnan(Y[:, j])).sum()),
             "n_animals_evaluated": q,
             "variance_source": f"bayes ({model_name}, Gibbs sampler; posterior means)",
-            "variance_components": {add_name: float(G0[j, j]), "residual": float(R0[j, j])},
+            "variance_components": {add_name: float(G0[j, j]), "residual": float(R0[j, j]),
+                                    **({pe_term["name"]: float(P0m[j, j])}
+                                       if pe_term is not None else {})},
             "heritability": float(h2),
             "reml": None,
             "genetic_term": add_name,
@@ -227,7 +261,9 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
                                     "max": float(rel[:, j].max()), "n_rounding_clamped": 0},
             "ebv_summary": {"mean": float(e.mean()), "sd": float(e.std()),
                             "min": float(e.min()), "max": float(e.max())},
-            "files": {"ebv": "ebv_multitrait.csv", "fixed_effects": fname},
+            "files": {"ebv": "ebv_multitrait.csv", "fixed_effects": fname,
+                      **({"permanent_environment": "pe_multitrait.csv"}
+                         if pe_term is not None else {})},
             "bayes": bayes_out,
             "genetic_correlations": {f"{traits[a]}-{traits[c]}":
                                      g.derived[f"rG_{a}_{c}"] for a in range(t)

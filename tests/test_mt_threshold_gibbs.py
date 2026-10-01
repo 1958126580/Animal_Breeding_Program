@@ -436,3 +436,196 @@ def test_residual_groups_configuration_is_checked():
                                     start_R0=np.array([[1.0, 0.2], [0.2, 1.0]]))
     with pytest.raises(ABPError):
         MT.mt_threshold_gibbs(Y, 0, X, np.arange(n), ped.ainv(), cfg)
+
+
+def _dense_pe(Y, Xs, animal_col, pe_col, Kinv, R0, G0, P0):
+    """C and the right-hand side of the multi-trait model with a permanent-environment
+    term, from the model definition (unknowns beta_1..beta_t, u animal-major,
+    pe level-major; observations record-major over the observed (record, trait))."""
+    n, t = Y.shape
+    q, m = Kinv.shape[0], int(pe_col.max()) + 1
+    ps = [X.shape[1] for X in Xs]
+    off = np.cumsum([0] + ps)
+    nb = int(off[-1])
+    obs = [(r, j) for r in range(n) for j in range(t) if not np.isnan(Y[r, j])]
+    W = np.zeros((len(obs), nb + q * t + m * t))
+    row_in_trait = {j: {r: k for k, r in enumerate(np.flatnonzero(~np.isnan(Y[:, j])))}
+                    for j in range(t)}
+    for i, (r, j) in enumerate(obs):
+        W[i, off[j]:off[j + 1]] = Xs[j].toarray()[row_in_trait[j][r]]
+        W[i, nb + animal_col[r] * t + j] = 1.0
+        W[i, nb + q * t + pe_col[r] * t + j] = 1.0
+    Rinv = np.zeros((len(obs), len(obs)))
+    for r in range(n):
+        idx = [i for i, (rr, _) in enumerate(obs) if rr == r]
+        tr = [obs[i][1] for i in idx]
+        Rinv[np.ix_(idx, idx)] = np.linalg.inv(R0[np.ix_(tr, tr)])
+    prior = np.zeros((W.shape[1], W.shape[1]))
+    prior[nb:nb + q * t, nb:nb + q * t] = np.kron(Kinv, np.linalg.inv(G0))
+    prior[nb + q * t:, nb + q * t:] = np.kron(np.eye(m), np.linalg.inv(P0))
+    y = np.array([Y[r, j] for r, j in obs])
+    return W.T @ Rinv @ W + prior, W.T @ Rinv @ y, nb, q
+
+
+def test_permanent_environment_with_fixed_covariances_equals_dense_mme():
+    """Round 10: repeated records with a permanent-environment term; with G0, P0, R0
+    known the posterior is Gaussian with mean C^-1 r and covariance C^-1 (dense algebra
+    from the model definition): posterior means of u and pe and the PEV blocks of u
+    must agree within Monte-Carlo error."""
+    ped, rng = _ped(40, 5, 8)
+    q = ped.n
+    animal_col = np.repeat(np.arange(q), 3)                       # 3 records per animal
+    n = animal_col.size
+    Y = np.column_stack([rng.normal(10, 2, n), rng.normal(5, 1, n)])
+    Y[rng.random(n) < 0.25, 1] = np.nan
+    Xs = [sp.csr_matrix(np.column_stack([np.ones(int(mk.sum())),
+                                         (np.arange(n)[mk] % 3 == 0).astype(float)]))
+          for mk in (~np.isnan(Y)).T]
+    G0 = np.array([[1.0, 0.3], [0.3, 0.5]])
+    P0 = np.array([[0.8, 0.2], [0.2, 0.4]])
+    R0 = np.array([[3.0, 0.5], [0.5, 1.0]])
+    C, rhs, nb, _ = _dense_pe(Y, Xs, animal_col, animal_col, ped.ainv().toarray(), R0, G0, P0)
+    Ci = np.linalg.inv(C)
+    mean = Ci @ rhs
+    u_ref = mean[nb:nb + 2 * q].reshape(q, 2)
+    pe_ref = mean[nb + 2 * q:].reshape(q, 2)
+    pev_ref = np.array([Ci[nb + 2 * a:nb + 2 * a + 2, nb + 2 * a:nb + 2 * a + 2]
+                        for a in range(q)])
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=6000, burn_in=500, thin=1,
+                                    max_iterations=6000, seed=4, start_G0=G0, start_R0=R0,
+                                    start_P0=P0, fix_covariances=True)
+    res = MT.mt_threshold_gibbs(Y, None, Xs, animal_col, ped.ainv(), cfg, pe_col=animal_col)
+    sd = np.sqrt(np.einsum("ijj->ij", pev_ref))
+    assert np.max(np.abs(res.ebv - u_ref) / sd) < 0.07
+    pe_sd = np.sqrt(np.diag(Ci)[nb + 2 * q:]).reshape(q, 2)
+    assert np.max(np.abs(res.pe_mean - pe_ref) / pe_sd) < 0.07
+    np.testing.assert_allclose(res.pev_blocks, pev_ref, atol=0.04 * sd.max() ** 2)
+    assert "P0_0_1" in res.traces and res.P0 is not None
+
+
+def test_r0_inverse_wishart_prior_has_closed_form_moments():
+    """Round 10: R0_B | E ~ IW(E_B'E_B + nu R_prior_BB, n + nu); mean
+    (S + nu R_prior) / (n + nu - |B| - 1); blocks of a partition get their own prior."""
+    rng = np.random.default_rng(12)
+    n, nu = 20, 6.0
+    E = rng.standard_normal((n, 3)) @ np.diag([1.0, 2.0, 0.5])
+    Rp = np.array([[2.0, 0.3, 0.0], [0.3, 1.0, 0.1], [0.0, 0.1, 0.5]])
+    D = np.array([MT.draw_R0(E, None, rng, None, nu, Rp) for _ in range(30000)])
+    want = (E.T @ E + nu * Rp) / (n + nu - 3 - 1)
+    se = D.std(axis=0) / np.sqrt(D.shape[0])
+    assert np.all(np.abs(D.mean(axis=0) - want) < 4 * se)
+    D2 = np.array([MT.draw_R0(E, None, rng, [[0, 1], [2]], nu, Rp) for _ in range(30000)])
+    assert np.all(D2[:, 0, 2] == 0)
+    want2 = (E[:, 2] @ E[:, 2] + nu * Rp[2, 2]) / (n + nu - 1 - 1)
+    assert abs(D2[:, 2, 2].mean() - want2) < 4 * D2[:, 2, 2].std() / np.sqrt(30000)
+
+
+def test_pe_and_r0_prior_configuration_is_checked():
+    ped, rng = _ped(40, 2, 8)
+    n = ped.n
+    Y = np.column_stack([rng.normal(size=n), rng.normal(size=n)])
+    X = sp.csr_matrix(np.ones((n, 1)))
+    base = dict(chains=2, iterations=10, burn_in=5, max_iterations=10)
+    bad = [dict(prior_P0=np.eye(2), prior_nu_pe=4.0),              # no pe term
+           dict(prior_nu_r=4.0),                                     # nu without matrix
+           dict(prior_R0=np.eye(2)),                                 # matrix without nu
+           dict(prior_R0=np.eye(2), prior_nu_r=0.5)]                 # nu too small
+    for extra in bad:
+        with pytest.raises(ABPError):
+            MT.mt_threshold_gibbs(Y, None, X, np.arange(n), ped.ainv(),
+                                  MT.MTThresholdGibbsConfig(**base, **extra))
+    Yc = np.column_stack([rng.integers(1, 3, n).astype(float), rng.normal(size=n)])
+    with pytest.raises(ABPError):                                    # categorical in the block
+        MT.mt_threshold_gibbs(Yc, 0, X, np.arange(n), ped.ainv(),
+                              MT.MTThresholdGibbsConfig(**base, prior_R0=np.eye(2),
+                                                        prior_nu_r=4.0))
+    with pytest.raises(ABPError):                                    # too few pe levels
+        MT.mt_threshold_gibbs(Y, None, X, np.arange(n), ped.ainv(),
+                              MT.MTThresholdGibbsConfig(**base), pe_col=np.arange(n) % 3)
+
+
+def test_permanent_environment_variances_are_recovered():
+    """Simulated repeated records (300 animals x 3 records, two traits): posterior
+    means of G0, P0, R0 near the truth (within 3 posterior SD) and the chains pass
+    R-hat/ESS (a recovery check, not an exactness test)."""
+    from scipy.sparse.linalg import spsolve_triangular
+    ped, rng = _ped(300, 7, 40)
+    q = ped.n
+    G0 = np.array([[1.0, 0.4], [0.4, 0.8]])
+    P0 = np.array([[0.6, 0.1], [0.1, 0.5]])
+    R0 = np.array([[1.5, 0.3], [0.3, 1.0]])
+    F = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())[:, None]
+                           * rng.standard_normal((q, 2)), lower=True, unit_diagonal=True)
+    U = F @ np.linalg.cholesky(G0).T
+    PE = rng.standard_normal((q, 2)) @ np.linalg.cholesky(P0).T
+    animal_col = np.repeat(np.arange(q), 3)
+    n = animal_col.size
+    Y = 5 + U[animal_col] + PE[animal_col] + rng.standard_normal((n, 2)) @ np.linalg.cholesky(R0).T
+    X = sp.csr_matrix(np.ones((n, 1)))
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=3000, burn_in=600, thin=2,
+                                    max_iterations=12000, seed=8, rhat_max=1.05, ess_min=100)
+    res = MT.mt_threshold_gibbs(Y, None, X, animal_col, ped.ainv(), cfg, pe_col=animal_col)
+    assert res.converged
+    for name, true in (("G0", G0), ("P0", P0), ("R0", R0)):
+        summ = getattr(res, name)
+        m, sd = np.array(summ["mean"]), np.array(summ["sd"])
+        assert np.all(np.abs(m - true) < 3 * sd + 1e-12), (name, m, sd)
+    assert "c2_0" in res.derived and 0 < res.derived["c2_0"]["mean"] < 1
+
+
+def test_scale_moves_with_permanent_environment_leave_the_posterior_unchanged():
+    """Round 10: scale moves on (u_j, G0) and (pe_j, P0) for every trait.  Chains with
+    and without them target the same posterior (means within Monte-Carlo error) and the
+    moves raise the bulk ESS of the variances that trade off between G0 and P0."""
+    from scipy.sparse.linalg import spsolve_triangular
+    ped, rng = _ped(150, 13, 25)
+    q = ped.n
+    F = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())[:, None]
+                           * rng.standard_normal((q, 2)), lower=True, unit_diagonal=True)
+    U = F @ np.linalg.cholesky([[1.0, 0.3], [0.3, 0.5]]).T
+    PE = rng.standard_normal((q, 2)) @ np.linalg.cholesky([[0.8, 0.1], [0.1, 0.4]]).T
+    animal_col = np.repeat(np.arange(q), 2)
+    n = animal_col.size
+    Y = U[animal_col] + PE[animal_col] + rng.standard_normal((n, 2)) * [1.2, 0.9]
+    X = sp.csr_matrix(np.ones((n, 1)))
+    out = {}
+    for move in (True, False):
+        cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=4000, burn_in=500, thin=2,
+                                        max_iterations=4000, seed=41 if move else 42,
+                                        scale_move=move, prior_nu=6.0,
+                                        prior_G0=np.diag([1.0, 0.5]), prior_nu_pe=6.0,
+                                        prior_P0=np.diag([0.8, 0.4]))
+        out[move] = MT.mt_threshold_gibbs(Y, None, X, animal_col, ped.ainv(), cfg,
+                                          pe_col=animal_col)
+    for key in ("G0_0_0", "G0_1_1", "P0_0_0", "P0_1_1", "R0_0_0", "G0_0_1"):
+        a, b = out[True].summaries[key], out[False].summaries[key]
+        assert abs(a["mean"] - b["mean"]) < 4.0 * math.hypot(a["mcse_mean"], b["mcse_mean"]), \
+            (key, a, b)
+    gain = [out[True].summaries[k]["ess_bulk"] / out[False].summaries[k]["ess_bulk"]
+            for k in ("G0_0_0", "G0_1_1", "P0_0_0", "P0_1_1")]
+    assert np.mean(gain) > 1.3, gain
+
+
+def test_threshold_model_with_permanent_environment_runs_and_keeps_r0cc():
+    """Round 10: the multi-trait threshold model with repeated records and a
+    permanent-environment term: R0[c, c] stays 1, P0 draws are positive, P0, c2 and the
+    pe solutions are reported (a smoke test of the combination; the location and
+    covariance steps are checked exactly by the tests above)."""
+    ped, rng = _ped(80, 17, 12)
+    q = ped.n
+    animal_col = np.repeat(np.arange(q), 2)
+    n = animal_col.size
+    U = rng.standard_normal((q, 2)) * [0.4, 1.0]
+    PE = rng.standard_normal((q, 2)) * [0.3, 0.6]
+    L = U[animal_col] + PE[animal_col] + rng.standard_normal((n, 2)) + [0.0, 5.0]
+    Y = L.copy()
+    Y[:, 0] = np.digitize(L[:, 0], [-0.3, 0.6]) + 1
+    X = sp.csr_matrix(np.ones((n, 1)))
+    cfg = MT.MTThresholdGibbsConfig(chains=2, iterations=600, burn_in=200, thin=1,
+                                    max_iterations=600, seed=5, prior_nu=5.0,
+                                    prior_G0=np.diag([0.2, 1.0]), prior_nu_pe=5.0,
+                                    prior_P0=np.diag([0.1, 0.4]))
+    res = MT.mt_threshold_gibbs(Y, 0, X, animal_col, ped.ainv(), cfg, pe_col=animal_col)
+    assert np.all(res.traces["P0_0_0"] > 0) and res.P0 is not None
+    assert "R0_0_0" not in res.traces and res.R0["mean"][0][0] == 1.0
+    assert 0 < res.derived["c2_0"]["mean"] < 1 and res.pe_mean.shape == (q, 2)

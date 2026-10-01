@@ -21,8 +21,12 @@ R-hat/ESS criteria passed, the worst R-hat and the smallest bulk ESS of the
 (co)variances are recorded and the results are scored either way.  Truth is
 used only for scoring.  Means +- Monte-Carlo SE over replicates.
 
+``--prior pheno`` (round 10): weak proper inverse-Wishart priors on G0 and R0 centred
+on a split of the observed phenotypic covariance (see ``_prior_kwargs``).
+
 Usage: python benchmarks/bayes_vs_reml_study.py [--scenarios t2_full t3_full]
        [--replicates 50] [--workers 4] [--animals 1000] [--iterations 4000]
+       [--prior flat|pheno] [--seeds ...]
        [--out docs/validation/bayes_vs_reml_study.json]
 """
 
@@ -55,6 +59,20 @@ from abp.solvers.vc_uncertainty import kackar_harville_delta_multitrait  # noqa:
 N_ANIMALS = 1000
 ITER = 4000
 SCENARIO = "t2_full"                  # set by main(); inherited by forked workers
+PRIOR = "flat"                        # --prior: flat or pheno (round 10)
+
+
+def _prior_kwargs(Y: np.ndarray) -> dict:
+    """``--prior pheno``: weak proper inverse-Wishart priors centred on a split of the
+    observed phenotypic covariance (complete records): G_prior = 0.3 P, R_prior = 0.7 P,
+    nu = t + 2 for both (the smallest integer nu with a finite prior mean).  Uses the
+    data, never the true parameters."""
+    if PRIOR == "flat":
+        return {}
+    t = Y.shape[1]
+    Pc = np.cov(Y[~np.isnan(Y).any(axis=1)], rowvar=False)
+    return {"prior_nu": t + 2.0, "prior_G0": 0.3 * Pc, "prior_nu_r": t + 2.0,
+            "prior_R0": 0.7 * Pc}
 
 
 def _scores(U, ebv, pev):
@@ -96,7 +114,8 @@ def replicate(seed: int) -> dict:
     g = mt_threshold_gibbs(data.Y, None, data.X_per_trait, np.asarray(data.animal_col), ainv,
                            MTThresholdGibbsConfig(chains=4, iterations=ITER,
                                                   burn_in=ITER // 4, thin=4,
-                                                  max_iterations=ITER, seed=seed))
+                                                  max_iterations=ITER, seed=seed,
+                                                  **_prior_kwargs(data.Y)))
     out["bayes_converged"] = g.converged
     out["bayes_max_rhat"] = float(max(v["rhat"] for v in g.summaries.values()))
     out["bayes_min_ess_bulk"] = float(min(v["ess_bulk"] for v in g.summaries.values()))
@@ -134,7 +153,7 @@ def summarize(reps, t):
 
 
 def main():
-    global N_ANIMALS, ITER, SCENARIO
+    global N_ANIMALS, ITER, SCENARIO, PRIOR
     ap = argparse.ArgumentParser()
     ap.add_argument("--scenarios", nargs="+", choices=("t2_full", "t3_full"),
                     default=["t2_full", "t3_full"])
@@ -142,16 +161,17 @@ def main():
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--animals", type=int, default=1000)
     ap.add_argument("--iterations", type=int, default=4000)
+    ap.add_argument("--prior", choices=("flat", "pheno"), default="flat")
     ap.add_argument("--seeds", type=int, nargs="+", default=None,
                     help="run these seeds instead of 1..replicates")
     ap.add_argument("--out", default=str(ROOT / "docs" / "validation" /
                                          "bayes_vs_reml_study.json"))
     a = ap.parse_args()
-    N_ANIMALS, ITER = a.animals, a.iterations
+    N_ANIMALS, ITER, PRIOR = a.animals, a.iterations, a.prior
     doc = {"study": "Bayesian posterior PEV vs REML + Kackar-Harville (finding F16)",
            "replicates": len(a.seeds) if a.seeds else a.replicates,
            "seeds": a.seeds or f"1..{a.replicates}", "animals": N_ANIMALS,
-           "iterations": ITER, "scenarios": {}}
+           "iterations": ITER, "prior": PRIOR, "scenarios": {}}
     for name in a.scenarios:
         SCENARIO = name
         L, R0 = SCENARIOS[name]
@@ -171,7 +191,7 @@ def main():
                     f"REML failed {summ['reml_failed']}", flush=True)
         for sc in ("reml_plugin", "reml_kh", "bayes", "true_parameters"):
             print(f"  {sc:>15}", " ".join(
-                f"{k}: MSE/PEV {v['pev_ratio']['mean']:.3f}+-{v['pev_ratio']['mc_se']:.3f} "
+                f"{k}: MSE/PEV {v['pev_ratio']['mean']:.3f}+-{v['pev_ratio']['mc_se'] or 0:.3f} "
                 f"cov {v['coverage95']['mean']:.3f} acc {v['realized_accuracy']['mean']:.3f}"
                 for k, v in summ[sc].items()), flush=True)
     Path(a.out).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")

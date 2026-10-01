@@ -1468,6 +1468,33 @@ traits 1.000 ± 0.040 (two traits; REML + Kackar–Harville 1.142) and 1.062 / 1
 (three traits; 1.157 / 1.310); example 16 against REML (example 13): posterior PEV
 5–7% above the corrected REML PEV, EBVs correlated 0.999.
 
+**Permanent environment (round 10).** With one iid term in `[model]` (`kind = "iid"`,
+levels from its column, default the animal id) the model of §31/§32 becomes
+`y_r = X_r β + u_{a(r)} + p_{l(r)} + e_r`, `p_l ~ N(0, P0)` independently over the `m`
+levels, so repeated records of an animal share `u` and `p` and differ in `e`. The
+location block gains `m t` equations with prior precision `I_m ⊗ P0⁻¹` (a third
+linear coefficient map) and the perturbation `L_P z` (`L_P L_P′ = P0⁻¹`) in its exact
+draw; `P0 | p ~ IW(P′P + ν P_prior, m + ν)` (flat: `ν = −(t + 1)`, `P_prior = 0`),
+exactly as the `G0` step with `K = I`. The scale and shear moves act on `u` and `G0`
+only (they remain valid generalised Gibbs steps; their conditionals use the full
+residual including `p`). Heritabilities use `G_jj / (G_jj + P_jj + R_jj)`, and
+`c²_j = P_jj / (G_jj + P_jj + R_jj)` is reported. The sparsity pattern of the
+coefficient matrix is built from absolute values (with repeated records a numerical
+surrogate can cancel exactly; §9 of the validation report).
+
+**Proper R0 prior (round 10).** `bayes.prior_covariance.residual` with
+`variance_prior = "inverse_wishart"` gives every block of continuous traits the
+prior `IW(ν, ν R_prior_BB)`, drawn from `R0_BB | E_B ~ IW(E_B′E_B + ν R_prior_BB, n + ν)`;
+with a categorical trait that trait must form its own residual group (its residual
+variance stays fixed at 1).
+
+**Tests (round 10)**: with known `G0`, `P0`, `R0` and repeated records the posterior
+means of `u` and `p` and the PEV blocks equal the dense mixed-model equations built
+from the model definition (within Monte-Carlo error); closed-form moments of the
+`R0` draw with a prior (one block and a partition); recovery of `G0`, `P0`, `R0`
+within three posterior SD on simulated repeated records (300 animals × 3 records);
+refusals of inconsistent priors; workflow outputs (`pe_multitrait.csv`, `P0`, `c²`).
+
 ## 33. Inbreeding coefficients by pedigree depth
 
 Code: `abp/_native.cpp` (`inbreeding_depth`), `Pedigree.inbreeding`. Registry id

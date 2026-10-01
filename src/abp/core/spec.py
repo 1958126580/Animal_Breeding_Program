@@ -304,10 +304,13 @@ SCHEMA = Section({
                                      "'scaled_inv_chi2': prior scale (a guess of the liability "
                                      "variance) for every random term."),
         "prior_covariance": Field("number_or_matrix_map",
-                                  doc="multi-trait threshold model with variance_prior = "
-                                      "'inverse_wishart': prior guess G_prior of the genetic "
-                                      "covariance matrix (traits in model.traits order; "
-                                      "liability scale for the categorical trait)."),
+                                  doc="multi-trait Gibbs models with variance_prior = "
+                                      "'inverse_wishart': prior guess of the genetic "
+                                      "covariance matrix (key: the additive term; required), "
+                                      "of the permanent-environment matrix (key: the iid "
+                                      "term) and of R0 (key 'residual'); IW(nu, nu * guess); "
+                                      "traits in model.traits order, liability scale for the "
+                                      "categorical trait."),
         "residual_groups": Field("float_map",
                                  doc="multi-trait threshold or 'multitrait' model: a group "
                                      "number per trait; residual covariances between traits "
@@ -508,9 +511,14 @@ def validate_spec_dict(raw: dict) -> dict:
                 raise _err(f"model.random.{r['name']}", "'relationship' applies to additive terms only")
             if r["column"] is None:
                 r["column"] = d["data"]["phenotype_columns"]["id"]
-    if len(m["traits"]) > 1 and len(m["random"]) > 1:
+    mt_gibbs = (raw.get("variances") or {}).get("mode") == "bayes" and \
+        (raw.get("bayes") or {}).get("method") in ("threshold", "multitrait")
+    if len(m["traits"]) > 1 and len(m["random"]) > 1 and not mt_gibbs:
         raise ABPError("UNSUPPORTED_COMBINATION",
-                       "multi-trait models support only the additive genetic term in this version")
+                       "multi-trait models with known or REML variances support only the "
+                       "additive genetic term in this version (a permanent-environment term "
+                       "needs variances.mode = 'bayes', bayes.method = 'multitrait' or "
+                       "'threshold')")
     rel = additive[0]["relationship"]
     if rel in ("pedigree", "single_step") and d["data"]["pedigree"] is None:
         raise _err("data.pedigree", f"relationship {rel!r} needs a pedigree file")
@@ -612,9 +620,12 @@ def validate_spec_dict(raw: dict) -> dict:
         if d["bayes"]["method"] == "multitrait" and n_cat != 0:
             raise _err("bayes.method", "'multitrait' is for continuous traits; a categorical "
                                        "trait needs method = 'threshold'")
-        if len(m["random"]) != 1 or m["random"][0]["kind"] != "additive":
+        adds = [r for r in m["random"] if r["kind"] == "additive"]
+        iids = [r for r in m["random"] if r["kind"] == "iid"]
+        if len(adds) != 1 or len(iids) > 1:
             raise ABPError("UNSUPPORTED_COMBINATION", "the Bayesian multi-trait models have one "
-                           "additive genetic term (no other random terms) in this version")
+                           "additive genetic term and at most one iid (permanent-environment) "
+                           "term in this version")
         rg = d["bayes"]["residual_groups"]
         if rg is not None:
             if set(rg) != set(m["traits"]) or any(float(x) != int(x) for x in rg.values()):
@@ -626,19 +637,29 @@ def validate_spec_dict(raw: dict) -> dict:
             raise _err("model.intercept", "the threshold model needs an intercept (the first "
                                           "threshold is fixed at 0)")
         bz = d["bayes"]
-        add = m["random"][0]["name"]
+        add = adds[0]["name"]
         if bz["variance_prior"] == "inverse_wishart":
             pc = bz["prior_covariance"] or {}
-            gp = pc.get(add)
-            if set(pc) != {add} or not isinstance(gp, list) or len(gp) != t:
+            allowed = {add, "residual"} | {r["name"] for r in iids}
+            if add not in pc or not set(pc) <= allowed:
                 raise _err("bayes.prior_covariance", f"give a {t} x {t} prior matrix for "
-                                                     f"{add!r}")
+                                                     f"{add!r} (optionally also for "
+                                                     f"{sorted(allowed - {add})})")
             import numpy as np
-            G = np.array(gp, dtype=np.float64)
-            if G.shape != (t, t) or not np.allclose(G, G.T) or np.linalg.eigvalsh(G)[0] <= 0:
-                raise _err("bayes.prior_covariance", "must be symmetric positive definite")
+            for key, gp in pc.items():
+                G = np.array(gp, dtype=np.float64) if isinstance(gp, list) else np.zeros(0)
+                if G.shape != (t, t) or not np.allclose(G, G.T) or \
+                        np.linalg.eigvalsh(G)[0] <= 0:
+                    raise _err(f"bayes.prior_covariance.{key}",
+                               f"must be a symmetric positive definite {t} x {t} matrix")
             if not bz["nu"] > t - 1:
                 raise _err("bayes.nu", f"an inverse Wishart prior needs nu > {t - 1}")
+            if "residual" in pc and n_cat:
+                cat = next(x for x in m["traits"] if x in cat_traits)
+                if rg is None or sum(1 for x in rg.values() if x == rg[cat]) > 1:
+                    raise _err("bayes.prior_covariance.residual", "with a categorical trait "
+                               "the R0 prior needs that trait alone in its residual group "
+                               "(bayes.residual_groups)")
         elif bz["variance_prior"] != "uniform":
             raise _err("bayes.variance_prior", "the Bayesian multi-trait models use 'uniform' "
                                                "or 'inverse_wishart'")
