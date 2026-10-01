@@ -13,7 +13,11 @@ round 5: run
 round 6: run
 [36657626436](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36657626436);
 round 7: run
-[36673772284](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36673772284); §3a).
+[36673772284](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36673772284);
+round 8: run
+[36727601564](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36727601564);
+round 9: run
+[36832541614](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36832541614); §3a).
 Raw logs: `docs/validation/`. Status vocabulary: passed, failed, blocked,
 not_run.
 
@@ -168,7 +172,9 @@ passed on Windows and Linux — but the pure-Python job failed on a test defect 
 the new test expected the native kernel name under `ABP_DISABLE_NATIVE=1`). The fix,
 commit d3e2a71 (run
 [36812933794](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36812933794)),
-succeeded on all 7 jobs. RELEASE_RUN_PLACEHOLDER
+succeeded on all 7 jobs. The release commit 15d7d38 (ABP 0.9.0): run
+[36832541614](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36832541614),
+7 of 7 jobs succeeded (pure-Python job 67 min).
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer
@@ -594,7 +600,7 @@ means (95% intervals): liability genetic variance of nlb1 0.35 (0.06–1.24),
 weaning-weight genetic variance 3.94 (2.48–5.69), genetic correlation −0.36
 (−0.73 to 0.18); the simulation's values (about 0.1, 4.0 and +0.1) lie inside the
 intervals. The residual covariance, zero by design (lamb and ewe traits), was
-estimated at a correlation of 0.28 (it cannot be fixed at zero in this version).
+estimated at a correlation of 0.28 (it could not be fixed at zero in version 0.8; since 0.9 it can, §7.13).
 
 **Workflow-level single step after the round-8 speed-ups.** the same benchmark as §7.11
 (`benchmarks/ssmf_workflow_large.py`, 120,000 animals, 30,000 genotyped from PLINK as

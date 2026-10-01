@@ -924,7 +924,9 @@ values.residual = [[12.25, 0.735], [0.735, 0.49]]
   values; nothing is imputed.
 * Enter a residual covariance of **0** for traits that cannot share a
   residual. An example is a lamb's weaning weight and the same animal's
-  first litter size two years later (a structural zero).
+  first litter size two years later (a structural zero). When the matrices are
+  sampled instead (`variances.mode = "bayes"`), `bayes.residual_groups` does the
+  same (§7.14, §7.16).
 * ABP checks that both matrices are symmetric positive definite.
 * Multi-trait models support the additive term only.
 

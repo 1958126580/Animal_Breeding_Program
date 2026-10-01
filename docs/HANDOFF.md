@@ -88,7 +88,9 @@ examples 15 and 16) and the API example, the F16 study (2 scenarios × 50
 replicates, 4,000 iterations; plus a 16,000-iteration check on 6 seeds), the
 inbreeding benchmark (5 pedigrees); CI after every push: run 36807935977 failed
 on the pure-Python job (a test defect, fixed in d3e2a71: run 36812933794, 7 of 7
-green); release run: validation report §3a.
+green); release commit 15d7d38 (ABP 0.9.0): run
+[36832541614](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36832541614),
+7 of 7 jobs succeeded (validation report §3, §3a, §7.13).
 
 Round 8: full test suites (native 311 passed; pure-Python kernels 306 passed,
 5 native-only skipped), self-test T01–T18 with both kernels, all 18 example runs
