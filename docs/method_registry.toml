@@ -676,7 +676,8 @@ tests = ["tests/test_multitrait_reml.py::test_reduced_rank_loglik_equals_v_form_
 # Rank selection (round 7; rr_calibration_study.json, rr_calibration_full.json): with the margin of 2, rank 1
 # chosen in 58/100 (true rank 1) and 0/100 (true full rank, rG 0.595); plain minimum AIC: 97/100 and 19/100 (F15).
 # Round 8 (rank_selection_study.json, 4 scenarios x 100): BLUP of the chosen model with KH PEV MSE/PEV
-# 0.96-1.04 except low-h2 traits of full-rank truths (1.14-1.17, full-rank REML itself: F16).
+# 0.96-1.04 except low-h2 traits of full-rank truths (1.14-1.17, full-rank REML itself: F16; round 9:
+# the Bayesian multi-trait linear model, bayes.multitrait_linear, reduces it).
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_100_replicates_rank1", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
@@ -810,8 +811,9 @@ tests = ["tests/test_mt_threshold_gibbs.py::test_linear_model_with_fixed_covaria
          "tests/test_mt_threshold_gibbs.py::test_location_draw_has_the_exact_conditional_mean_and_covariance",
          "tests/test_mt_threshold_workflow.py::test_workflow_bayesian_multitrait_linear_model",
          "tests/test_mt_threshold_workflow.py::test_spec_rules_for_the_multitrait_threshold_model"]
-# G4: benchmarks/bayes_vs_reml_study.py (finding F16): see validation report 7.13.
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "see_validation_report_7_13", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+# G4: benchmarks/bayes_vs_reml_study.py (finding F16, 2 x 50 replicates, 1,000 animals): MSE/PEV of the
+# low-h2 traits 1.000 +- 0.040 (2 traits; REML + Kackar-Harville 1.142) and 1.062 / 1.142 (3 traits; 1.157 / 1.310).
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "partial_calibrated_2_traits_optimistic_3_traits", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["one additive term (no permanent environment or other random terms)", "flat or inverse-Wishart G0 prior; flat R0 prior only", "slower than REML: thousands of iterations of one sparse factorization each"]

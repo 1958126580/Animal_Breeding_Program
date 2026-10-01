@@ -1,6 +1,6 @@
-# Validation report: ABP 0.8.0
+# Validation report: ABP 0.9.0
 
-Date: 2026-09-30 (rounds 6–8; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
+Date: 2026-10-01 (round 9; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
 evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
 (round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
@@ -25,7 +25,7 @@ not_run.
 | G1 mathematics | independent derivations, analytical cases, dimension, limit and equivalence tests | passed | §4, §5 |
 | G2 numerics | residuals, convergence, boundaries, exact references | passed | §4, §5; MCMC diagnostics equal ArviZ to ≤ 8·10⁻¹⁶ |
 | G3 software | ID mapping, bad inputs, recovery, interface consistency | passed (Linux; Windows CI) | §3, §5, §6 |
-| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); threshold priors, rank selection and reduced-rank Kackar–Harville PEV (§7.11); sampled-reliability estimator, EBVs of rank-selected models, multi-trait threshold model (prior-dependent genetic correlation, F18) (§7.12); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
+| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); threshold priors, rank selection and reduced-rank Kackar–Harville PEV (§7.11); sampled-reliability estimator, EBVs of rank-selected models, multi-trait threshold model (prior-dependent genetic correlation, F18) (§7.12); posterior PEV of the Bayesian multi-trait linear model vs REML + Kackar–Harville (F16 partly resolved) (§7.13); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
 | G5 external validity | real data, time or population hold-out | **not_run** | no real data were available or authorized (the LR workflow exists and was run on synthetic data) |
 | G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`), including exact PEV for 100,500 equations and the matrix-free single step (50,000 animals, 6,000 genotyped: 1.7 GB instead of 10.9 GB; 200,000 animals, 30,000 genotyped, int8 genotypes: 6.75 GB; complete `abp run` with 120,000 animals / 30,000 genotyped from PLINK as int8: 261 s, 7.38 GB; 206 s after the round-8 speed-ups); Windows functional tests in CI (round 3: 211 tests passed on Windows and Linux, §3a), no Windows timings; no CUDA path |
 | G7 decision and release | feasible plans, installation reproduction, evidence package | **partial** | mating plans satisfy every hard constraint, verified per plan (§5, §6); no binary release; project license not chosen |
@@ -50,10 +50,13 @@ AlphaMate has been run.
 
 | Command | Result | Log |
 |---|---|---|
-| `python -m pytest -v` (native C++ kernel; round 8) | **311 passed**, 0 failed, 0 skipped, 554.8 s | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 8) | **306 passed**, 0 failed, 5 skipped (native-only comparisons), 2853.7 s | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
-| `abp selftest` with and without the native kernel (round 8) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
-| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–15, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 8, incl. API sections 18–27) | all 18 exit status 0; example 15 converged in 454 s (run concurrently with the pure-Python test suite) | `docs/validation/examples-linux.log` |
+| `python -m pytest -v` (native C++ kernel; round 9; `OPENBLAS_NUM_THREADS=1`, 3 study workers on the other cores) | **317 passed**, 0 failed, 0 skipped, 1045.8 s | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 9; same conditions) | **312 passed**, 0 failed, 5 skipped (native-only comparisons), 5199.1 s | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `abp selftest` with and without the native kernel (round 9) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel; T03 names the depth kernel) | `docs/validation/selftest-linux.log` |
+| `python benchmarks/bayes_vs_reml_study.py --replicates 50 --workers 3 --iterations 4000` (round 9, F16; 2 scenarios) | completed (see §7.13) | `docs/validation/bayes_vs_reml_study.json`, `.log` |
+| `python benchmarks/bayes_vs_reml_study.py --scenarios t2_full --seeds 1 2 3 4 5 6 --iterations 16000` (round 9, convergence check) | see §7.13 | `docs/validation/bayes_vs_reml_study_16000it.json`, `.log` |
+| `python benchmarks/inbreeding_benchmark.py` (round 9) | completed; identical F, 5 pedigrees | `docs/validation/inbreeding_benchmark.json`, `.log` |
+| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–16, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 9) | all 19 exit status 0; example 15 (residual groups) converged after 10,000 iterations in 305 s, example 16 after 16,000 in 999 s (machine shared with the convergence-check study); posterior means identical to the earlier runs (same seeds) | `docs/validation/examples-linux.log` |
 | `python benchmarks/pev_estimator_study.py` (round 8) | completed; SD ratio 0.575 | `docs/validation/pev_estimator_study.json`, `.log` |
 | `python benchmarks/rank_selection_study.py --replicates 100 --workers 4` (round 8, 4 scenarios) | completed | `docs/validation/rank_selection_study.json`, `.log` |
 | `python benchmarks/mt_threshold_study.py --replicates 30 --workers 4 --iterations 12000` (round 8; also `--iterations 3000` and `--g-prior true --replicates 12 --iterations 6000`) | completed; 30/30 converged | `docs/validation/mt_threshold_study.json`, `mt_threshold_study_3000it.json`, `mt_threshold_study_trueprior.json`, `.log` |
@@ -157,6 +160,15 @@ d388116 (36706870919), d05b358 (36709822191) and 104e1f1
 succeeded on all 7 jobs. The release commit fa2894b (ABP 0.8.0): run
 [36727601564](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36727601564),
 7 of 7 jobs succeeded.
+
+Round 9: commit a2fcdb2 (run
+[36807935977](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36807935977)):
+6 of 7 jobs succeeded — the C++ depth kernel built with MSVC and GCC and its tests
+passed on Windows and Linux — but the pure-Python job failed on a test defect (§9:
+the new test expected the native kernel name under `ABP_DISABLE_NATIVE=1`). The fix,
+commit d3e2a71 (run
+[36812933794](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36812933794)),
+succeeded on all 7 jobs. RELEASE_RUN_PLACEHOLDER
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer
@@ -604,13 +616,34 @@ calibrated; > 1 optimistic) and coverage of nominal 95% intervals, means ± MC S
 |---|---:|---:|---:|---:|
 | 2 traits, trait 1 (0.40) | 1.054 ± 0.020 | 1.039 ± 0.020 | 1.027 ± 0.019 | 1.013 ± 0.010 |
 | 2 traits, trait 2 (0.15) | 1.212 ± 0.071 | 1.142 ± 0.062 | **1.000 ± 0.040** | 1.002 ± 0.010 |
-T3_ROWS
+| 3 traits, trait 1 (0.40) | 1.079 ± 0.022 | 1.058 ± 0.021 | 1.046 ± 0.020 | 1.022 ± 0.011 |
+| 3 traits, trait 2 (0.23) | 1.218 ± 0.065 | 1.157 ± 0.056 | 1.062 ± 0.036 | 1.002 ± 0.011 |
+| 3 traits, trait 3 (0.25) | 1.419 ± 0.181 | 1.310 ± 0.133 | 1.142 ± 0.055 | 1.014 ± 0.009 |
+
+Paired differences Bayesian − Kackar–Harville in MSE/PEV: −0.143 ± 0.025 (2 traits,
+trait 2), −0.095 ± 0.027 and −0.168 ± 0.083 (3 traits, traits 2 and 3); in realized
+accuracy +0.003 to +0.004 (± 0.0013–0.0020) for the low-heritability traits, 0.000 for
+trait 1. Posterior means of the genetic variances lay above the truth (2 traits:
+0.445 against 0.36; REML 0.392), as expected for posterior means under flat priors.
 
 Coverage of trait 2 in the two-trait scenario: 0.925 (plug-in), 0.932 (Kackar–Harville),
 0.948 (Bayesian), 0.951 (true parameters). Realized accuracies were the same within
 0.003 for all fits with estimated parameters (trait 2: 0.549 REML, 0.552 Bayesian; true
 parameters 0.565).
-CONV_TEXT
+Three traits, coverage of traits 2 and 3: 0.932 / 0.920 (Kackar–Harville), 0.942 / 0.933
+(Bayesian), 0.950 / 0.948 (true parameters).
+
+*Convergence.* With 4 chains × 4,000 iterations none of the 100 Bayesian fits met
+ABP's criteria (R-hat < 1.01 and bulk/tail ESS ≥ 400 for every (co)variance; the
+workflow would have extended or withheld them); the study scores them anyway. Check
+(`bayes_vs_reml_study_16000it.json`, `.log`): seeds 1–6 of the two-trait scenario
+again with 16,000 iterations. 4 of 6 met the criteria (worst R-hat 1.003–1.007, minimum
+bulk ESS 414–937); 2 did not (R-hat 1.034 and 1.027, ESS 138 and 169). Per seed,
+MSE/PEV changed by −0.011 ± 0.017 (trait 2) and −0.002 ± 0.001 (trait 1) from 4,000 to
+16,000 iterations, and the posterior mean of the trait-2 genetic variance by at most
+0.018: the conclusions do not depend on the short chains. The same six seeds averaged
+0.91 (Bayesian) and 0.97 (Kackar–Harville) for trait 2 — a small subset; the
+50-replicate means above are the comparison.
 
 **Example 16** (`abp run`, Bayesian multi-trait linear model on the data of example 13:
 2,108 animals, three traits, flat priors): converged after 16,000 iterations (4 chains,
@@ -666,10 +699,11 @@ for the four-trait example.
 | F12 | REML-based PEV was 7–13% optimistic in every study | **resolved** (rounds 5–7) | Kackar–Harville PEV: pedigree REML MSE/PEV 1.017 ± 0.031; multi-trait 1.025/1.048/1.058 (§7.10); reduced-rank fits (round 7, §7.11) |
 | F13 | Threshold Gibbs sampler with uniform variance priors: permanent-environment variance 0.138 ± 0.010 (true 0.111) | open (documented; round 7 study) | proper priors are in the spec (`bayes.variance_prior`); with prior scales 0.05 / 0.2 the estimates follow the prior (§7.11): with 2–3 records per animal these variances are weakly identified, and no prior choice removes that. More records per animal or known variances are the remedies |
 | F14 | Sampled reliabilities carry Monte-Carlo error (SE ≈ 0.04 with 300 simulations; 0.15 with 20 at 200,000 animals) | open (by design) | reported per animal (`reliability_mc_se`); choose `solver.pev_samples` for the precision needed (0.21 with 10 at 120,000 animals, §7.11; 0.10 with the round-8 estimator, §7.12) |
-| F16 | With full-rank multi-trait REML on 1,000 animals, the EBVs of low-heritability traits (h² 0.15–0.25, 30% missing) are optimistic even with the Kackar–Harville PEV (MSE/PEV 1.14–1.17, 3–3.5 MC SE above 1) | open | first-order correction insufficient when the covariances are poorly determined; larger data (the 1,893-lamb study: 1.03–1.06) or a Bayesian analysis (posterior PEV) are the remedies; a second-order correction is a candidate |
+| F16 | With full-rank multi-trait REML on 1,000 animals, the EBVs of low-heritability traits (h² 0.15–0.25, 30% missing) are optimistic even with the Kackar–Harville PEV (MSE/PEV 1.14–1.17, 3–3.5 MC SE above 1; round 9: 1.14–1.31) | **partly resolved** (round 9) | the Bayesian multi-trait linear model (`bayes.method = "multitrait"`, posterior PEV) is calibrated with two traits (1.000 ± 0.040) and closer with three (1.062 ± 0.036, 1.142 ± 0.055 against 1.157 and 1.310 with Kackar–Harville; §7.13); remaining optimism with three traits; chains of 4,000 iterations did not meet the R-hat/ESS criteria (see §7.13 for the longer-chain check); a second-order Kackar–Harville correction remains a candidate |
 | F17 | With one categorical record per animal, a flat prior on the liability genetic variance gives an improper posterior (single- and multi-trait threshold samplers: chains drift, results withheld) | open (documented; remedy available) | proper priors (`variance_prior = "scaled_inv_chi2"` / `"inverse_wishart"`) make the posterior proper; their influence must be reported (F13) |
 | F18 | Multi-trait threshold model with one categorical record per animal: the genetic correlation follows the prior's centre (0.27 ± 0.04 with a prior at zero covariance, 0.51 ± 0.04 with one at the true 0.5) | open (documented) | the data identify the covariance weakly; take `prior_covariance` from published estimates and report it; repeated or more records improve identification |
 | F15 | Rank selection by the smallest AIC wrongly reduced a full-rank G0 (r_G 0.6) to rank 1 in 19 of 100 data sets, making trait-2 PEV about four times too small | **resolved** (round 7) | ABP moves to a lower rank only if its AIC is smaller by ≥ 2: 0 of 100 wrong reductions; the cost is that a true rank 1 is found in 58/100 instead of 97/100 (the full-rank model is kept in the rest) (§7.11) |
+| E1 | Engineering: with every core busy, multi-threaded OpenBLAS made the 12 s API example's multi-trait REML exceed 600 s (thread oversubscription); with `OPENBLAS_NUM_THREADS=1` it took 20 s under the same load (round 9) | open (documented) | set `OPENBLAS_NUM_THREADS` (or the BLAS thread count) when ABP shares a machine; the benchmarks and studies already set one thread per worker |
 
 ## 9. Defects found and fixed
 

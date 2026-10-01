@@ -1,0 +1,14 @@
+# command: python benchmarks/bayes_vs_reml_study.py --replicates 50 --workers 3 --iterations 4000
+# date: 2026-10-01T02:11:58+00:00
+t2_full bayes converged 0/50, REML failed 0
+      reml_plugin trait1: MSE/PEV 1.054+-0.020 cov 0.945 acc 0.730 trait2: MSE/PEV 1.212+-0.071 cov 0.925 acc 0.549
+          reml_kh trait1: MSE/PEV 1.039+-0.020 cov 0.946 acc 0.730 trait2: MSE/PEV 1.142+-0.062 cov 0.932 acc 0.549
+            bayes trait1: MSE/PEV 1.027+-0.019 cov 0.948 acc 0.731 trait2: MSE/PEV 1.000+-0.040 cov 0.948 acc 0.552
+  true_parameters trait1: MSE/PEV 1.013+-0.010 cov 0.950 acc 0.733 trait2: MSE/PEV 1.002+-0.010 cov 0.951 acc 0.565
+t3_full bayes converged 0/50, REML failed 0
+      reml_plugin trait1: MSE/PEV 1.079+-0.022 cov 0.940 acc 0.732 trait2: MSE/PEV 1.218+-0.065 cov 0.925 acc 0.567 trait3: MSE/PEV 1.419+-0.181 cov 0.913 acc 0.564
+          reml_kh trait1: MSE/PEV 1.058+-0.021 cov 0.942 acc 0.732 trait2: MSE/PEV 1.157+-0.056 cov 0.932 acc 0.567 trait3: MSE/PEV 1.310+-0.133 cov 0.920 acc 0.564
+            bayes trait1: MSE/PEV 1.046+-0.020 cov 0.944 acc 0.732 trait2: MSE/PEV 1.062+-0.036 cov 0.942 acc 0.570 trait3: MSE/PEV 1.142+-0.055 cov 0.933 acc 0.569
+  true_parameters trait1: MSE/PEV 1.022+-0.011 cov 0.947 acc 0.735 trait2: MSE/PEV 1.002+-0.011 cov 0.950 acc 0.583 trait3: MSE/PEV 1.014+-0.009 cov 0.948 acc 0.579
+wrote /home/user/Animal_Breeding_Program/docs/validation/bayes_vs_reml_study.json
+# exit_code: 0  wall_s: 18216

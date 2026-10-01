@@ -1461,7 +1461,12 @@ with block-diagonal `R0`, the between-group entries are exactly 0 in every draw 
 each block's draws match the closed-form inverse-Wishart moments; configuration
 errors (groups not partitioning the traits, a start value with non-zero
 between-group covariance) are refused; workflow outputs and spec rules for
-`method = "multitrait"` and `residual_groups`.
+`method = "multitrait"` and `residual_groups`. **Evidence**:
+`benchmarks/bayes_vs_reml_study.py` (finding F16; validation report §7.13): 1,000
+animals, full-rank truths, 50 replicates per scenario; MSE/PEV of the low-heritability
+traits 1.000 ± 0.040 (two traits; REML + Kackar–Harville 1.142) and 1.062 / 1.142
+(three traits; 1.157 / 1.310); example 16 against REML (example 13): posterior PEV
+5–7% above the corrected REML PEV, EBVs correlated 0.999.
 
 ## 33. Inbreeding coefficients by pedigree depth
 

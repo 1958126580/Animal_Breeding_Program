@@ -1,0 +1,702 @@
+{
+  "study": "Bayesian posterior PEV vs REML + Kackar-Harville (finding F16)",
+  "replicates": 6,
+  "seeds": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "animals": 1000,
+  "iterations": 16000,
+  "scenarios": {
+    "t2_full": {
+      "true": {
+        "G0": [
+          [
+            1.9599999999999997,
+            0.5
+          ],
+          [
+            0.5,
+            0.36
+          ]
+        ],
+        "R0": [
+          [
+            3.0,
+            0.9
+          ],
+          [
+            0.9,
+            2.0
+          ]
+        ]
+      },
+      "wall_seconds": 6143.895672082901,
+      "summary": {
+        "bayes_converged": 4,
+        "bayes_max_rhat": {
+          "mean": 1.0130100303023202,
+          "mc_se": 0.005616201683129829,
+          "n": 6
+        },
+        "reml_failed": 0,
+        "reml_plugin": {
+          "trait1": {
+            "pev_ratio": {
+              "mean": 1.0038687462505451,
+              "mc_se": 0.03238451326855457,
+              "n": 6
+            },
+            "coverage95": {
+              "mean": 0.9506666666666668,
+              "mc_se": 0.003738686638082641,
+              "n": 6
+            },
+            "realized_accuracy": {
+              "mean": 0.7435215266137534,
+              "mc_se": 0.008759575382212368,
+              "n": 6
+            }
+          },
+          "trait2": {
+            "pev_ratio": {
+              "mean": 1.0158234015420426,
+              "mc_se": 0.12184425816160675,
+              "n": 6
+            },
+            "coverage95": {
+              "mean": 0.9483333333333334,
+              "mc_se": 0.01413899257765952,
+              "n": 6
+            },
+            "realized_accuracy": {
+              "mean": 0.5650434588297591,
+              "mc_se": 0.013863223656454069,
+              "n": 6
+            }
+          }
+        },
+        "reml_kh": {
+          "trait1": {
+            "pev_ratio": {
+              "mean": 0.9896571552188632,
+              "mc_se": 0.03169956559771533,
+              "n": 6
+            },
+            "coverage95": {
+              "mean": 0.9526666666666667,
+              "mc_se": 0.003791804026815953,
+              "n": 6
+            },
+            "realized_accuracy": {
+              "mean": 0.7435215266137534,
+              "mc_se": 0.008759575382212368,
+              "n": 6
+            }
+          },
+          "trait2": {
+            "pev_ratio": {
+              "mean": 0.9733205621930726,
+              "mc_se": 0.1095275734601168,
+              "n": 6
+            },
+            "coverage95": {
+              "mean": 0.9535,
+              "mc_se": 0.0129736913277088,
+              "n": 6
+            },
+            "realized_accuracy": {
+              "mean": 0.5650434588297591,
+              "mc_se": 0.013863223656454069,
+              "n": 6
+            }
+          }
+        },
+        "bayes": {
+          "trait1": {
+            "pev_ratio": {
+              "mean": 0.9803511471045977,
+              "mc_se": 0.02994695245008126,
+              "n": 6
+            },
+            "coverage95": {
+              "mean": 0.953,
+              "mc_se": 0.004041451884327368,
+              "n": 6
+            },
+            "realized_accuracy": {
+              "mean": 0.7436569678759254,
+              "mc_se": 0.008550062193627675,
+              "n": 6
+            }
+          },
+          "trait2": {
+            "pev_ratio": {
+              "mean": 0.8990045970356997,
+              "mc_se": 0.07613515761600141,
+              "n": 6
+            },
+            "coverage95": {
+              "mean": 0.9608333333333333,
+              "mc_se": 0.008749920634560692,
+              "n": 6
+            },
+            "realized_accuracy": {
+              "mean": 0.569722234353131,
+              "mc_se": 0.013308869604029147,
+              "n": 6
+            }
+          }
+        },
+        "true_parameters": {
+          "trait1": {
+            "pev_ratio": {
+              "mean": 0.9965270452305619,
+              "mc_se": 0.030071981052235446,
+              "n": 6
+            },
+            "coverage95": {
+              "mean": 0.9508333333333333,
+              "mc_se": 0.002271807894851834,
+              "n": 6
+            },
+            "realized_accuracy": {
+              "mean": 0.744831379759794,
+              "mc_se": 0.006917674140022772,
+              "n": 6
+            }
+          },
+          "trait2": {
+            "pev_ratio": {
+              "mean": 1.029013093102123,
+              "mc_se": 0.019988602927600515,
+              "n": 6
+            },
+            "coverage95": {
+              "mean": 0.9476666666666667,
+              "mc_se": 0.002666666666666669,
+              "n": 6
+            },
+            "realized_accuracy": {
+              "mean": 0.5856295848951109,
+              "mc_se": 0.016171983115964888,
+              "n": 6
+            }
+          }
+        },
+        "reml_G0": {
+          "mean": [
+            [
+              2.0453686910343,
+              0.6470756350802677
+            ],
+            [
+              0.6470756350802677,
+              0.45753923808295166
+            ]
+          ],
+          "mc_se": [
+            [
+              0.12366878512519995,
+              0.046993421638219256
+            ],
+            [
+              0.046993421638219256,
+              0.04665592874158652
+            ]
+          ]
+        },
+        "bayes_G0": {
+          "mean": [
+            [
+              2.1221664245121006,
+              0.6703557530770116
+            ],
+            [
+              0.6703557530770116,
+              0.505069893803397
+            ]
+          ],
+          "mc_se": [
+            [
+              0.12115014817774249,
+              0.04699641287516831
+            ],
+            [
+              0.04699641287516831,
+              0.0454928553513086
+            ]
+          ]
+        }
+      },
+      "replicate_results": [
+        {
+          "seed": 1,
+          "reml_G0": [
+            [
+              2.2895516857893217,
+              0.7566890671806337
+            ],
+            [
+              0.7566890671806337,
+              0.42137327144957476
+            ]
+          ],
+          "reml_plugin": {
+            "trait1": {
+              "pev_ratio": 0.9166937204802158,
+              "coverage95": 0.958,
+              "realized_accuracy": 0.7623785848232779
+            },
+            "trait2": {
+              "pev_ratio": 1.0165970684418337,
+              "coverage95": 0.944,
+              "realized_accuracy": 0.5556048717550258
+            }
+          },
+          "reml_kh": {
+            "trait1": {
+              "pev_ratio": 0.9049082464240696,
+              "coverage95": 0.96,
+              "realized_accuracy": 0.7623785848232779
+            },
+            "trait2": {
+              "pev_ratio": 0.975539235291481,
+              "coverage95": 0.946,
+              "realized_accuracy": 0.5556048717550258
+            }
+          },
+          "reml_wall_s": 5.4923553466796875,
+          "bayes_converged": true,
+          "bayes_max_rhat": 1.0069932028058717,
+          "bayes_min_ess_bulk": 413.7329177762539,
+          "bayes_max_ebv_rhat": 1.0021595074362901,
+          "bayes_wall_s": 1030.913473367691,
+          "bayes_G0": [
+            [
+              2.3768520597965908,
+              0.785566649520949
+            ],
+            [
+              0.785566649520949,
+              0.4644328653949038
+            ]
+          ],
+          "bayes": {
+            "trait1": {
+              "pev_ratio": 0.9016788392107086,
+              "coverage95": 0.958,
+              "realized_accuracy": 0.7620160170069866
+            },
+            "trait2": {
+              "pev_ratio": 0.9176428345437291,
+              "coverage95": 0.954,
+              "realized_accuracy": 0.5602046546713149
+            }
+          },
+          "true_parameters": {
+            "trait1": {
+              "pev_ratio": 0.9800529471205469,
+              "coverage95": 0.947,
+              "realized_accuracy": 0.7629117653127082
+            },
+            "trait2": {
+              "pev_ratio": 0.9717912367516502,
+              "coverage95": 0.945,
+              "realized_accuracy": 0.5728790712918126
+            }
+          }
+        },
+        {
+          "seed": 2,
+          "reml_G0": [
+            [
+              2.443475216042695,
+              0.6641563361768739
+            ],
+            [
+              0.6641563361768739,
+              0.5776820570015874
+            ]
+          ],
+          "reml_plugin": {
+            "trait1": {
+              "pev_ratio": 1.0853665081050146,
+              "coverage95": 0.946,
+              "realized_accuracy": 0.7339775360647857
+            },
+            "trait2": {
+              "pev_ratio": 0.7549006115006617,
+              "coverage95": 0.972,
+              "realized_accuracy": 0.5776583985145315
+            }
+          },
+          "reml_kh": {
+            "trait1": {
+              "pev_ratio": 1.0718788325371327,
+              "coverage95": 0.95,
+              "realized_accuracy": 0.7339775360647857
+            },
+            "trait2": {
+              "pev_ratio": 0.7353512760427867,
+              "coverage95": 0.976,
+              "realized_accuracy": 0.5776583985145315
+            }
+          },
+          "reml_wall_s": 5.311869144439697,
+          "bayes_converged": true,
+          "bayes_max_rhat": 1.0028405790694008,
+          "bayes_min_ess_bulk": 832.7198330118911,
+          "bayes_max_ebv_rhat": 1.0020940981142104,
+          "bayes_wall_s": 1052.8082921504974,
+          "bayes_G0": [
+            [
+              2.5101344599807014,
+              0.6839484813995282
+            ],
+            [
+              0.6839484813995282,
+              0.618355441592518
+            ]
+          ],
+          "bayes": {
+            "trait1": {
+              "pev_ratio": 1.067495268983204,
+              "coverage95": 0.949,
+              "realized_accuracy": 0.7339850333333048
+            },
+            "trait2": {
+              "pev_ratio": 0.7185271186360521,
+              "coverage95": 0.976,
+              "realized_accuracy": 0.5765661883050794
+            }
+          },
+          "true_parameters": {
+            "trait1": {
+              "pev_ratio": 1.1361125631278024,
+              "coverage95": 0.943,
+              "realized_accuracy": 0.7331141195630484
+            },
+            "trait2": {
+              "pev_ratio": 1.0217396957745764,
+              "coverage95": 0.947,
+              "realized_accuracy": 0.5776329434012233
+            }
+          }
+        },
+        {
+          "seed": 3,
+          "reml_G0": [
+            [
+              1.8971314829315555,
+              0.4236738081491358
+            ],
+            [
+              0.4236738081491358,
+              0.3738967005270623
+            ]
+          ],
+          "reml_plugin": {
+            "trait1": {
+              "pev_ratio": 0.9349585892059316,
+              "coverage95": 0.955,
+              "realized_accuracy": 0.7489024679839308
+            },
+            "trait2": {
+              "pev_ratio": 1.0104159241488528,
+              "coverage95": 0.95,
+              "realized_accuracy": 0.514961103484825
+            }
+          },
+          "reml_kh": {
+            "trait1": {
+              "pev_ratio": 0.920917907267579,
+              "coverage95": 0.957,
+              "realized_accuracy": 0.7489024679839308
+            },
+            "trait2": {
+              "pev_ratio": 0.9738149705679526,
+              "coverage95": 0.955,
+              "realized_accuracy": 0.514961103484825
+            }
+          },
+          "reml_wall_s": 5.080784320831299,
+          "bayes_converged": true,
+          "bayes_max_rhat": 1.003132120738533,
+          "bayes_min_ess_bulk": 607.7188944534614,
+          "bayes_max_ebv_rhat": 1.0011570402663035,
+          "bayes_wall_s": 963.0705180168152,
+          "bayes_G0": [
+            [
+              1.9782004011934502,
+              0.44917920176072623
+            ],
+            [
+              0.44917920176072623,
+              0.41270371328747185
+            ]
+          ],
+          "bayes": {
+            "trait1": {
+              "pev_ratio": 0.9087361403644852,
+              "coverage95": 0.963,
+              "realized_accuracy": 0.7491610728652969
+            },
+            "trait2": {
+              "pev_ratio": 0.9310289213504102,
+              "coverage95": 0.96,
+              "realized_accuracy": 0.5162331848982898
+            }
+          },
+          "true_parameters": {
+            "trait1": {
+              "pev_ratio": 0.9391196089565468,
+              "coverage95": 0.956,
+              "realized_accuracy": 0.7501736544178192
+            },
+            "trait2": {
+              "pev_ratio": 1.0787619699271171,
+              "coverage95": 0.939,
+              "realized_accuracy": 0.5278664714167624
+            }
+          }
+        },
+        {
+          "seed": 4,
+          "reml_G0": [
+            [
+              1.9194112338081633,
+              0.6993762470362084
+            ],
+            [
+              0.6993762470362084,
+              0.5989227865204793
+            ]
+          ],
+          "reml_plugin": {
+            "trait1": {
+              "pev_ratio": 0.9944763062614118,
+              "coverage95": 0.955,
+              "realized_accuracy": 0.7538602787780311
+            },
+            "trait2": {
+              "pev_ratio": 0.7511555496976335,
+              "coverage95": 0.983,
+              "realized_accuracy": 0.6191485899157114
+            }
+          },
+          "reml_kh": {
+            "trait1": {
+              "pev_ratio": 0.9804759819931562,
+              "coverage95": 0.956,
+              "realized_accuracy": 0.7538602787780311
+            },
+            "trait2": {
+              "pev_ratio": 0.7318920372864726,
+              "coverage95": 0.984,
+              "realized_accuracy": 0.6191485899157114
+            }
+          },
+          "reml_wall_s": 4.953660011291504,
+          "bayes_converged": true,
+          "bayes_max_rhat": 1.0043219015451423,
+          "bayes_min_ess_bulk": 936.5711084665288,
+          "bayes_max_ebv_rhat": 1.0015522153014758,
+          "bayes_wall_s": 971.5613832473755,
+          "bayes_G0": [
+            [
+              1.996392207475143,
+              0.7209075452267534
+            ],
+            [
+              0.7209075452267534,
+              0.6435732684994887
+            ]
+          ],
+          "bayes": {
+            "trait1": {
+              "pev_ratio": 0.9742022422705223,
+              "coverage95": 0.956,
+              "realized_accuracy": 0.7535624367669004
+            },
+            "trait2": {
+              "pev_ratio": 0.7167476900880787,
+              "coverage95": 0.984,
+              "realized_accuracy": 0.6168065523758788
+            }
+          },
+          "true_parameters": {
+            "trait1": {
+              "pev_ratio": 0.940530958897386,
+              "coverage95": 0.958,
+              "realized_accuracy": 0.7518814465274921
+            },
+            "trait2": {
+              "pev_ratio": 0.9829413715981761,
+              "coverage95": 0.959,
+              "realized_accuracy": 0.6304147309803899
+            }
+          }
+        },
+        {
+          "seed": 5,
+          "reml_G0": [
+            [
+              1.6013996887016393,
+              0.6818265009450132
+            ],
+            [
+              0.6818265009450132,
+              0.465843550161213
+            ]
+          ],
+          "reml_plugin": {
+            "trait1": {
+              "pev_ratio": 1.1124101398515256,
+              "coverage95": 0.934,
+              "realized_accuracy": 0.704490390374183
+            },
+            "trait2": {
+              "pev_ratio": 0.9922731094485912,
+              "coverage95": 0.957,
+              "realized_accuracy": 0.5667318159857386
+            }
+          },
+          "reml_kh": {
+            "trait1": {
+              "pev_ratio": 1.0937472537483217,
+              "coverage95": 0.935,
+              "realized_accuracy": 0.704490390374183
+            },
+            "trait2": {
+              "pev_ratio": 0.9553894070951514,
+              "coverage95": 0.965,
+              "realized_accuracy": 0.5667318159857386
+            }
+          },
+          "reml_wall_s": 5.284738540649414,
+          "bayes_converged": false,
+          "bayes_max_rhat": 1.034240617451282,
+          "bayes_min_ess_bulk": 138.088215268851,
+          "bayes_max_ebv_rhat": 1.0060304645430986,
+          "bayes_wall_s": 1049.6194610595703,
+          "bayes_G0": [
+            [
+              1.6919278396919866,
+              0.7063082215591728
+            ],
+            [
+              0.7063082215591728,
+              0.5257810139727082
+            ]
+          ],
+          "bayes": {
+            "trait1": {
+              "pev_ratio": 1.0676942224229393,
+              "coverage95": 0.935,
+              "realized_accuracy": 0.7056879058718731
+            },
+            "trait2": {
+              "pev_ratio": 0.8846882067110673,
+              "coverage95": 0.968,
+              "realized_accuracy": 0.5689164818875189
+            }
+          },
+          "true_parameters": {
+            "trait1": {
+              "pev_ratio": 0.9705081307891152,
+              "coverage95": 0.95,
+              "realized_accuracy": 0.7165155256871143
+            },
+            "trait2": {
+              "pev_ratio": 1.0926795433026,
+              "coverage95": 0.947,
+              "realized_accuracy": 0.5732646699176985
+            }
+          }
+        },
+        {
+          "seed": 6,
+          "reml_G0": [
+            [
+              2.121242838932427,
+              0.6567318509937414
+            ],
+            [
+              0.6567318509937414,
+              0.30751706283779295
+            ]
+          ],
+          "reml_plugin": {
+            "trait1": {
+              "pev_ratio": 0.9793072135991719,
+              "coverage95": 0.956,
+              "realized_accuracy": 0.7575199016583113
+            },
+            "trait2": {
+              "pev_ratio": 1.5695981460146837,
+              "coverage95": 0.884,
+              "realized_accuracy": 0.5561559733227225
+            }
+          },
+          "reml_kh": {
+            "trait1": {
+              "pev_ratio": 0.96601470934292,
+              "coverage95": 0.958,
+              "realized_accuracy": 0.7575199016583113
+            },
+            "trait2": {
+              "pev_ratio": 1.4679364468745904,
+              "coverage95": 0.895,
+              "realized_accuracy": 0.5561559733227225
+            }
+          },
+          "reml_wall_s": 5.264608383178711,
+          "bayes_converged": false,
+          "bayes_max_rhat": 1.0265317602036919,
+          "bayes_min_ess_bulk": 169.0487816551454,
+          "bayes_max_ebv_rhat": 1.006848015367708,
+          "bayes_wall_s": 1042.4548847675323,
+          "bayes_G0": [
+            [
+              2.179491578934732,
+              0.6762244189949392
+            ],
+            [
+              0.6762244189949392,
+              0.3655730600732917
+            ]
+          ],
+          "bayes": {
+            "trait1": {
+              "pev_ratio": 0.962300169375727,
+              "coverage95": 0.957,
+              "realized_accuracy": 0.7575293414111903
+            },
+            "trait2": {
+              "pev_ratio": 1.2253928108848606,
+              "coverage95": 0.923,
+              "realized_accuracy": 0.5796063439807041
+            }
+          },
+          "true_parameters": {
+            "trait1": {
+              "pev_ratio": 1.0128380624919735,
+              "coverage95": 0.951,
+              "realized_accuracy": 0.7543917670505816
+            },
+            "trait2": {
+              "pev_ratio": 1.0261647412586192,
+              "coverage95": 0.949,
+              "realized_accuracy": 0.6317196223627779
+            }
+          }
+        }
+      ]
+    }
+  }
+}

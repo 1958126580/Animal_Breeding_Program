@@ -1695,7 +1695,7 @@ Example 16 analyses the three traits of example 13 this way:
 abp run examples/16_sheep_multitrait_bayes/analysis.toml --out runs/ex16
 ```
 
-It converged after 16,000 iterations (937 s; REML in example 13: 19 s). Posterior
+It converged after 16,000 iterations (15–17 minutes; REML in example 13: 15–19 s). Posterior
 means of the genetic covariance matrix were close to the REML estimates (variances
 4.36, 0.290, 0.450 against 3.96, 0.263, 0.401 — a posterior mean of a variance
 lies above the REML estimate because the posterior is skewed to the right;
@@ -1706,8 +1706,15 @@ reported reliabilities were nevertheless slightly higher (wwt 0.400 against 0.39
 because the reliability divides by the posterior mean of the genetic variance,
 which is larger. Compare PEVs, not reliabilities, across the two methods.
 
-Whether the posterior PEVs are better calibrated than REML with the Kackar–Harville
-correction on small data is studied in the validation report (section 7.13, finding F16).
+How well calibrated are the posterior PEVs? In a simulation with 1,000 animals,
+full-rank covariance matrices and low-heritability traits (validation report,
+section 7.13, finding F16), REML with the Kackar–Harville correction understated the
+squared errors of the low-heritability traits by 14–31%. The Bayesian model was
+calibrated with two traits (squared error / PEV 1.00) and better but still
+optimistic with three (1.06 and 1.14). Its EBVs were very slightly more accurate
+(+0.003). It costs far more time: about 5 minutes per two-trait analysis of 1,000
+animals against 7 seconds for REML. Use it when the covariances are poorly
+determined and honest reliabilities matter more than run time.
 
 ---
 
@@ -1732,6 +1739,12 @@ with `ABP-E500` before any numeric work if it exceeds
 (`trace_method` in the REML output), so REML is no longer limited by dense
 memory either. Details: §18 of `methods.md`.
 
+**Shared machines.** The dense linear algebra uses a multi-threaded BLAS. When
+other programs keep every core busy, its threads compete and a run can become many
+times slower (a 12-second REML example took more than 10 minutes). Limit the BLAS to
+one or a few threads in that case, for example `OPENBLAS_NUM_THREADS=1 abp run ...`
+(Linux) or `set OPENBLAS_NUM_THREADS=1` before the run (Windows).
+
 After every solve ABP recomputes the relative residual `‖C·s − r‖/‖r‖` on the
 original equations and refuses solutions above 1e-8 (direct) or `solver.tol`
 (PCG).
@@ -1743,6 +1756,7 @@ Memory for the dense path is about 16 × N² bytes (solutions) or
 | Task | Size | Time |
 |---|---|---|
 | inbreeding, C++ kernel | 100,000 animals, 10 generations | 0.8 s |
+| inbreeding, C++ depth kernel (0.9) | 200,000 animals, 20 generations, 200 sires each | 4.5 s (0.8: 45 s) |
 | BLUP, PCG, no PEV | 100,500 equations | 0.26 s |
 | BLUP, dense, with PEV | 5,500 equations | 4.8 s |
 | BLUP, sparse direct, **exact PEV**, LDL' + selected inversion | 100,500 equations | 3.2 s (SuperLU: 17.7 s) |
