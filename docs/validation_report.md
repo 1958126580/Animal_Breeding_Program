@@ -58,14 +58,15 @@ AlphaMate has been run.
 
 | Command | Result | Log |
 |---|---|---|
-| `python -m pytest -v` (native C++ kernel; round 11) | **332 passed**, 0 failed, 0 skipped, 731.96 s (run before the two maternal statistical tests were made smaller for the pure-Python job; the smaller versions passed separately with the native kernel) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 11) | **327 passed**, 0 failed, 5 skipped (native-only comparisons), 7253.7 s (the maternal study ran alongside with 3 workers, so the time is inflated) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
-| `abp selftest` with and without the native kernel (round 11) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
+| `python -m pytest -v` (native C++ kernel; round 12) | **338 passed**, 0 failed, 0 skipped, 1001.4 s (with the examples and the pure-Python suite alongside) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 12) | **332 passed**, 0 failed, 6 skipped (native-only comparisons, including the new split-kernel check), 4649.1 s (with the examples and the native suite alongside; round 11: 7,253.7 s) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `abp selftest` with and without the native kernel (round 12) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
+| `python benchmarks/maternal_study.py --replicates 20 --workers 3 --animals 1500 --iterations 4000 --prior equal` and `--prior flat --out …_flat_r12.json` (round 12, F19) | completed, 2,835 s and 2,866 s (402 / 408 s per replicate); 16 of 20 and 1 of 20 met the strict criteria; see §7.16 | `docs/validation/maternal_study_equal_prior.json`, `maternal_study_flat_r12.json`, `.log` |
 | `python benchmarks/maternal_study.py --replicates 20 --workers 3 --animals 1500 --iterations 4000` (round 11) | completed, 8,672 s; 1 of 20 passed the strict R-hat/ESS criteria (median worst R-hat 1.015); see §7.15 and F19 | `docs/validation/maternal_study.json`, `.log` |
 | `python benchmarks/bayes_vs_reml_study.py --replicates 50 --workers 3 --iterations 4000` (round 9, F16; 2 scenarios) | completed (see §7.13) | `docs/validation/bayes_vs_reml_study.json`, `.log` |
 | `python benchmarks/bayes_vs_reml_study.py --scenarios t2_full --seeds 1 2 3 4 5 6 --iterations 16000` (round 9, convergence check) | see §7.13 | `docs/validation/bayes_vs_reml_study_16000it.json`, `.log` |
 | `python benchmarks/inbreeding_benchmark.py` (round 9) | completed; identical F, 5 pedigrees | `docs/validation/inbreeding_benchmark.json`, `.log` |
-| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–18, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 11) | all 21 exit status 0; example 15: 10,000 iterations, 232 s; example 16: 8,000 iterations, 386 s; example 17: 16,000 iterations, 359 s; example 18 (maternal): 8,000 iterations, 172 s | `docs/validation/examples-linux.log` |
+| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–18 (+ 18 `analysis_equal_prior.toml`), `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 12, with both test suites alongside) | all 22 exit status 0; examples 15–18 gave the round-11 posterior means; example 15: 10,000 iterations, 255 s; 16: 8,000, 402 s; 17: 16,000, 414 s; 18: 8,000, 183 s; 18 with the weak prior: 8,000, 185 s | `docs/validation/examples-linux.log` |
 | `python benchmarks/bayes_vs_reml_study.py --scenarios t3_full --seeds 1..30 --prior pheno` (round 10, F16 follow-up) | completed (§7.14) | `docs/validation/bayes_vs_reml_study_pheno_prior.json`, `.log` |
 | `python benchmarks/pev_estimator_study.py` (round 8) | completed; SD ratio 0.575 | `docs/validation/pev_estimator_study.json`, `.log` |
 | `python benchmarks/rank_selection_study.py --replicates 100 --workers 4` (round 8, 4 scenarios) | completed | `docs/validation/rank_selection_study.json`, `.log` |
@@ -198,6 +199,13 @@ after which the two maternal statistical tests were made smaller: with pure-Pyth
 kernels locally 6 passed in 920.9 s). Commit 0c25b62 (maternal study, F19, evidence):
 run [37008139663](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37008139663)
 and pull-request run 37008145319, 7 of 7 jobs succeeded (pure-Python job 1 h 56 min).
+
+Round 12: commit 728dbe0 (dense trailing block in the sparse LDL'): run
+[37024748732](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37024748732)
+and pull-request run 37024755087, 7 of 7 jobs succeeded — the new C++ split kernel built
+with MSVC and GCC and its tests passed on Windows and Linux; the pure-Python job took
+40 min (0c25b62: 1 h 56 min), because the Gibbs tests now factorize the dense part of the
+coefficient matrix with LAPACK. Later commits of the round: see HANDOFF §2.
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer

@@ -95,6 +95,14 @@ method in `docs/method_registry.toml`):
 
 ## 2. Commands that were run (Linux) and their results
 
+Round 12: full test suites (native 338 passed; pure-Python kernels 332 passed, 6
+native-only skipped; 4,649 s instead of 7,254 s), self-test T01–T18 with both kernels,
+all 22 example runs (examples 15–18 gave the round-11 posterior means; example 18 with
+weak priors), the maternal study twice (flat and weak priors, 20 replicates each,
+2,866 s and 2,835 s), factorization timings (validation report §7.16). CI: 728dbe0 run
+[37024748732](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37024748732),
+7 of 7 jobs succeeded (pure-Python job 40 min).
+
 Round 11: full test suites (native 332 passed; pure-Python kernels 327 passed, 5
 native-only skipped, run alongside the maternal study), self-test T01–T18 with both
 kernels, all 21 example runs (example 18, maternal model: converged after 8,000
