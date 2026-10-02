@@ -1,6 +1,6 @@
-# Validation report: ABP 0.11.0
+# Validation report: ABP 0.12.0
 
-Date: 2026-10-02 (round 11; rounds 9–10: 2026-10-01; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
+Date: 2026-10-02 (rounds 11–12; rounds 9–10: 2026-10-01; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
 evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
 (round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
@@ -33,7 +33,7 @@ not_run.
 | G1 mathematics | independent derivations, analytical cases, dimension, limit and equivalence tests | passed | §4, §5 |
 | G2 numerics | residuals, convergence, boundaries, exact references | passed | §4, §5; MCMC diagnostics equal ArviZ to ≤ 8·10⁻¹⁶ |
 | G3 software | ID mapping, bad inputs, recovery, interface consistency | passed (Linux; Windows CI) | §3, §5, §6 |
-| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); threshold priors, rank selection and reduced-rank Kackar–Harville PEV (§7.11); sampled-reliability estimator, EBVs of rank-selected models, multi-trait threshold model (prior-dependent genetic correlation, F18) (§7.12); posterior PEV of the Bayesian multi-trait linear model vs REML + Kackar–Harville (F16 partly resolved) (§7.13); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
+| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); threshold priors, rank selection and reduced-rank Kackar–Harville PEV (§7.11); sampled-reliability estimator, EBVs of rank-selected models, multi-trait threshold model (prior-dependent genetic correlation, F18) (§7.12); posterior PEV of the Bayesian multi-trait linear model vs REML + Kackar–Harville (F16 partly resolved) (§7.13); maternal animal model: EBVs calibrated, maternal variance biased upwards (F19), reduced by weak data-only priors (§7.15, §7.16); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
 | G5 external validity | real data, time or population hold-out | **not_run** | no real data were available or authorized (the LR workflow exists and was run on synthetic data) |
 | G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`), including exact PEV for 100,500 equations and the matrix-free single step (50,000 animals, 6,000 genotyped: 1.7 GB instead of 10.9 GB; 200,000 animals, 30,000 genotyped, int8 genotypes: 6.75 GB; complete `abp run` with 120,000 animals / 30,000 genotyped from PLINK as int8: 261 s, 7.38 GB; 206 s after the round-8 speed-ups); Windows functional tests in CI (round 3: 211 tests passed on Windows and Linux, §3a), no Windows timings; no CUDA path |
 | G7 decision and release | feasible plans, installation reproduction, evidence package | **partial** | mating plans satisfy every hard constraint, verified per plan (§5, §6); no binary release; project license not chosen |
@@ -788,6 +788,64 @@ negative (2.2 MC SE): posterior means of weakly identified variances under flat 
 fits met the strict R-hat/ESS criteria at 4,000 iterations (the workflow would extend
 them); every fit was scored (finding F19).
 
+### 7.16 Round-12 studies
+
+**Dense trailing block of the sparse LDL'** (methods §21, `cholesky.py`). On the
+coefficient matrix of one maternal-study replicate (1,500 animals; 3,505 equations;
+317,091 factor entries; the last 700 columns carry 85% of the up-looking work): the
+rule chose a dense block of 773 columns; one numeric refactorization took 61 ms with
+the up-looking kernel and 23 ms with the split (native up-looking part 3 ms, LAPACK
+`potrf` and the scatter 14 ms); with 3,000 animals (6,981 equations, block 1,515)
+493 ms → 159 ms; with the Python kernels and 300 animals 319 ms → 40 ms. `d` and `L`
+equal the up-looking factor to a relative 5e-15 / absolute 1e-15, solve residual
+8e-16. Gibbs sampler of the maternal model (2 chains × 200 iterations, 1,500 animals):
+35.7 s → 14.6 s. Machine: 4 cores, one BLAS thread per process; LAPACK `potrf` measured
+at 16–21 GFlop/s and the up-looking kernel at about 2 GFlop/s (the ratio 8 in the
+block-size rule). Not benchmarked on other machines.
+
+**Maternal model with weak data-only priors (F19)** (`maternal_study_equal_prior.json`;
+`maternal_study_flat_r12.json` re-runs the flat-prior study with the round-12 code and
+records posterior medians and interval coverage; same 20 seeds, 1,500 animals, 4 chains
+× 4,000 iterations). Prior: each matrix centred on an equal quarter of the observed
+phenotypic variance Vp (G0 = diag(Vp/4, Vp/4), maternal pe Vp/4, residual Vp/4;
+nu = dimension + 2); the true maternal variance (2.0) is below the prior guess
+(about 3.6), so the prior does not pull towards the truth.
+
+| Quantity (true) | flat: mean | flat: median | equal prior: mean | equal prior: median | paired difference (prior − flat) | RMSE flat → prior |
+|---|---|---|---|---|---|---|
+| direct (4.0) | 4.43 ± 0.25 | 4.38 | 4.16 ± 0.23 | 4.10 | −0.27 ± 0.03 | 1.18 → 1.01 |
+| maternal (2.0) | 2.54 ± 0.20 | 2.48 | 2.37 ± 0.10 | 2.31 | −0.17 ± 0.10 | 1.01 → 0.59 |
+| direct-maternal covariance (−1.0) | −1.29 ± 0.13 | −1.26 | −1.07 ± 0.10 | −1.04 | +0.21 ± 0.04 | 0.63 → 0.45 |
+| maternal pe (1.5) | 1.44 ± 0.13 | 1.40 | 1.66 ± 0.06 | 1.62 | +0.22 ± 0.08 | 0.56 → 0.30 |
+| residual (8.0) | 7.71 ± 0.19 | 7.70 | 7.73 ± 0.18 | 7.73 | +0.02 ± 0.02 | 0.88 → 0.81 |
+
+Mean ± MC SE over the 20 replicates; RMSE of the posterior mean against the truth.
+Fits meeting the strict R-hat/ESS criteria at 4,000 iterations: flat 1 of 20 (median
+worst R-hat 1.015), equal prior 16 of 20 (1.007). 95% interval coverage of the true
+value (20 replicates): direct 0.90 / 0.95, maternal 1.00 / 1.00, covariance 0.95 / 1.00
+(flat / prior). EBVs (MSE/PEV, coverage, realized accuracy): flat — direct 1.033 ±
+0.044, 0.946, 0.577; maternal 0.984 ± 0.104, 0.949, 0.391 (the round-11 values to three
+decimals, so the new factorization did not change these results beyond Monte-Carlo
+noise); equal prior — direct 1.072 ± 0.042, 0.941, 0.578; maternal 0.910 ± 0.039, 0.959,
+0.397. Wall time per replicate (three replicates in parallel): flat 408 s, prior
+402 s (round 11: 1,235 s with the up-looking factor while the pure-Python test suite
+ran alongside).
+
+Reading: the weak prior shrinks the spread of the variance estimates (maternal RMSE
+−42%, pe −46%) and the covariance is unbiased, but the maternal variance is still 18%
+high (2.37; 3.5 MC SE) and the maternal pe 11% high; posterior medians are 0.04–0.06
+lower than the means, so the posterior skewness explains only a small part of the bias.
+The maternal posterior PEV becomes slightly conservative (0.91) and the direct one
+slightly optimistic (1.07). Posterior medians remain biased too; F19 is reduced, not
+resolved.
+
+**Example 18 with the weak prior** (`analysis_equal_prior.toml`; prior guesses from a
+least-squares fit of the fixed effects, residual variance 13.9 → 3.5 each, nu = 4):
+converged after 8,000 iterations (197 s, standalone run). Posterior mean (90% interval):
+direct 4.71 (2.69–7.23; true 4.0), maternal 3.13 (1.87–4.67; 2.0), covariance −1.89
+(−3.54 to −0.54; −1.0), maternal pe 1.61 (0.98–2.35; 1.5), residual 7.13 (5.75–8.32;
+8.0); flat priors: 5.07, 3.89, −2.36, 1.13, 7.03.
+
 ### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
@@ -818,7 +876,7 @@ for the four-trait example.
 | F17 | With one categorical record per animal, a flat prior on the liability genetic variance gives an improper posterior (single- and multi-trait threshold samplers: chains drift, results withheld) | open (documented; remedy available) | proper priors (`variance_prior = "scaled_inv_chi2"` / `"inverse_wishart"`) make the posterior proper; their influence must be reported (F13) |
 | F18 | Multi-trait threshold model with one categorical record per animal: the genetic correlation follows the prior's centre (0.27 ± 0.04 with a prior at zero covariance, 0.51 ± 0.04 with one at the true 0.5) | open (documented) | the data identify the covariance weakly; take `prior_covariance` from published estimates and report it; repeated or more records improve identification |
 | F15 | Rank selection by the smallest AIC wrongly reduced a full-rank G0 (r_G 0.6) to rank 1 in 19 of 100 data sets, making trait-2 PEV about four times too small | **resolved** (round 7) | ABP moves to a lower rank only if its AIC is smaller by ≥ 2: 0 of 100 wrong reductions; the cost is that a true rank 1 is found in 58/100 instead of 97/100 (the full-rank model is kept in the rest) (§7.11) |
-| F19 | Bayesian maternal animal model (one record per animal, flat priors): the posterior mean of the maternal variance is biased upwards (2.54 ± 0.19 vs 2.0 over 20 replicates; example 18: 3.9) and the direct-maternal covariance is too negative, while the EBV posterior PEVs are calibrated (direct 1.03, maternal 0.98) | open (documented; round 11) | report intervals, not point estimates, of the maternal (co)variances; weak proper priors (as for F16) or more records on daughters are the candidate remedies; a prior study is the next step |
+| F19 | Bayesian maternal animal model (one record per animal, flat priors): the posterior mean of the maternal variance is biased upwards (2.54 ± 0.19 vs 2.0 over 20 replicates; example 18: 3.9) and the direct-maternal covariance is too negative, while the EBV posterior PEVs are calibrated (direct 1.03, maternal 0.98) | reduced (round 12), open | weak proper priors centred on equal shares of the phenotypic variance (§7.16): maternal RMSE 1.01 → 0.59, covariance unbiased, 16 of 20 fits converged instead of 1, but the maternal variance is still 18% high (2.37); report intervals, use weak priors, add records on daughters; REML for the maternal model is not implemented (no frequentist reference yet) |
 | E1 | Engineering: with every core busy, multi-threaded OpenBLAS made the 12 s API example's multi-trait REML exceed 600 s (thread oversubscription); with `OPENBLAS_NUM_THREADS=1` it took 20 s under the same load (round 9) | open (documented) | set `OPENBLAS_NUM_THREADS` (or the BLAS thread count) when ABP shares a machine; the benchmarks and studies already set one thread per worker |
 
 ## 9. Defects found and fixed

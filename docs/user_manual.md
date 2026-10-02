@@ -1781,6 +1781,31 @@ and their reliabilities were well calibrated (squared error / PEV 0.98, coverage
 direct 1.03, 0.95), but the posterior mean of the maternal variance was 27% too high
 on average (2.54 for a true 2.0) — read the variance components as intervals.
 
+Weak proper priors help (validation report §7.16). Centre each prior on an equal
+share of the phenotypic variance left after the fixed effects (not on values you hope
+to find) and use the smallest `nu` with a finite prior mean, as in
+`examples/18_sheep_wwt_maternal_bayes/analysis_equal_prior.toml`:
+
+```toml
+[bayes]
+method = "multitrait"
+variance_prior = "inverse_wishart"
+nu = 4.0                       # 2 x 2 genetic matrix + 2; applies to every listed matrix
+# Vp = 13.9 kg^2 (residual variance of a least-squares fit of the fixed effects) / 4
+prior_covariance = { animal = [[3.5, 0.0], [0.0, 3.5]], mpe = [[3.5]], residual = [[3.5]] }
+```
+
+In the 20-replicate study this cut the error of the maternal variance from 1.01 to
+0.59 (root mean square), made the direct-maternal covariance unbiased and let 16 of
+20 analyses converge within 4,000 iterations instead of 1, but the maternal variance
+was still 18% high on average (2.37 for 2.0). In example 18 the posterior mean of the
+maternal variance fell from 3.9 to 3.1 (true 2.0). The maternal EBVs stayed
+calibrated (squared error / PEV 0.91, slightly conservative).
+
+Run time grows with how widely the dams are spread over the pedigree; since 0.12.0 the
+nearly dense last block of the factorization is handled by LAPACK, which made a
+1,500-animal analysis with random long-range links about 3 times faster.
+
 How well calibrated are the posterior PEVs? In a simulation with 1,000 animals,
 full-rank covariance matrices and low-heritability traits (validation report,
 section 7.13, finding F16), REML with the Kackar–Harville correction understated the

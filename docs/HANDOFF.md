@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-10-02, ABP 0.11.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-10-02, ABP 0.12.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -72,6 +72,11 @@ method in `docs/method_registry.toml`):
   Gibbs samplers: `kind = "maternal"` (dam from the pedigree), 2t × 2t G0 with
   direct-maternal covariances, maternal EBVs and reliabilities, m2; one trait allowed;
   maternal permanent environment as an iid term on a dam column; example 18;
+* **round 12**: sparse LDL' with a dense trailing block factorized by LAPACK (Schur
+  complement from the up-looking kernel; C++ `ldl_numeric_split` + Python reference;
+  maternal model 2.6–3.1 times faster per factorization); posterior medians of G0, R0,
+  P0; F19 prior study (weak data-only priors) and example 18 variant
+  `analysis_equal_prior.toml`;
 * single-trait BLUP (animal, repeatability), dense/sparse/PCG solvers, PEV,
   reliability; **exact PEV at any size whose factor fits in memory by sparse
   selected inversion** (round 3; Takahashi equations on the symbolic Cholesky
@@ -202,9 +207,11 @@ See `docs/validation_report.md` §8. The most important:
   Bayesian multi-trait linear model is calibrated with two traits (MSE/PEV 1.000 ±
   0.040); with three traits 1.06 / 1.14 (flat priors) and 1.03 / 1.11 with weak
   data-centred priors (round 10), at +0.025 for the best-determined trait; §7.13–7.14.
-* **F19 (new, round 11)**: Bayesian maternal model with one record per animal: maternal
-  EBVs calibrated (MSE/PEV 0.98), but the maternal variance posterior mean is 27% too
-  high under flat priors (2.54 vs 2.0, 20 replicates; example 18: 3.9).
+* **F19 (round 11; reduced in round 12)**: Bayesian maternal model with one record per
+  animal: maternal EBVs calibrated (MSE/PEV 0.98), but the maternal variance posterior
+  mean is 27% too high under flat priors (2.54 vs 2.0, 20 replicates; example 18: 3.9).
+  Weak priors centred on equal shares of Vp: 2.37 (still 18% high), RMSE 1.01 → 0.59,
+  covariance unbiased, 16/20 converged (validation report §7.16).
 * **Engineering (round 9)**: multi-threaded OpenBLAS under a fully loaded CPU slowed
   a 12 s REML example beyond 600 s (thread oversubscription); with one BLAS thread
   it took 20 s. Set `OPENBLAS_NUM_THREADS` when ABP shares a machine.
@@ -242,20 +249,24 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 11 added maternal effects (part of task 1 listed here in round 10). Next:
+Round 12 did the F19 prior study and the speed-up of task 1 (round 11 list). Next:
 
-1. Multi-trait Gibbs samplers: several categorical traits (joint liabilities with a
-   correlation-matrix step); more than one iid term; F19: a prior study for the maternal
-   variance; speed of the sampler on pedigrees with long-range links (fill-in);
-   maternal models with REML.
-2. F16 remainder: the least informed trait of three stays 7% optimistic even with
+1. Maternal model with REML (a frequentist reference for F19: correlated direct and
+   maternal effects in AI-REML) and a study of whether more generations of records on
+   daughters remove the remaining maternal-variance bias.
+2. Multi-trait Gibbs samplers: several categorical traits (joint liabilities with a
+   correlation-matrix step); more than one iid term.
+3. Sparse LDL': general supernodes (dense updates for every front, not only the
+   trailing block); measure the block-size rule's flop-rate ratio on other machines
+   (Windows CI timings).
+4. F16 remainder: the least informed trait of three stays 7% optimistic even with
    weak priors; test a second-order Kackar–Harville correction and longer chains on
    the three-trait scenario.
-3. APY construction at scale: the dense `G_cn` product (float32 option with a
+5. APY construction at scale: the dense `G_cn` product (float32 option with a
    documented error bound) and parallel Colleau products.
-4. Sampled PEV: combine the orthogonal estimator with control variates from an
+6. Sampled PEV: combine the orthogonal estimator with control variates from an
    approximate reliability.
-5. Real-data validation (G5) and comparison software — blocked on the gaps
+7. Real-data validation (G5) and comparison software — blocked on the gaps
    in §5.
 
 ## 7. Where things are

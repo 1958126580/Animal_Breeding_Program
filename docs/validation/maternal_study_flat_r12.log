@@ -1,0 +1,123 @@
+{
+ "converged": 1,
+ "direct_variance": {
+  "mean": 4.431449851249464,
+  "mc_se": 0.2522027394671146,
+  "n": 20,
+  "true": 4.0
+ },
+ "maternal_variance": {
+  "mean": 2.537168728356286,
+  "mc_se": 0.19493209182561755,
+  "n": 20,
+  "true": 2.0
+ },
+ "direct_maternal_covariance": {
+  "mean": -1.28605301218312,
+  "mc_se": 0.1274722109950992,
+  "n": 20,
+  "true": -1.0
+ },
+ "maternal_pe_variance": {
+  "mean": 1.4418457966854354,
+  "mc_se": 0.1285473055368993,
+  "n": 20,
+  "true": 1.5
+ },
+ "residual_variance": {
+  "mean": 7.706101819385353,
+  "mc_se": 0.1890825624158382,
+  "n": 20,
+  "true": 8.0
+ },
+ "posterior_median": {
+  "direct_variance": {
+   "mean": 4.38203651565637,
+   "mc_se": 0.2523240758943076,
+   "n": 20
+  },
+  "maternal_variance": {
+   "mean": 2.476925966590726,
+   "mc_se": 0.20281769440086617,
+   "n": 20
+  },
+  "direct_maternal_covariance": {
+   "mean": -1.2566727261560426,
+   "mc_se": 0.12907878539958753,
+   "n": 20
+  },
+  "maternal_pe_variance": {
+   "mean": 1.4012829326975453,
+   "mc_se": 0.13473024661609187,
+   "n": 20
+  },
+  "residual_variance": {
+   "mean": 7.696975478399741,
+   "mc_se": 0.18927223916425578,
+   "n": 20
+  }
+ },
+ "interval_coverage95": {
+  "direct_variance": {
+   "mean": 0.9,
+   "mc_se": 0.06882472016116853,
+   "n": 20
+  },
+  "maternal_variance": {
+   "mean": 1.0,
+   "mc_se": 0.0,
+   "n": 20
+  },
+  "direct_maternal_covariance": {
+   "mean": 0.95,
+   "mc_se": 0.05000000000000001,
+   "n": 20
+  }
+ },
+ "max_rhat_median": 1.0147705380861347,
+ "wall_s_per_replicate": {
+  "mean": 408.43023784160613,
+  "mc_se": 5.933569948720679,
+  "n": 20
+ },
+ "direct": {
+  "pev_ratio": {
+   "mean": 1.0331832092955215,
+   "mc_se": 0.044054845018896074,
+   "n": 20
+  },
+  "coverage95": {
+   "mean": 0.9457333333333333,
+   "mc_se": 0.005146826649636016,
+   "n": 20
+  },
+  "realized_accuracy": {
+   "mean": 0.5768840237645576,
+   "mc_se": 0.007822387460820753,
+   "n": 20
+  }
+ },
+ "maternal": {
+  "pev_ratio": {
+   "mean": 0.9837316088296385,
+   "mc_se": 0.1041693522967522,
+   "n": 20
+  },
+  "coverage95": {
+   "mean": 0.9490333333333336,
+   "mc_se": 0.012022442464283934,
+   "n": 20
+  },
+  "realized_accuracy": {
+   "mean": 0.39123583317812044,
+   "mc_se": 0.01103418498060464,
+   "n": 20
+  }
+ }
+}
+wrote docs/validation/maternal_study_flat_r12.json
+
+real	47m47.129s
+user	128m42.565s
+sys	5m24.500s
+# exit_code: 0

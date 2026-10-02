@@ -14,7 +14,7 @@ and mating plans. Every result can be traced back to its inputs, model and
 code. It is built to the project's research and
 development specification (`docs/` and the uploaded instruction set).
 
-> **Status: 0.11.0, research-grade.** Every method listed below has passed
+> **Status: 0.12.0, research-grade.** Every method listed below has passed
 > analytical and independent-reference tests on Linux; simulation studies
 > cover EBV calibration, genetic groups and the Bayesian samplers. It has
 > **not** been validated on real breeding data, compared with

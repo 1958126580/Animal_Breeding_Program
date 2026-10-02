@@ -849,10 +849,12 @@ tests = ["tests/test_mt_threshold_gibbs.py::test_maternal_effects_with_fixed_cov
          "tests/test_mt_threshold_workflow.py::test_spec_rules_for_maternal_effects"]
 # G4: benchmarks/maternal_study.py (20 replicates, 1,500 animals): EBV MSE/PEV direct 1.033 +- 0.044,
 # maternal 0.984 +- 0.104, coverage 0.946 / 0.949; maternal variance biased upwards (2.54 vs 2.0, F19).
+# Round 12 (maternal_study_equal_prior.json): weak data-only IW priors: maternal variance 2.37 +- 0.10,
+# RMSE 1.01 -> 0.59, covariance -1.07 (true -1.0), 16/20 converged; EBV MSE/PEV 1.07 / 0.91.
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "partial_ebv_calibrated_maternal_variance_biased_F19", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["Gibbs models only (no REML or known-variance maternal model)", "pedigree relationships only", "direct, maternal and maternal permanent-environment variances weakly separated with one record per animal: maternal variance biased upwards under flat priors (F19)", "slow on pedigrees with long-range links (0.08 s per chain-iteration at 1,500 animals in a random pedigree vs 0.005 s for example 18)"]
+known_limits = ["Gibbs models only (no REML or known-variance maternal model)", "pedigree relationships only", "direct, maternal and maternal permanent-environment variances weakly separated with one record per animal: maternal variance biased upwards under flat priors (F19; 2.54 vs 2.0) and still with weak data-only priors (2.37; round 12)", "slow on pedigrees with long-range links (round 12: about 0.025 s per chain-iteration at 1,500 animals in a random pedigree after the dense trailing block; 0.08 s before)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]

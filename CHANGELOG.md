@@ -4,6 +4,19 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.12.0] - 2026-10-02
+
+Twelfth development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Sparse LDL': dense trailing block. When the last columns of the factor are nearly dense (fill-reducing orders leave a separator there), the up-looking kernel stops at the block and returns its Schur complement, which is factorized by LAPACK Cholesky and stored on the symbolic pattern (`dense_tail_split`, C++ kernel `ldl_numeric_split` with a Python reference). Block size by a work-saving rule, capped by the memory budget; `SparseLDL(..., dense_tail=False)` keeps the previous factor. Maternal model with 1,500 animals: 61 → 23 ms per factorization, maternal-study replicate 1,235 → 408 s.
+- Posterior medians in the G0, R0 and P0 summaries of the multi-trait Gibbs samplers.
+- `maternal_study.py --prior equal` (weak inverse-Wishart priors centred on equal shares of the phenotypic variance) and a variant of example 18 with these priors (`analysis_equal_prior.toml`). Finding F19 reduced: maternal variance 2.37 instead of 2.54 (true 2.0), RMSE 1.01 → 0.59, covariance unbiased, 16 of 20 fits converged instead of 1 (validation report §7.16).
+- Methods §21 (dense trailing block), manual §7.16 (priors for maternal models), validation report §7.16.
+
+### Changed
+- **[results]** Every model factorized by the sparse LDL' whose factor ends in a dense enough block now gets `d` and `L` from LAPACK for that block: equal to the previous factor to rounding (relative 1e-14 in the tests); Gibbs chains may follow different rounding paths, within Monte-Carlo error (the flat-prior maternal study reproduced its round-11 summaries to three decimals).
+
 ## [0.11.0] - 2026-10-02
 
 Eleventh development round. Evidence and gaps: `docs/validation_report.md`.

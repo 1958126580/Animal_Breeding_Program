@@ -360,7 +360,8 @@ fac_ldl.solve(rhs); fac_ldl.logdet(); fac_ldl.selected_inverse().diagonal(idx)
 
 | Name | Returns |
 |---|---|
-| `SparseLDL(C, memory_budget_bytes)` | factor with `solve`, `logdet`, `selected_inverse`, `inverse_block`, `nnz_factor`, `kernel`; `ABP-E404` for a non-positive pivot |
+| `SparseLDL(C, memory_budget_bytes, dense_tail=True)` | factor with `solve`, `logdet`, `selected_inverse`, `inverse_block`, `nnz_factor`, `kernel`, `split` (first column of the dense trailing block factorized by LAPACK, round 12; `n` when none; `dense_tail=False` turns it off); `ABP-E404` for a non-positive pivot |
+| `abp.solvers.cholesky.dense_tail_split(colptr, n, min_size, max_size, speed_ratio)` | the block-size rule (methods §21) |
 | `mindegree_order(C)` | `(order, kernel)` |
 | `abp.solvers.mme.make_sparse_factor(C, budget, factorization)` | `SparseLDL` or `SparseLU` (`"auto"`, `"ldl"`, `"superlu"`) |
 
