@@ -240,16 +240,16 @@ def test_spec_rules_for_the_multitrait_threshold_model():
 
 
 @pytest.mark.parametrize("name", ["15_sheep_wwt_nlb1_threshold", "16_sheep_multitrait_bayes",
-                                  "17_sheep_ewe_repeated_bayes", "18_sheep_wwt_maternal_bayes"])
+                                  "17_sheep_ewe_repeated_bayes", "18_sheep_wwt_maternal_bayes",
+                                  "18_sheep_wwt_maternal_bayes/analysis_equal_prior.toml"])
 def test_examples_15_16_spec_and_data_validate(name):
-    """Examples 15 (weaning weight + first-parity litter size, residual groups) and 16
-    (Bayesian multi-trait linear model) pass spec and data validation (the full runs
-    take minutes and are part of the examples log)."""
+    """Examples 15-18 (and the weak-prior variant of example 18) pass spec and data
+    validation (the full runs take minutes and are part of the examples log)."""
     from pathlib import Path
 
     from abp.cli import main
     ex = Path(__file__).resolve().parents[1] / "examples" / name
-    assert main(["validate", str(ex / "analysis.toml")]) == 0
+    assert main(["validate", str(ex if ex.suffix == ".toml" else ex / "analysis.toml")]) == 0
 
 
 def _write_repeated(tmp_path, bayes_lines: str, n: int = 120, n_rec: int = 3):
