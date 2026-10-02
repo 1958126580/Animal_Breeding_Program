@@ -19,7 +19,9 @@ round 8: run
 round 9: run
 [36832541614](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36832541614);
 round 10: run
-[36883815725](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36883815725); §3a).
+[36883815725](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36883815725);
+round 11: run
+[37008139663](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37008139663); §3a).
 Raw logs: `docs/validation/`. Status vocabulary: passed, failed, blocked,
 not_run.
 
@@ -188,6 +190,14 @@ thousands of iterations; they were made smaller. The release commit 8a32efe (ABP
 0.10.0): run
 [36883815725](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36883815725)
 and pull-request run 36883826721, 7 of 7 jobs succeeded (pure-Python job 84 min).
+
+Round 11: commit 7f30e96 (maternal effects; run
+[36990166293](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36990166293)
+and pull-request run 36990173448) succeeded on all 7 jobs (pure-Python job 2 h 16 min,
+after which the two maternal statistical tests were made smaller: with pure-Python
+kernels locally 6 passed in 920.9 s). Commit 0c25b62 (maternal study, F19, evidence):
+run [37008139663](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37008139663)
+and pull-request run 37008145319, 7 of 7 jobs succeeded (pure-Python job 1 h 56 min).
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer

@@ -95,7 +95,10 @@ native-only skipped, run alongside the maternal study), self-test T01–T18 with
 kernels, all 21 example runs (example 18, maternal model: converged after 8,000
 iterations), the maternal calibration study (20 replicates × 1,500 animals, 8,672 s;
 finding F19). The two maternal statistical tests were then made smaller for the
-pure-Python CI job and passed natively. CI: see validation report §3a.
+pure-Python CI job (pure-Python kernels: 6 passed, 920.9 s). CI: 7f30e96 run
+36990166293 and 0c25b62 run
+[37008139663](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37008139663),
+7 of 7 jobs succeeded each.
 
 Round 10: full test suites (native 326 passed; pure-Python kernels 321 passed, 5
 native-only skipped), self-test T01–T18 with both kernels, all 20 example runs (examples 15–17 with the
