@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-10-01, ABP 0.10.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-10-02, ABP 0.11.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -68,6 +68,10 @@ method in `docs/method_registry.toml`):
   inverse-Wishart priors for P0 and R0 (`prior_covariance.pe`, `.residual`); scale
   moves for every trait on (u, G0) and (pe, P0) (example 17: converged instead of
   withheld); F16 follow-up with weak data-centred priors;
+* **round 11**: maternal genetic effects (maternal animal model) in both multi-trait
+  Gibbs samplers: `kind = "maternal"` (dam from the pedigree), 2t × 2t G0 with
+  direct-maternal covariances, maternal EBVs and reliabilities, m2; one trait allowed;
+  maternal permanent environment as an iid term on a dam column; example 18;
 * single-trait BLUP (animal, repeatability), dense/sparse/PCG solvers, PEV,
   reliability; **exact PEV at any size whose factor fits in memory by sparse
   selected inversion** (round 3; Takahashi equations on the symbolic Cholesky
@@ -82,9 +86,16 @@ method in `docs/method_registry.toml`):
 * optimal contribution selection and mating plans (`abp mate`, proposals
   only);
 * workflow with atomic outputs, manifests and reports; CLI; launchers;
-  synthetic sheep generator; 17 examples; documentation; self-test T01–T18.
+  synthetic sheep generator; 18 examples; documentation; self-test T01–T18.
 
 ## 2. Commands that were run (Linux) and their results
+
+Round 11: full test suites (native 332 passed; pure-Python kernels 327 passed, 5
+native-only skipped, run alongside the maternal study), self-test T01–T18 with both
+kernels, all 21 example runs (example 18, maternal model: converged after 8,000
+iterations), the maternal calibration study (20 replicates × 1,500 animals, 8,672 s;
+finding F19). The two maternal statistical tests were then made smaller for the
+pure-Python CI job and passed natively. CI: see validation report §3a.
 
 Round 10: full test suites (native 326 passed; pure-Python kernels 321 passed, 5
 native-only skipped), self-test T01–T18 with both kernels, all 20 example runs (examples 15–17 with the
@@ -188,6 +199,9 @@ See `docs/validation_report.md` §8. The most important:
   Bayesian multi-trait linear model is calibrated with two traits (MSE/PEV 1.000 ±
   0.040); with three traits 1.06 / 1.14 (flat priors) and 1.03 / 1.11 with weak
   data-centred priors (round 10), at +0.025 for the best-determined trait; §7.13–7.14.
+* **F19 (new, round 11)**: Bayesian maternal model with one record per animal: maternal
+  EBVs calibrated (MSE/PEV 0.98), but the maternal variance posterior mean is 27% too
+  high under flat priors (2.54 vs 2.0, 20 replicates; example 18: 3.9).
 * **Engineering (round 9)**: multi-threaded OpenBLAS under a fully loaded CPU slowed
   a 12 s REML example beyond 600 s (thread oversubscription); with one BLAS thread
   it took 20 s. Set `OPENBLAS_NUM_THREADS` when ABP shares a machine.
@@ -225,12 +239,12 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 10 completed the permanent-environment and proper-R0-prior parts of task 1 listed
-here in round 9, the mixing improvement (scale moves for every trait) and a first
-F16 follow-up (weak priors). Next:
+Round 11 added maternal effects (part of task 1 listed here in round 10). Next:
 
 1. Multi-trait Gibbs samplers: several categorical traits (joint liabilities with a
-   correlation-matrix step); more than one iid term; maternal effects.
+   correlation-matrix step); more than one iid term; F19: a prior study for the maternal
+   variance; speed of the sampler on pedigrees with long-range links (fill-in);
+   maternal models with REML.
 2. F16 remainder: the least informed trait of three stays 7% optimistic even with
    weak priors; test a second-order Kackar–Harville correction and longer chains on
    the three-trait scenario.

@@ -692,12 +692,12 @@ def test_maternal_effects_with_fixed_covariances_equal_dense_mme():
 
 
 def test_maternal_variances_are_recovered_single_trait():
-    """Simulated weaning-weight-like data (one trait, 300 animals, dams known for the
+    """Simulated weaning-weight-like data (one trait, 220 animals, dams known for the
     non-founders): posterior means of the direct, maternal and residual variances and
     of the direct-maternal covariance within 3 posterior SD of the truth; one trait
     with a maternal effect is allowed (r = 2)."""
     from scipy.sparse.linalg import spsolve_triangular
-    ped, rng = _ped(300, 29, 30)
+    ped, rng = _ped(220, 29, 25)
     q = ped.n
     G0 = np.array([[1.0, -0.2], [-0.2, 0.5]])
     F = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())[:, None]
@@ -709,8 +709,8 @@ def test_maternal_variances_are_recovered_single_trait():
     rec = np.flatnonzero(dam_col >= 0)                   # records on non-founders
     Y = y[rec, None]
     X = sp.csr_matrix(np.ones((rec.size, 1)))
-    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=1500, burn_in=300, thin=1,
-                                    max_iterations=3000, seed=12, rhat_max=1.05,
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=1200, burn_in=250, thin=1,
+                                    max_iterations=2400, seed=12, rhat_max=1.05,
                                     ess_min=100)
     res = MT.mt_threshold_gibbs(Y, None, X, rec, ped.ainv(), cfg, dam_col=dam_col[rec])
     m, sd = np.array(res.G0["mean"]), np.array(res.G0["sd"])

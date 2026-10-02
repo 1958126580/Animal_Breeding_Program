@@ -399,7 +399,7 @@ def test_workflow_maternal_effects_single_trait(tmp_path):
     correlation and m2 are reported; the run goes through the Gibbs workflow."""
     from abp.workflows.evaluate import run_evaluation
     rng = np.random.default_rng(4)
-    n = 260
+    n = 180
     ids = [f"a{i}" for i in range(n)]
     male = np.arange(n) % 2 == 0
     s, d = [], []
@@ -454,10 +454,10 @@ mode = "bayes"
 [bayes]
 method = "multitrait"
 chains = 4
-iterations = 2000
-burn_in = 400
-thin = 2
-max_iterations = 8000
+iterations = 1200
+burn_in = 300
+thin = 1
+max_iterations = 4800
 rhat_max = 1.05
 ess_min = 100
 """, encoding="utf-8")

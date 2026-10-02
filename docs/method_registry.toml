@@ -843,12 +843,12 @@ tests = ["tests/test_mt_threshold_gibbs.py::test_maternal_effects_with_fixed_cov
          "tests/test_mt_threshold_gibbs.py::test_maternal_configuration_is_checked",
          "tests/test_mt_threshold_workflow.py::test_workflow_maternal_effects_single_trait",
          "tests/test_mt_threshold_workflow.py::test_spec_rules_for_maternal_effects"]
-# G4: example 18 (synthetic, 1,896 lambs): all true values inside the 95% intervals; maternal variance
-# estimated high (3.9 vs 2.0); no replicated calibration study yet.
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+# G4: benchmarks/maternal_study.py (20 replicates, 1,500 animals): EBV MSE/PEV direct 1.033 +- 0.044,
+# maternal 0.984 +- 0.104, coverage 0.946 / 0.949; maternal variance biased upwards (2.54 vs 2.0, F19).
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "partial_ebv_calibrated_maternal_variance_biased_F19", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["Gibbs models only (no REML or known-variance maternal model)", "pedigree relationships only", "direct, maternal and maternal permanent-environment variances weakly separated with one record per animal (example 18)"]
+known_limits = ["Gibbs models only (no REML or known-variance maternal model)", "pedigree relationships only", "direct, maternal and maternal permanent-environment variances weakly separated with one record per animal: maternal variance biased upwards under flat priors (F19)", "slow on pedigrees with long-range links (0.08 s per chain-iteration at 1,500 animals in a random pedigree vs 0.005 s for example 18)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]

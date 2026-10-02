@@ -10,6 +10,7 @@ Eleventh development round. Evidence and gaps: `docs/validation_report.md`.
 
 ### Added
 - Maternal genetic effects (maternal animal model) in the multi-trait Gibbs samplers: random term `kind = "maternal"` (dam from the pedigree), `2t × 2t` genetic covariance matrix with direct-maternal covariances, maternal EBVs (`mebv_`, `mreliability_`, `msep_` columns), maternal heritability `m2`, direct-maternal correlation; also for a single trait (`bayes.method = "multitrait"` with one trait) and with a maternal permanent environment (iid term on a dam column) (`mt_threshold_gibbs(..., dam_col=)`, `MTProblem.incidence`). Example 18 (weaning weight, synthetic data from `make_data.py`).
+- `benchmarks/maternal_study.py` (20 replicates): maternal and direct EBVs calibrated (MSE/PEV 0.98 / 1.03, coverage 0.95), maternal variance biased upwards under flat priors (2.54 vs 2.0; finding F19).
 - Methods §32 (maternal effects), API section 32, manual §5.6/§7.16, validation report §7.15.
 
 ### Changed

@@ -1,6 +1,6 @@
-# Validation report: ABP 0.10.0
+# Validation report: ABP 0.11.0
 
-Date: 2026-10-01 (rounds 9–10; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
+Date: 2026-10-02 (round 11; rounds 9–10: 2026-10-01; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
 evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
 (round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
@@ -56,13 +56,14 @@ AlphaMate has been run.
 
 | Command | Result | Log |
 |---|---|---|
-| `python -m pytest -v` (native C++ kernel; round 10; machine otherwise idle) | **326 passed**, 0 failed, 0 skipped, 765.8 s (run before two statistical tests were made smaller for the pure-Python job; the smaller versions passed separately with both kernels) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 10) | **321 passed**, 0 failed, 5 skipped (native-only comparisons), 3694.7 s (machine otherwise idle) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
-| `abp selftest` with and without the native kernel (round 10) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel; T03 names the depth kernel) | `docs/validation/selftest-linux.log` |
+| `python -m pytest -v` (native C++ kernel; round 11) | **332 passed**, 0 failed, 0 skipped, 731.96 s (run before the two maternal statistical tests were made smaller for the pure-Python job; the smaller versions passed separately with the native kernel) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 11) | **327 passed**, 0 failed, 5 skipped (native-only comparisons), 7253.7 s (the maternal study ran alongside with 3 workers, so the time is inflated) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `abp selftest` with and without the native kernel (round 11) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
+| `python benchmarks/maternal_study.py --replicates 20 --workers 3 --animals 1500 --iterations 4000` (round 11) | completed, 8,672 s; 1 of 20 passed the strict R-hat/ESS criteria (median worst R-hat 1.015); see §7.15 and F19 | `docs/validation/maternal_study.json`, `.log` |
 | `python benchmarks/bayes_vs_reml_study.py --replicates 50 --workers 3 --iterations 4000` (round 9, F16; 2 scenarios) | completed (see §7.13) | `docs/validation/bayes_vs_reml_study.json`, `.log` |
 | `python benchmarks/bayes_vs_reml_study.py --scenarios t2_full --seeds 1 2 3 4 5 6 --iterations 16000` (round 9, convergence check) | see §7.13 | `docs/validation/bayes_vs_reml_study_16000it.json`, `.log` |
 | `python benchmarks/inbreeding_benchmark.py` (round 9) | completed; identical F, 5 pedigrees | `docs/validation/inbreeding_benchmark.json`, `.log` |
-| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–17, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 10, with the pure-Python test suite alongside) | all 20 exit status 0; example 15: 10,000 iterations, 236 s; example 16: 8,000 iterations, 378 s; example 17: 16,000 iterations, 361 s | `docs/validation/examples-linux.log` |
+| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–18, `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 11) | all 21 exit status 0; example 15: 10,000 iterations, 232 s; example 16: 8,000 iterations, 386 s; example 17: 16,000 iterations, 359 s; example 18 (maternal): 8,000 iterations, 172 s | `docs/validation/examples-linux.log` |
 | `python benchmarks/bayes_vs_reml_study.py --scenarios t3_full --seeds 1..30 --prior pheno` (round 10, F16 follow-up) | completed (§7.14) | `docs/validation/bayes_vs_reml_study_pheno_prior.json`, `.log` |
 | `python benchmarks/pev_estimator_study.py` (round 8) | completed; SD ratio 0.575 | `docs/validation/pev_estimator_study.json`, `.log` |
 | `python benchmarks/rank_selection_study.py --replicates 100 --workers 4` (round 8, 4 scenarios) | completed | `docs/validation/rank_selection_study.json`, `.log` |
@@ -746,6 +747,37 @@ instead of 999 s), posterior genetic variances 4.30 / 0.286 / 0.441 (round 9: 4.
 posterior means with and without the moves within 4 MC SE for G0, P0 and R0 entries;
 mean ESS gain of the four variances > 1.3 (asserted).
 
+### 7.15 Round-11 studies
+
+**Example 18: maternal animal model** (`abp run`; synthetic, `make_data.py`; weaning
+weight of 1,896 lambs of 454 dams, all dams known; direct, maternal genetic and
+maternal permanent-environment effects): converged after 8,000 iterations (152 s standalone; 172 s in the examples log), worst
+R-hat 1.008, smallest bulk ESS 411. Posterior means (95% intervals) against the
+simulation: direct variance 5.07 (2.73–8.58; true 4.0), maternal 3.89 (1.96–6.19; 2.0),
+direct-maternal covariance −2.36 (−4.70 to −0.60; −1.0), correlation −0.52 (−0.76 to
+−0.20; −0.35), maternal permanent environment 1.13 (0.14–2.41; 1.5), residual 7.03
+(5.21–8.45; 8.0). Every true value lies inside its interval; the maternal variance is
+estimated high and the covariance more negative (the maternal genetic, maternal
+permanent-environment and direct effects trade off with one record per lamb and about
+four lambs per dam). Correlation of EBVs with the true values over all 2,108 animals:
+direct 0.44, maternal 0.47 (dams: 0.54); mean √reliability: 0.52 and 0.50 (not directly
+comparable: a correlation across animals against an average of individual accuracies;
+the maternal reliabilities also divide by the overestimated maternal variance).
+
+**Maternal model calibration** (`maternal_study.json`, `.log`; 20 replicates, 1,500
+animals in random pedigrees, one record per non-founder, the parameters of example 18,
+flat priors, 4 chains × 4,000 iterations). EBVs (all animals; MSE/PEV, coverage of
+nominal 95% intervals, realized accuracy): direct 1.033 ± 0.044, 0.946, 0.577; maternal
+0.984 ± 0.104, 0.949, 0.391 — the posterior PEVs of both effects are calibrated.
+Posterior means of the (co)variances (mean ± MC SE over replicates, true value): direct
+4.43 ± 0.25 (4.0), maternal 2.54 ± 0.19 (2.0), direct-maternal covariance −1.29 ± 0.13
+(−1.0), maternal permanent environment 1.44 ± 0.13 (1.5), residual 7.71 ± 0.19 (8.0).
+The maternal variance is biased upwards by 27% (2.8 MC SE) and the covariance is too
+negative (2.2 MC SE): posterior means of weakly identified variances under flat priors
+(as for the genetic variances of F16), consistent with example 18. Only 1 of the 20
+fits met the strict R-hat/ESS criteria at 4,000 iterations (the workflow would extend
+them); every fit was scored (finding F19).
+
 ### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
@@ -776,6 +808,7 @@ for the four-trait example.
 | F17 | With one categorical record per animal, a flat prior on the liability genetic variance gives an improper posterior (single- and multi-trait threshold samplers: chains drift, results withheld) | open (documented; remedy available) | proper priors (`variance_prior = "scaled_inv_chi2"` / `"inverse_wishart"`) make the posterior proper; their influence must be reported (F13) |
 | F18 | Multi-trait threshold model with one categorical record per animal: the genetic correlation follows the prior's centre (0.27 ± 0.04 with a prior at zero covariance, 0.51 ± 0.04 with one at the true 0.5) | open (documented) | the data identify the covariance weakly; take `prior_covariance` from published estimates and report it; repeated or more records improve identification |
 | F15 | Rank selection by the smallest AIC wrongly reduced a full-rank G0 (r_G 0.6) to rank 1 in 19 of 100 data sets, making trait-2 PEV about four times too small | **resolved** (round 7) | ABP moves to a lower rank only if its AIC is smaller by ≥ 2: 0 of 100 wrong reductions; the cost is that a true rank 1 is found in 58/100 instead of 97/100 (the full-rank model is kept in the rest) (§7.11) |
+| F19 | Bayesian maternal animal model (one record per animal, flat priors): the posterior mean of the maternal variance is biased upwards (2.54 ± 0.19 vs 2.0 over 20 replicates; example 18: 3.9) and the direct-maternal covariance is too negative, while the EBV posterior PEVs are calibrated (direct 1.03, maternal 0.98) | open (documented; round 11) | report intervals, not point estimates, of the maternal (co)variances; weak proper priors (as for F16) or more records on daughters are the candidate remedies; a prior study is the next step |
 | E1 | Engineering: with every core busy, multi-threaded OpenBLAS made the 12 s API example's multi-trait REML exceed 600 s (thread oversubscription); with `OPENBLAS_NUM_THREADS=1` it took 20 s under the same load (round 9) | open (documented) | set `OPENBLAS_NUM_THREADS` (or the BLAS thread count) when ABP shares a machine; the benchmarks and studies already set one thread per worker |
 
 ## 9. Defects found and fixed
@@ -888,6 +921,6 @@ kept the original acceptance threshold.
 | Independent mature simulator (AlphaSimR, QMSim, XSim) | not installed; ABP's generators are independent of its solver code but are not mature external simulators |
 | Workflow-level run at 200,000 animals | the workflow runs used 120,000 animals (30,000 genotyped); the 200,000-animal runs are library-level |
 | Multi-trait threshold model with several categorical traits or extra random terms | not implemented |
-| Bayesian multi-trait linear model with extra random terms (e.g. permanent environment) or proper R0 priors | not implemented (one additive term; flat R0) |
+| Maternal models with REML or known variances; a replicated calibration study of the Bayesian maternal model | not implemented / not run (example 18 only) |
 | Second-order Kackar–Harville correction (F16) | not implemented |
 | Installation from a built wheel or installer | no binary packaging yet (source install only) |

@@ -1776,6 +1776,10 @@ permanent-environment and direct effects are hard to separate — a known proper
 the maternal animal model, not specific to ABP. Reliabilities divide by the posterior
 mean variance, so an overestimated maternal variance makes maternal reliabilities
 look higher. More generations of records on daughters and granddaughters help.
+In a 20-replicate simulation (validation report §7.15, finding F19) the maternal EBVs
+and their reliabilities were well calibrated (squared error / PEV 0.98, coverage 0.95;
+direct 1.03, 0.95), but the posterior mean of the maternal variance was 27% too high
+on average (2.54 for a true 2.0) — read the variance components as intervals.
 
 How well calibrated are the posterior PEVs? In a simulation with 1,000 animals,
 full-rank covariance matrices and low-heritability traits (validation report,
