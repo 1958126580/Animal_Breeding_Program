@@ -96,7 +96,7 @@ tests = ["tests/test_blup.py::test_t04_hand_derived",
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_50_replicate_calibration_pedigree", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["homogeneous residual variance", "no maternal, social or random-regression terms"]
+known_limits = ["homogeneous residual variance", "no maternal, social or random-regression terms (maternal effects: bayes.maternal_effects, Gibbs only)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]
@@ -825,6 +825,30 @@ gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "part
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["one additive and at most one iid term", "genetic and permanent-environment variances weakly separated with 2-3 records per animal (wide intervals; example 17)", "slower than REML: thousands of iterations of one sparse factorization each"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "bayes.maternal_effects"
+name = "Direct and maternal genetic effects (maternal animal model) in the multi-trait Gibbs samplers"
+estimand = "direct and maternal EBVs with posterior variances; 2t x 2t genetic covariance matrix (direct-maternal covariances), maternal heritability"
+scope = "one or more traits, dam from the pedigree (records with unknown dam: no maternal effect), optional iid maternal permanent environment on a dam column; variances.mode = 'bayes', bayes.method = 'multitrait' or 'threshold'"
+math = "docs/methods.md#32-bayesian-multi-trait-linear-model-residual-covariances-fixed-at-zero"
+sources = ["Willham 1963 Biometrics 19:18", "Willham 1972 J Anim Sci 35:1288", "Henderson 1984 Applications of Linear Models in Animal Breeding", "Van Tassell & Van Vleck 1996 J Anim Sci 74:2586"]
+errata = []
+exact_or_approximate = "exact MCMC; convergence gated by R-hat/ESS"
+complexity = "as bayes.multitrait_linear with 2t genetic effects per animal"
+code = ["src/abp/solvers/mt_threshold_gibbs.py", "src/abp/workflows/mt_threshold.py", "src/abp/core/spec.py"]
+tests = ["tests/test_mt_threshold_gibbs.py::test_maternal_effects_with_fixed_covariances_equal_dense_mme",
+         "tests/test_mt_threshold_gibbs.py::test_maternal_variances_are_recovered_single_trait",
+         "tests/test_mt_threshold_gibbs.py::test_maternal_configuration_is_checked",
+         "tests/test_mt_threshold_workflow.py::test_workflow_maternal_effects_single_trait",
+         "tests/test_mt_threshold_workflow.py::test_spec_rules_for_maternal_effects"]
+# G4: example 18 (synthetic, 1,896 lambs): all true values inside the 95% intervals; maternal variance
+# estimated high (3.9 vs 2.0); no replicated calibration study yet.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["Gibbs models only (no REML or known-variance maternal model)", "pedigree relationships only", "direct, maternal and maternal permanent-environment variances weakly separated with one record per animal (example 18)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]

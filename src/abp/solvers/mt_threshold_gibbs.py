@@ -132,6 +132,9 @@ class MTThresholdGibbsResult:
     traces: dict = field(default_factory=dict)
     P0: dict | None = None          # permanent-environment covariance summaries (pe term only)
     pe_mean: np.ndarray | None = None   # m x t posterior means of the permanent environment
+    maternal_ebv: np.ndarray | None = None   # q x t maternal genetic effects (dam_col only)
+    maternal_pev: np.ndarray | None = None   # q x t their posterior variances
+    genetic_blocks: np.ndarray | None = None  # q x 2t x 2t direct+maternal (dam_col only)
 
 
 def _check_pd(S: np.ndarray, what: str) -> np.ndarray:
@@ -152,12 +155,17 @@ class MTProblem:
     """Data and fixed structure shared by the chains."""
 
     def __init__(self, Y: np.ndarray, cat: int | None, X_per_trait: list,
-                 animal_col: np.ndarray, k_inv, pe_col: np.ndarray | None = None):
+                 animal_col: np.ndarray, k_inv, pe_col: np.ndarray | None = None,
+                 dam_col: np.ndarray | None = None):
         Y = np.asarray(Y, dtype=np.float64)
         self.n, self.t = Y.shape
         t = self.t
-        if t < 2:
-            raise ABPError("SPEC_INVALID", "the multi-trait sampler needs >= 2 traits")
+        # genetic effects per animal: r = t (direct) or 2t (direct, then maternal)
+        self.maternal = dam_col is not None
+        self.r = 2 * t if self.maternal else t
+        if self.r < 2:
+            raise ABPError("SPEC_INVALID", "the multi-trait sampler needs >= 2 traits "
+                                           "(or one trait with a maternal genetic effect)")
         if cat is not None and not 0 <= cat < t:
             raise ABPError("SPEC_INVALID", "categorical trait index out of range")
         self.c = cat
@@ -191,9 +199,18 @@ class MTProblem:
         self.P = int(self.p_off[-1])
         self.k_inv = sp.csr_matrix(k_inv) if sp.issparse(k_inv) else np.asarray(k_inv)
         self.q = self.k_inv.shape[0]
-        if self.q <= 2 * t + 1:
+        if self.q <= 2 * self.r + 1:
             raise ABPError("MODEL_NOT_IDENTIFIABLE", "too few animals for the covariance priors")
         self.animal_col = np.asarray(animal_col, dtype=np.int64)
+        if self.maternal:
+            self.dam_col = np.asarray(dam_col, dtype=np.int64)
+            if self.dam_col.shape != (self.n,) or self.dam_col.max() >= self.q:
+                raise ValueError("dam_col needs one dam index (-1 = unknown) per record")
+            if int((self.dam_col >= 0).sum()) <= 2 * t + 1:
+                raise ABPError("MODEL_NOT_IDENTIFIABLE", "too few records with a known dam "
+                               "for a maternal genetic effect")
+        else:
+            self.dam_col = None
         # optional permanent-environment (iid) term: pe ~ N(0, I_m (x) P0)
         if pe_col is None:
             self.pe_col, self.m = None, 0
@@ -221,9 +238,14 @@ class MTProblem:
             vals.append(Xc.data)
         Xs = sp.csr_matrix((np.concatenate(vals), (np.concatenate(rows), np.concatenate(cols))),
                            shape=(self.n_obs, self.P))
-        Zs = sp.csr_matrix((np.ones(self.n_obs), (np.arange(self.n_obs),
-                                                  self.animal_col[rec_idx] * t + trait_idx)),
-                           shape=(self.n_obs, self.q * t))
+        r = self.r
+        zr, zc = [np.arange(self.n_obs)], [self.animal_col[rec_idx] * r + trait_idx]
+        if self.maternal:                    # maternal effect of the record's dam
+            known = self.dam_col[rec_idx] >= 0
+            zr.append(np.flatnonzero(known))
+            zc.append(self.dam_col[rec_idx[known]] * r + t + trait_idx[known])
+        zr, zc = np.concatenate(zr), np.concatenate(zc)
+        Zs = sp.csr_matrix((np.ones(zr.size), (zr, zc)), shape=(self.n_obs, self.q * r))
         blocks = [Xs, Zs]
         if self.m:
             blocks.append(sp.csr_matrix((np.ones(self.n_obs), (np.arange(self.n_obs),
@@ -232,8 +254,8 @@ class MTProblem:
                                         shape=(self.n_obs, self.m * t)))
         self.W = sp.hstack(blocks, format="csr")
         self.Wt = self.W.T.tocsr()
-        self.n_eq = self.P + self.q * t + self.m * t
-        self.pe_off = self.P + self.q * t
+        self.n_eq = self.P + self.q * r + self.m * t
+        self.pe_off = self.P + self.q * r
         # residual blocks: records grouped by the set of observed traits
         pats: dict = {}
         for r in range(self.n):
@@ -290,7 +312,9 @@ class MTProblem:
         # exactly (repeated records: an entry of W'R^-1 W equal and opposite to the
         # prior entry), which would drop an entry that the actual C needs
         Wa = abs(W)
-        prior = [sp.csr_matrix((self.P, self.P)), sp.kron(abs(sp.csr_matrix(self.k_inv)), ones)]
+        r = self.r
+        prior = [sp.csr_matrix((self.P, self.P)),
+                 sp.kron(abs(sp.csr_matrix(self.k_inv)), np.ones((r, r)))]
         if self.m:
             prior.append(sp.kron(sp.identity(self.m, format="csr"), ones))
         surrogate = (Wa.T @ abs(self.rinv(np.eye(t) + 0.5 * ones)) @ Wa
@@ -333,12 +357,13 @@ class MTProblem:
         Kc = sp.csr_matrix(self.k_inv, copy=True)
         Kc.eliminate_zeros()
         Kc = Kc.tocoo()
+        abr = np.array([(x, y) for x in range(r) for y in range(r)])
+        rows = (self.P + Kc.row[:, None] * r + abr[None, :, 0]).ravel()
+        cols = (self.P + Kc.col[:, None] * r + abr[None, :, 1]).ravel()
+        gidx = np.tile(np.arange(r * r), Kc.nnz)
+        self.M_G = sp.csr_matrix((np.repeat(Kc.data, r * r), (locate(rows, cols), gidx)),
+                                 shape=(pat.nnz, r * r))
         ab = np.array([(x, y) for x in range(t) for y in range(t)])
-        rows = (self.P + Kc.row[:, None] * t + ab[None, :, 0]).ravel()
-        cols = (self.P + Kc.col[:, None] * t + ab[None, :, 1]).ravel()
-        gidx = np.tile(np.arange(t * t), Kc.nnz)
-        self.M_G = sp.csr_matrix((np.repeat(Kc.data, t * t), (locate(rows, cols), gidx)),
-                                 shape=(pat.nnz, t * t))
         # I_m (x) P0^{-1}
         self.M_P = None
         if self.m:
@@ -376,7 +401,19 @@ class MTProblem:
         return (self.Wt @ Rinv @ self.W + prior).tocsr()
 
     def u(self, theta: np.ndarray) -> np.ndarray:
-        return theta[self.P:self.pe_off].reshape(self.q, self.t)
+        """Genetic effects ``q x r`` (columns: direct traits, then maternal traits)."""
+        return theta[self.P:self.pe_off].reshape(self.q, self.r)
+
+    def incidence(self, k: int) -> tuple[np.ndarray, np.ndarray]:
+        """Observations that load genetic column ``k`` and the animal index of each:
+        direct column ``k < t``: the record's animal for trait ``k``; maternal column
+        ``t + j``: the record's dam (when known) for trait ``j``."""
+        t = self.t
+        sel = self.trait_idx == (k % t)
+        if k < t:
+            return np.flatnonzero(sel), self.animal_col[self.rec_idx[sel]]
+        obs = np.flatnonzero(sel & (self.dam_col[self.rec_idx] >= 0))
+        return obs, self.dam_col[self.rec_idx[obs]]
 
     def pe(self, theta: np.ndarray) -> np.ndarray:
         """Permanent-environment effects (``m x t``; empty without the term)."""
@@ -397,8 +434,8 @@ def draw_location(P: MTProblem, fac, y: np.ndarray, R0: np.ndarray, G0: np.ndarr
         e[P.pos[np.ix_(recs, list(key))]] = rng.standard_normal((recs.size, len(key))) @ L.T
     rhs = P.Wt @ (Rinv @ (y + e))
     Lg = np.linalg.cholesky(np.linalg.inv(G0))                # L L' = G0^{-1}
-    Zq = rng.standard_normal((P.q, t)) @ Lg.T
-    rhs[P.P:P.pe_off] += np.column_stack([P.root(Zq[:, j]) for j in range(t)]).ravel()
+    Zq = rng.standard_normal((P.q, P.r)) @ Lg.T
+    rhs[P.P:P.pe_off] += np.column_stack([P.root(Zq[:, j]) for j in range(P.r)]).ravel()
     if P.m:
         Lp = np.linalg.cholesky(np.linalg.inv(P0))            # L L' = P0^{-1}, root of I is I
         rhs[P.pe_off:] += (rng.standard_normal((P.m, t)) @ Lp.T).ravel()
@@ -566,20 +603,21 @@ class _Chain:
         covariance is invariant (the Jacobian ``g^q`` cancels ``|D|^{-q}``), so ``log g``
         has the density likelihood x IW-prior Jacobian ``g^{t+1}`` x prior, sampled by
         slice sampling (Liu & Sabatti 2000)."""
-        P, t = self.P, self.P.t
+        P = self.P
+        w = np.zeros(P.n_obs)
         if term == "u":
             V = P.u(self.theta)
-            lev = P.animal_col
+            obs, lev = P.incidence(j)
             nu, Psi, M = P.nu, P.psi, self.G0
         else:
             V = P.pe(self.theta)
-            lev = P.pe_col
-            nu = -(t + 1.0) if P.nu_pe is None else P.nu_pe
+            obs = np.flatnonzero(P.trait_idx == j)
+            lev = P.pe_col[P.rec_idx[obs]]
+            nu = -(P.t + 1.0) if P.nu_pe is None else P.nu_pe
             Psi = None if P.p_prior is None else P.nu_pe * P.p_prior
             M = self.P0
-        w = np.zeros(P.n_obs)
-        sel = P.trait_idx == j
-        w[sel] = V[lev[P.rec_idx[sel]], j]
+        t = M.shape[0]                         # dimension of the transformed matrix
+        w[obs] = V[lev, j]
         a2 = float(w @ (self.Rinv @ w))
         if a2 <= 0.0:
             return
@@ -607,17 +645,16 @@ class _Chain:
 
     # -- step 2c: shear moves for the genetic covariances --------------------------
     def _shear_moves(self):
-        P, t = self.P, self.P.t
+        P, t = self.P, self.P.r
         Psi = P.psi
         for i in range(t):
-            sel = P.trait_idx == i
-            ani = P.animal_col[P.rec_idx[sel]]
+            obs, lev = P.incidence(i)
             for j in range(t):
                 if i == j:
                     continue
                 U = P.u(self.theta)
                 w = np.zeros(P.n_obs)
-                w[sel] = U[ani, j]
+                w[obs] = U[lev, j]
                 Rw = self.Rinv @ w
                 prec = float(w @ Rw)
                 lin = float((self.y - P.W @ self.theta) @ Rw)
@@ -660,10 +697,10 @@ class _Chain:
         if self.cfg.scale_move:
             # categorical trait (identifies the liability scale) and, since round 10,
             # every trait and the permanent environment (variance <-> effects mixing)
-            for j in range(P.t):
-                self._scale_move(j, "u")
-                if P.m:
-                    self._scale_move(j, "pe")
+            for k in range(P.r):
+                self._scale_move(k, "u")
+            for j in range(P.t if P.m else 0):
+                self._scale_move(j, "pe")
         if self.cfg.shear_moves:
             self._shear_moves()
         self._draw_missing_residuals()
@@ -682,14 +719,17 @@ def _summ(A: np.ndarray) -> dict:
 
 
 def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThresholdGibbsConfig,
-                       pe_col=None) -> MTThresholdGibbsResult:
+                       pe_col=None, dam_col=None) -> MTThresholdGibbsResult:
     """Run the sampler.  ``Y``: ``n x t`` (NaN = missing; column ``cat`` holds integer
     categories; ``cat = None``: all traits continuous - the Bayesian multi-trait linear
     model, ``R0`` from an inverse Wishart); ``X``: a list of per-trait designs (rows = records where the trait is
     observed, each with an intercept) or one design shared by the traits (rows =
     records); ``animal_col``: column of each record's animal in ``K``; ``k_inv``:
     ``K^{-1}``; ``pe_col``: optional level (0..m-1) of each record in a permanent-
-    environment term ``pe ~ N(0, I_m (x) P0)`` (repeated records)."""
+    environment term ``pe ~ N(0, I_m (x) P0)`` (repeated records); ``dam_col``: optional
+    column in ``K`` of each record's dam (-1 = unknown) for a maternal genetic effect:
+    the genetic effects of an animal are then ``(direct_1..t, maternal_1..t)`` with a
+    ``2t x 2t`` covariance matrix ``G0`` (direct-maternal covariances included)."""
     t0 = time.perf_counter()
     if cfg.chains < 2:
         raise ABPError("SPEC_INVALID", "at least 2 chains are required for R-hat (4 recommended)")
@@ -697,17 +737,17 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
         raise ABPError("SPEC_INVALID", "need 0 <= burn_in < iterations and thin >= 1")
     Y = np.asarray(Y, dtype=np.float64)
     Xs = list(X) if isinstance(X, (list, tuple)) else split_design(X, Y)
-    P = MTProblem(Y, cat, Xs, animal_col, k_inv, pe_col)
-    t, c = P.t, P.c
-    P.nu = -(t + 1.0) if cfg.prior_nu is None else float(cfg.prior_nu)
+    P = MTProblem(Y, cat, Xs, animal_col, k_inv, pe_col, dam_col)
+    t, c, r = P.t, P.c, P.r
+    P.nu = -(r + 1.0) if cfg.prior_nu is None else float(cfg.prior_nu)
     P.g_prior = None
     P.psi = None
     if cfg.prior_G0 is not None:
-        if P.nu <= t - 1:
-            raise ABPError("SPEC_INVALID", f"a proper inverse Wishart prior needs nu > {t - 1}")
+        if P.nu <= r - 1:
+            raise ABPError("SPEC_INVALID", f"a proper inverse Wishart prior needs nu > {r - 1}")
         P.g_prior = _check_pd(cfg.prior_G0, "prior G0")
-        if P.g_prior.shape != (t, t):
-            raise ABPError("SPEC_INVALID", f"prior G0 must be {t} x {t}")
+        if P.g_prior.shape != (r, r):
+            raise ABPError("SPEC_INVALID", f"prior G0 must be {r} x {r}")
         P.psi = P.nu * P.g_prior
     elif cfg.prior_nu is not None:
         raise ABPError("SPEC_INVALID", "prior_nu needs prior_G0")
@@ -726,7 +766,11 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
     P.nu_r, P.r_prior = None, None
     vy = np.array([np.nanvar(Y[:, j]) if j != c else 1.0 for j in range(t)])
     G0s = _check_pd(cfg.start_G0, "start G0") if cfg.start_G0 is not None else \
-        np.diag(np.where(np.arange(t) == c, 0.2, 0.3 * vy))
+        np.diag(np.concatenate([np.where(np.arange(t) == c, 0.2, 0.3 * vy)]
+                               + ([np.where(np.arange(t) == c, 0.1, 0.1 * vy)]
+                                  if P.maternal else [])))
+    if G0s.shape != (r, r):
+        raise ABPError("SPEC_INVALID", f"start G0 must be {r} x {r}")
     R0s = _check_pd(cfg.start_R0, "start R0") if cfg.start_R0 is not None else \
         np.diag(np.where(np.arange(t) == c, 1.0, 0.7 * vy))
     if c is not None and abs(R0s[c, c] - 1.0) > 1e-12:
@@ -781,26 +825,28 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
         if cfg.fix_covariances:
             G0, R0, P0 = G0s, R0s, P0s
         else:
-            f = np.exp(rng.uniform(-0.5, 0.5, t))
+            f = np.exp(rng.uniform(-0.5, 0.5, r))
             G0 = G0s * np.outer(f, f)
             R0 = R0s.copy()
-            P0 = None if P0s is None else P0s * np.outer(f, f)
+            P0 = None if P0s is None else P0s * np.outer(f[:t], f[:t])
         chains.append(_Chain(P, cfg, rng, G0, R0, beta0, P0))
     tri = [(i, j) for i in range(t) for j in range(i, t)]
-    scal = [f"G0_{i}_{j}" for i, j in tri] + \
+    trg = [(i, j) for i in range(r) for j in range(i, r)]
+    scal = [f"G0_{i}_{j}" for i, j in trg] + \
         [f"R0_{i}_{j}" for i, j in tri if not (i == c and j == c)] + \
         ([f"P0_{i}_{j}" for i, j in tri] if P.m else []) + \
-        [f"rG_{i}_{j}" for i, j in tri if i < j] + [f"h2_{j}" for j in range(t)] + \
+        [f"rG_{i}_{j}" for i, j in trg if i < j] + [f"h2_{j}" for j in range(t)] + \
         ([f"c2_{j}" for j in range(t)] if P.m else []) + \
+        ([f"m2_{j}" for j in range(t)] if P.maternal else []) + \
         [f"tau_{j}" for j in P.free]
     store = {k: [[] for _ in chains] for k in scal}
     Gs, Rs, Ps = [], [], []
-    keep_ebv = P.q * t * (cfg.max_iterations // cfg.thin) * cfg.chains <= EBV_STORE_LIMIT
+    keep_ebv = P.q * r * (cfg.max_iterations // cfg.thin) * cfg.chains <= EBV_STORE_LIMIT
     ebv_draws = [[] for _ in chains]
     s_theta = np.zeros(P.n_eq)
     q_theta = np.zeros(P.n_eq)
     s_tau = np.zeros(P.K - 1)
-    s_uu = np.zeros((P.q, t, t))
+    s_uu = np.zeros((P.q, r, r))
     n_saved = 0
     it = 0
     target = cfg.iterations
@@ -815,12 +861,17 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
                 if it > cfg.burn_in and (it - cfg.burn_in) % cfg.thin == 0:
                     G, R = chn.G0, chn.R0
                     Pm = chn.P0 if P.m else np.zeros((t, t))
-                    vals = {f"G0_{i}_{j}": G[i, j] for i, j in tri}
+                    vals = {f"G0_{i}_{j}": G[i, j] for i, j in trg}
                     vals.update({f"R0_{i}_{j}": R[i, j] for i, j in tri})
                     vals.update({f"P0_{i}_{j}": Pm[i, j] for i, j in tri})
                     vals.update({f"rG_{i}_{j}": G[i, j] / math.sqrt(G[i, i] * G[j, j])
-                                 for i, j in tri if i < j})
-                    tot = np.diag(G) + np.diag(Pm) + np.diag(R)
+                                 for i, j in trg if i < j})
+                    # phenotypic variance of a record with maternal effects:
+                    # var_A + var_M + cov_AM (+ P + R) (Willham 1972)
+                    tot = np.diag(G)[:t] + np.diag(Pm) + np.diag(R)
+                    if P.maternal:
+                        tot = tot + np.diag(G)[t:] + np.array([G[j, t + j] for j in range(t)])
+                        vals.update({f"m2_{j}": G[t + j, t + j] / tot[j] for j in range(t)})
                     vals.update({f"h2_{j}": G[j, j] / tot[j] for j in range(t)})
                     vals.update({f"c2_{j}": Pm[j, j] / tot[j] for j in range(t)})
                     vals.update({f"tau_{j}": chn.tau[j] for j in P.free})
@@ -860,10 +911,12 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
     var = np.maximum(q_theta / total - mean ** 2, 0.0) * total / max(total - 1, 1)
     Ga, Ra = np.array(Gs), np.array(Rs)
     Um = P.u(mean)
-    pev_blocks = (s_uu / total - Um[:, :, None] * Um[:, None, :]) * total / max(total - 1, 1)
+    gen_blocks = (s_uu / total - Um[:, :, None] * Um[:, None, :]) * total / max(total - 1, 1)
+    pev_blocks = gen_blocks[:, :t, :t].copy()
+    Uv = P.u(var)
     derived = {}
     for key in scal:
-        if key.startswith(("rG_", "h2_", "c2_")):
+        if key.startswith(("rG_", "h2_", "c2_", "m2_")):
             v = np.array(store[key]).ravel()
             derived[key] = {"mean": float(v.mean()), "sd": float(v.std(ddof=1)),
                             "q025": float(np.quantile(v, 0.025)),
@@ -871,11 +924,14 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
     acc_prop = sum(ch.n_prop for ch in chains)
     acc_n = sum(ch.n_acc for ch in chains)
     return MTThresholdGibbsResult(
-        Um.copy(), P.u(var).copy(), pev_blocks,
+        Um[:, :t].copy(), Uv[:, :t].copy(), pev_blocks,
         [mean[P.p_off[j]:P.p_off[j + 1]].copy() for j in range(t)], s_tau / total, P.cats,
         _summ(Ga), _summ(Ra), derived, summaries, ediag, bool(ok), it, n_saved,
         [int(s.generate_state(1)[0]) for s in child],
         (acc_n / acc_prop) if acc_prop else None, time.perf_counter() - t0, P.n_eq,
         traces={key: np.array(store[key]) for key in scal},
         P0=_summ(np.array(Ps)) if P.m else None,
-        pe_mean=P.pe(mean).copy() if P.m else None)
+        pe_mean=P.pe(mean).copy() if P.m else None,
+        maternal_ebv=Um[:, t:].copy() if P.maternal else None,
+        maternal_pev=Uv[:, t:].copy() if P.maternal else None,
+        genetic_blocks=gen_blocks if P.maternal else None)

@@ -240,7 +240,7 @@ def test_spec_rules_for_the_multitrait_threshold_model():
 
 
 @pytest.mark.parametrize("name", ["15_sheep_wwt_nlb1_threshold", "16_sheep_multitrait_bayes",
-                                  "17_sheep_ewe_repeated_bayes"])
+                                  "17_sheep_ewe_repeated_bayes", "18_sheep_wwt_maternal_bayes"])
 def test_examples_15_16_spec_and_data_validate(name):
     """Examples 15 (weaning weight + first-parity litter size, residual groups) and 16
     (Bayesian multi-trait linear model) pass spec and data validation (the full runs
@@ -386,6 +386,126 @@ def test_spec_rules_for_permanent_environment_and_r0_prior():
                               + [{"name": "pe2", "kind": "iid", "column": "id"}])),
         dict(cat, bayes={"method": "threshold", "variance_prior": "inverse_wishart",
                          "nu": 5.0, "prior_covariance": {"animal": I2, "residual": I2}}),
+    ]
+    for b in bad:
+        b = {k: v for k, v in b.items() if v is not None}
+        with pytest.raises(ABPError):
+            validate_spec_dict(b)
+
+
+def test_workflow_maternal_effects_single_trait(tmp_path):
+    """Round 11: one trait with direct and maternal genetic effects (dams from the
+    pedigree): mebv/mreliability columns, maternal variance, direct-maternal
+    correlation and m2 are reported; the run goes through the Gibbs workflow."""
+    from abp.workflows.evaluate import run_evaluation
+    rng = np.random.default_rng(4)
+    n = 260
+    ids = [f"a{i}" for i in range(n)]
+    male = np.arange(n) % 2 == 0
+    s, d = [], []
+    for i in range(n):
+        if i < 30:
+            s.append(None)
+            d.append(None)
+        else:
+            s.append(ids[rng.choice(np.flatnonzero(male[:i]))])
+            d.append(ids[rng.choice(np.flatnonzero(~male[:i]))])
+    ped = Pedigree.from_parent_ids(ids, s, d)
+    F = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())[:, None]
+                           * rng.standard_normal((n, 2)), lower=True, unit_diagonal=True)
+    U = F @ np.linalg.cholesky([[1.0, -0.2], [-0.2, 0.6]]).T
+    with open(tmp_path / "ped.csv", "w", encoding="utf-8") as fh:
+        fh.write("id,sire,dam,sex\n")
+        for a, s_, d_, m_ in zip(ids, s, d, male):
+            fh.write(f"{a},{s_ or '0'},{d_ or '0'},{'M' if m_ else 'F'}\n")
+    with open(tmp_path / "phe.csv", "w", encoding="utf-8") as fh:
+        fh.write("id,sex,wt\n")
+        for i in range(30, n):
+            k = ped.index_of([ids[i]])[0]
+            dam = int(ped.dam[k])
+            y = 25 + U[k, 0] + (U[dam, 1] if dam >= 0 else 0.0) + 1.1 * rng.standard_normal()
+            fh.write(f"{ids[i]},{'M' if male[i] else 'F'},{y:.3f}\n")
+    spec = tmp_path / "mat.toml"
+    spec.write_text(f"""schema_version = "1"
+[project]
+name = "mat"
+species = "sheep"
+synthetic_data = true
+[analysis]
+task = "additive_ebv"
+target_population = "test"
+information_cutoff = "2025-12-31"
+genetic_base = "unknown parents"
+[data]
+pedigree = "{(tmp_path / 'ped.csv').as_posix()}"
+phenotypes = "{(tmp_path / 'phe.csv').as_posix()}"
+[data.pedigree_columns]
+sex = "sex"
+[[traits]]
+name = "wt"
+unit = "kg"
+[model]
+traits = ["wt"]
+fixed = [{{ column = "sex", type = "factor" }}]
+random = [{{ name = "animal", kind = "additive", relationship = "pedigree" }},
+          {{ name = "mat", kind = "maternal" }}]
+[variances]
+mode = "bayes"
+[bayes]
+method = "multitrait"
+chains = 4
+iterations = 2000
+burn_in = 400
+thin = 2
+max_iterations = 8000
+rhat_max = 1.05
+ess_min = 100
+""", encoding="utf-8")
+    out = run_evaluation(spec, tmp_path / "o", console=False)
+    assert out.status == "passed"
+    r = out.results["traits"]["wt"]
+    assert "mat" in r["variance_components"] and "maternal" in r
+    assert -1 <= r["maternal"]["direct_maternal_correlation"]["mean"] <= 1
+    rows = list(csv.DictReader(open(out.out_dir / "ebv_multitrait.csv", encoding="utf-8")))
+    assert {"ebv_wt", "mebv_wt", "mreliability_wt", "msep_wt"} <= set(rows[0])
+    diag = json.loads((out.out_dir / "mcmc_diagnostics_multitrait.json").read_text("utf-8"))
+    assert diag["genetic_effects"] == ["animal:wt", "mat:wt"]
+    assert diag["model"] == "Bayesian linear animal model with maternal genetic effects"
+
+
+def test_spec_rules_for_maternal_effects():
+    base = {
+        "schema_version": "1",
+        "project": {"name": "x", "species": "sheep", "synthetic_data": True},
+        "analysis": {"task": "additive_ebv", "target_population": "t",
+                     "information_cutoff": "2025-12-31", "genetic_base": "b"},
+        "data": {"pedigree": "p.csv", "phenotypes": "y.csv"},
+        "traits": [{"name": "w", "unit": "kg"}],
+        "model": {"traits": ["w"],
+                  "random": [{"name": "animal", "kind": "additive", "relationship": "pedigree"},
+                             {"name": "mat", "kind": "maternal"}]},
+        "variances": {"mode": "bayes"},
+        "bayes": {"method": "multitrait"},
+    }
+    assert validate_spec_dict(base)
+    G2 = [[1.0, 0.0], [0.0, 0.5]]
+    assert validate_spec_dict(dict(base, bayes={"method": "multitrait",
+                                                "variance_prior": "inverse_wishart",
+                                                "nu": 4.0, "prior_covariance": {"animal": G2}}))
+    bad = [
+        dict(base, variances={"mode": "reml"}, bayes=None),                  # REML: refused
+        dict(base, bayes={"method": "multitrait", "variance_prior": "inverse_wishart",
+                          "nu": 4.0, "prior_covariance": {"animal": [[1.0]]}}),  # not 2x2
+        dict(base, bayes={"method": "multitrait", "variance_prior": "inverse_wishart",
+                          "nu": 4.0, "prior_covariance": {"animal": G2, "mat": [[1.0]]}}),
+        dict(base, model=dict(base["model"], random=base["model"]["random"]
+                              + [{"name": "mat2", "kind": "maternal"}])),
+        dict(base, model=dict(base["model"], random=[
+            {"name": "animal", "kind": "additive", "relationship": "pedigree"},
+            {"name": "mat", "kind": "maternal", "column": "dam"}])),
+        dict(base, model=dict(base["model"], random=[
+            {"name": "animal", "kind": "additive", "relationship": "genomic"},
+            {"name": "mat", "kind": "maternal"}])),
     ]
     for b in bad:
         b = {k: v for k, v in b.items() if v is not None}

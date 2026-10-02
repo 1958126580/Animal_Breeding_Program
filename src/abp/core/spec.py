@@ -153,7 +153,10 @@ SCHEMA = Section({
         })),
         "random": TableArray(Section({
             "name": Field("str", required=True, check=_name),
-            "kind": Field("str", required=True, choices=("additive", "iid")),
+            "kind": Field("str", required=True, choices=("additive", "iid", "maternal"),
+                          doc="'maternal': maternal genetic effect of the record's dam (dam "
+                              "from the pedigree; same relationship as the additive term; "
+                              "Bayesian multi-trait Gibbs models only)."),
             "relationship": Field("str", choices=("pedigree", "genomic", "single_step"),
                                   doc="Covariance structure of an additive term."),
             "column": Field("str", doc="Grouping column of an iid term (default: animal id)."),
@@ -506,6 +509,11 @@ def validate_spec_dict(raw: dict) -> dict:
             if r["column"] is not None:
                 raise _err(f"model.random.{r['name']}",
                            "additive terms use the animal id column; remove 'column'")
+        elif r["kind"] == "maternal":
+            if r["relationship"] is not None or r["column"] is not None:
+                raise _err(f"model.random.{r['name']}", "a maternal term takes the dam from the "
+                           "pedigree and the relationship of the additive term; remove "
+                           "'relationship' and 'column'")
         else:
             if r["relationship"] is not None:
                 raise _err(f"model.random.{r['name']}", "'relationship' applies to additive terms only")
@@ -513,6 +521,17 @@ def validate_spec_dict(raw: dict) -> dict:
                 r["column"] = d["data"]["phenotype_columns"]["id"]
     mt_gibbs = (raw.get("variances") or {}).get("mode") == "bayes" and \
         (raw.get("bayes") or {}).get("method") in ("threshold", "multitrait")
+    maternal = [r for r in m["random"] if r["kind"] == "maternal"]
+    if maternal:
+        if not mt_gibbs:
+            raise ABPError("UNSUPPORTED_COMBINATION", "maternal genetic effects need "
+                           "variances.mode = 'bayes' and bayes.method = 'multitrait' (or "
+                           "'threshold') in this version")
+        if len(maternal) > 1:
+            raise _err("model.random", "at most one maternal term")
+        if additive[0]["relationship"] != "pedigree":
+            raise _err(f"model.random.{maternal[0]['name']}", "maternal effects need the "
+                       "additive term with relationship = 'pedigree' (dams from the pedigree)")
     if len(m["traits"]) > 1 and len(m["random"]) > 1 and not mt_gibbs:
         raise ABPError("UNSUPPORTED_COMBINATION",
                        "multi-trait models with known or REML variances support only the "
@@ -609,9 +628,10 @@ def validate_spec_dict(raw: dict) -> dict:
         raise _err("bayes", "variances.mode = 'bayes' and a [bayes] section go together")
     if raw.get("bayes") is None:
         d["bayes"] = None
-    elif d["bayes"]["method"] == "multitrait" and t == 1:
-        raise _err("bayes.method", "'multitrait' needs at least two model traits")
-    elif d["bayes"]["method"] in ("threshold", "multitrait") and t > 1:
+    elif d["bayes"]["method"] == "multitrait" and t == 1 and not maternal:
+        raise _err("bayes.method", "'multitrait' needs at least two model traits (or one "
+                                   "trait with a maternal genetic effect)")
+    elif d["bayes"]["method"] in ("threshold", "multitrait") and (t > 1 or maternal):
         cat_traits = {tr["name"] for tr in d["traits"] if tr["type"] == "categorical"}
         n_cat = sum(1 for x in m["traits"] if x in cat_traits)
         if d["bayes"]["method"] == "threshold" and n_cat != 1:
@@ -624,8 +644,9 @@ def validate_spec_dict(raw: dict) -> dict:
         iids = [r for r in m["random"] if r["kind"] == "iid"]
         if len(adds) != 1 or len(iids) > 1:
             raise ABPError("UNSUPPORTED_COMBINATION", "the Bayesian multi-trait models have one "
-                           "additive genetic term and at most one iid (permanent-environment) "
-                           "term in this version")
+                           "additive genetic term, at most one maternal and at most one iid "
+                           "(permanent-environment) term in this version")
+        rdim = t * (2 if maternal else 1)        # genetic covariance matrix: direct, maternal
         rg = d["bayes"]["residual_groups"]
         if rg is not None:
             if set(rg) != set(m["traits"]) or any(float(x) != int(x) for x in rg.values()):
@@ -642,18 +663,22 @@ def validate_spec_dict(raw: dict) -> dict:
             pc = bz["prior_covariance"] or {}
             allowed = {add, "residual"} | {r["name"] for r in iids}
             if add not in pc or not set(pc) <= allowed:
-                raise _err("bayes.prior_covariance", f"give a {t} x {t} prior matrix for "
-                                                     f"{add!r} (optionally also for "
+                raise _err("bayes.prior_covariance", f"give a {rdim} x {rdim} prior matrix for "
+                                                     f"{add!r}"
+                                                     + (" (direct traits, then maternal)"
+                                                        if maternal else "")
+                                                     + f" (optionally also for "
                                                      f"{sorted(allowed - {add})})")
             import numpy as np
             for key, gp in pc.items():
+                k = rdim if key == add else t
                 G = np.array(gp, dtype=np.float64) if isinstance(gp, list) else np.zeros(0)
-                if G.shape != (t, t) or not np.allclose(G, G.T) or \
+                if G.shape != (k, k) or not np.allclose(G, G.T) or \
                         np.linalg.eigvalsh(G)[0] <= 0:
                     raise _err(f"bayes.prior_covariance.{key}",
-                               f"must be a symmetric positive definite {t} x {t} matrix")
-            if not bz["nu"] > t - 1:
-                raise _err("bayes.nu", f"an inverse Wishart prior needs nu > {t - 1}")
+                               f"must be a symmetric positive definite {k} x {k} matrix")
+            if not bz["nu"] > rdim - 1:
+                raise _err("bayes.nu", f"an inverse Wishart prior needs nu > {rdim - 1}")
             if "residual" in pc and n_cat:
                 cat = next(x for x in m["traits"] if x in cat_traits)
                 if rg is None or sum(1 for x in rg.values() if x == rg[cat]) > 1:

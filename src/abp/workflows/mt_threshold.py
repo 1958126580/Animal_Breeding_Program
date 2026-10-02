@@ -37,10 +37,16 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
     t = len(traits)
     add_name = next(r["name"] for r in m["random"] if r["kind"] == "additive")
     pe_term = next((r for r in m["random"] if r["kind"] == "iid"), None)
+    mat_term = next((r for r in m["random"] if r["kind"] == "maternal"), None)
     types = {tr["name"]: tr["type"] for tr in d["traits"]}
     cat = next((j for j, tr in enumerate(traits) if types[tr] == "categorical"), None)
     model_name = ("multi-trait threshold model" if cat is not None
                   else "Bayesian multi-trait linear model")
+    if any(r["kind"] == "maternal" for r in m["random"]):
+        if t == 1:
+            model_name = ("threshold model" if cat is not None
+                          else "Bayesian linear animal model")
+        model_name += " with maternal genetic effects"
     groups = None
     if b["residual_groups"]:
         gid = {}
@@ -72,6 +78,17 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
         fixed_labels.append(fd)
     q = len(structure.labels)
     animal_col = np.array([structure.index[a] for a in animals], dtype=np.int64)
+    dam_col = None
+    if mat_term is not None:
+        ped = ped_data.pedigree
+        dams = []
+        for a in animals:
+            k = ped.index_of([a])[0] if ped.contains(a) else -1
+            dk = int(ped.dam[k]) if k >= 0 else -1
+            dams.append(structure.index.get(ped.ids[dk], -1) if dk >= 0 else -1)
+        dam_col = np.array(dams, dtype=np.int64)
+        log.info("maternal genetic effect %r: %d of %d records have a known dam",
+                 mat_term["name"], int((dam_col >= 0).sum()), dam_col.size)
     pe_col, pe_levels = None, []
     if pe_term is not None:
         vals = [records.factors[pe_term["column"]][k] for k in rec]
@@ -98,7 +115,8 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
              "" if groups is None else f", residual groups {groups}",
              "" if pe_term is None else f", {pe_term['name']!r}: {len(pe_levels)} levels",
              cfg.chains, cfg.iterations, cfg.max_iterations)
-    g = mt_threshold_gibbs(Y, cat, X_blocks, animal_col, structure.k_inv, cfg, pe_col=pe_col)
+    g = mt_threshold_gibbs(Y, cat, X_blocks, animal_col, structure.k_inv, cfg, pe_col=pe_col,
+                           dam_col=dam_col)
     prior_txt = (f"inverse Wishart IW(nu = {cfg.prior_nu:g}, nu G_prior), G_prior = "
                  f"{np.round(cfg.prior_G0, 6).tolist()}" if iw else
                  "flat on the positive definite matrices (IW with nu = -(t + 1), scale 0)")
@@ -132,6 +150,8 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
         r0_txt = ("block diagonal, residual covariances between the groups fixed at 0, "
                   "each block sampled from its own conditional; " + "; ".join(parts))
     diag = {"method": method_txt, "model": model_name,
+            "genetic_effects": [f"{add_name}:{tr}" for tr in traits]
+            + ([f"{mat_term['name']}:{tr}" for tr in traits] if mat_term is not None else []),
             "traits": traits, "categorical_trait": None if cat is None else traits[cat],
             "residual_groups": (None if groups is None
                                 else [[traits[j] for j in B] for B in groups]),
@@ -177,8 +197,12 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
     log.info("%s converged after %d iterations; posterior mean G0 %s", model_name,
              g.iterations, np.round(G0, 4).tolist())
     k_diag = np.asarray(structure.k_diag, dtype=np.float64)
-    rel = np.clip(1.0 - g.pev / (k_diag[:, None] * np.diag(G0)[None, :]), 0.0, 1.0)
+    rel = np.clip(1.0 - g.pev / (k_diag[:, None] * np.diag(G0)[None, :t]), 0.0, 1.0)
     sep = np.sqrt(g.pev)
+    if mat_term is not None:          # maternal genetic effects: columns t..2t-1 of G0
+        mrel = np.clip(1.0 - g.maternal_pev / (k_diag[:, None] * np.diag(G0)[None, t:]),
+                       0.0, 1.0)
+        msep = np.sqrt(g.maternal_pev)
     ped = ped_data.pedigree if ped_data else None
     sex = ped_data.sex if ped_data else {}
     n_rec = {tr: {} for tr in traits}
@@ -189,6 +213,8 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
     header = ["animal", "sire", "dam", "sex", "generation", "inbreeding"]
     for tr in traits:
         header += [f"ebv_{tr}", f"reliability_{tr}", f"sep_{tr}", f"n_records_{tr}"]
+        if mat_term is not None:
+            header += [f"mebv_{tr}", f"mreliability_{tr}", f"msep_{tr}"]
     F = ped.inbreeding() if ped is not None else None
     rows_out = []
     for i, a in enumerate(structure.labels):
@@ -202,6 +228,8 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
         for j, tr in enumerate(traits):
             base += [float(g.ebv[i, j]), float(rel[i, j]), float(sep[i, j]),
                      n_rec[tr].get(a, 0)]
+            if mat_term is not None:
+                base += [float(g.maternal_ebv[i, j]), float(mrel[i, j]), float(msep[i, j])]
         rows_out.append(base)
     write_csv(stage.path("ebv_multitrait.csv"), header, rows_out)
     if pe_term is not None:
@@ -241,7 +269,16 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
             "variance_source": f"bayes ({model_name}, Gibbs sampler; posterior means)",
             "variance_components": {add_name: float(G0[j, j]), "residual": float(R0[j, j]),
                                     **({pe_term["name"]: float(P0m[j, j])}
-                                       if pe_term is not None else {})},
+                                       if pe_term is not None else {}),
+                                    **({mat_term["name"]: float(G0[t + j, t + j]),
+                                        f"{add_name}-{mat_term['name']} covariance":
+                                        float(G0[j, t + j])}
+                                       if mat_term is not None else {})},
+            **({"maternal": {"term": mat_term["name"], "m2": g.derived[f"m2_{j}"],
+                             "direct_maternal_correlation": g.derived[f"rG_{j}_{t + j}"],
+                             "reliability_summary": {"mean": float(mrel[:, j].mean()),
+                                                     "max": float(mrel[:, j].max())}}}
+               if mat_term is not None else {}),
             "heritability": float(h2),
             "reml": None,
             "genetic_term": add_name,
@@ -269,6 +306,6 @@ def run_mt_threshold(spec: AnalysisSpec, records: RecordSet, structure: GeneticS
                                      g.derived[f"rG_{a}_{c}"] for a in range(t)
                                      for c in range(a + 1, t)},
         }
-    state = EvalState(structure.labels, traits, g.ebv, g.pev_blocks, G0, structure.k_diag,
-                      True, sex)
+    state = EvalState(structure.labels, traits, g.ebv, g.pev_blocks, G0[:t, :t],
+                      structure.k_diag, True, sex)
     return out, state

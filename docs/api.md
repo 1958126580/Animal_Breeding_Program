@@ -610,3 +610,20 @@ the categorical trait only). In the spec: an iid term in `[model].random` and
 `bayes.prior_covariance = { animal = ..., pe = ..., residual = ... }` (manual §5.14,
 §7.16).
 
+## 32. Maternal genetic effects in the multi-trait Gibbs samplers (round 11)
+
+```python
+mat = mt_threshold_gibbs(Y, None, Xb, animal_col, ped2.ainv(), MTThresholdGibbsConfig(
+    chains=4, iterations=4000, burn_in=1000, thin=5, max_iterations=16000, seed=1),
+    dam_col=dam_col,            # column in K of each record's dam, -1 = unknown
+    pe_col=dam_level)           # optional maternal permanent environment (iid on the dam)
+mat.ebv, mat.maternal_ebv, mat.maternal_pev, mat.genetic_blocks, mat.derived["m2_0"]
+```
+
+With `dam_col` every animal has `2t` genetic effects (direct traits, then maternal
+traits); `G0`, `start_G0` and `prior_G0` are `2t × 2t`; `summaries` hold `G0_i_j`
+over the `2t` columns and `rG_j_{t+j}` is the direct-maternal correlation of trait
+`j`. One trait is allowed with `dam_col`. `MTProblem.incidence(k)` gives the
+observations and animal indices that load genetic column `k`. In the spec: a random
+term `{ name = "maternal", kind = "maternal" }` (dam from the pedigree; manual §7.16).
+

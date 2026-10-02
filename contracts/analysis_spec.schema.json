@@ -284,8 +284,10 @@
                 "type": "string",
                 "enum": [
                   "additive",
-                  "iid"
-                ]
+                  "iid",
+                  "maternal"
+                ],
+                "description": "'maternal': maternal genetic effect of the record's dam (dam from the pedigree; same relationship as the additive term; Bayesian multi-trait Gibbs models only)."
               },
               "relationship": {
                 "type": "string",

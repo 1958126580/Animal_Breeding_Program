@@ -1495,6 +1495,31 @@ from the model definition (within Monte-Carlo error); closed-form moments of the
 within three posterior SD on simulated repeated records (300 animals × 3 records);
 refusals of inconsistent priors; workflow outputs (`pe_multitrait.csv`, `P0`, `c²`).
 
+**Maternal genetic effects (round 11).** A `kind = "maternal"` term adds
+the maternal genetic effect of the record's dam (taken from the pedigree; records
+whose dam is unknown get none): `y_rj = X β + a_{animal(r), j} + m_{dam(r), j} + … + e_rj`.
+Each animal carries `r = 2t` genetic effects `(a_1..a_t, m_1..m_t)` with
+`(a, m) ~ N(0, K ⊗ G0)`, `G0` of size `2t × 2t` including the direct-maternal
+covariances (Willham 1963; Henderson 1984 for the BLUP equations). Everything of
+§31/§32 applies with `t` replaced by `r` for the genetic block: the coefficient map
+`K⁻¹ ⊗ G0⁻¹`, the perturbed location draw, `G0 | u ~ IW(U′K⁻¹U + νG_prior, q + ν)`
+(flat: `ν = −(r + 1)`), and the scale and shear moves, which now run over the `r`
+genetic columns through one incidence function (direct column `j`: the records of
+trait `j` of the animal; maternal column `t + j`: the records of trait `j` of the
+dam's offspring). A maternal permanent environment is an iid term on a dam column.
+Reported: direct EBVs (`ebv_<trait>`) and maternal EBVs (`mebv_<trait>`) with their
+posterior variances and reliabilities (`1 − PEV/(K_ii G0_kk)`), `m²_j = G_{t+j,t+j}/σ²_P`
+and `h²_j = G_jj/σ²_P` with `σ²_P = σ²_A + σ²_M + σ_AM + P_jj + R_jj` (Willham 1972),
+and the direct-maternal correlations. One trait with a maternal effect is allowed
+(`r = 2`).
+
+**Tests**: with known `G0` (4 × 4: two traits, direct and maternal) and `R0`, the
+posterior means of the direct and maternal effects and the `4 × 4` posterior
+covariance blocks equal the dense mixed-model equations built from the definition
+(some dams unknown); recovery of the direct, maternal and residual variances and the
+direct-maternal covariance (one trait, 300 animals, within 3 posterior SD);
+configuration refusals; workflow outputs and spec rules.
+
 ## 33. Inbreeding coefficients by pedigree depth
 
 Code: `abp/_native.cpp` (`inbreeding_depth`), `Pedigree.inbreeding`. Registry id
@@ -1572,3 +1597,6 @@ full sibs and close inbreeding; bad ordering is rejected. **Evidence**:
   Evol 35:159–183.
 * Colleau J-J (2002) Genet Sel Evol 34:409–421.
 * Sorensen D, Gianola D (2002) Likelihood, Bayesian and MCMC Methods in Quantitative Genetics. Springer, New York.
+* Henderson CR (1984) Applications of Linear Models in Animal Breeding. University of Guelph.
+* Willham RL (1963) Biometrics 19:18–27.
+* Willham RL (1972) J Anim Sci 35:1288–1293.

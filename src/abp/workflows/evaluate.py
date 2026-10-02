@@ -282,7 +282,7 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
         "limitations": _limitations(d, structure),
     }
     traits = d["model"]["traits"]
-    if len(traits) > 1:
+    if len(traits) > 1 or any(r["kind"] == "maternal" for r in d["model"]["random"]):
         from .multitrait import run_multitrait
         results["traits"], state = run_multitrait(spec, records, structure, ped_data, stage,
                                                   manifest, budget)

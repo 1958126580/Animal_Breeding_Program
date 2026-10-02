@@ -495,7 +495,7 @@ given, values must be unique), `date` (none; record dates, required by
 | `traits` | list | **required** | one trait = single-trait model; several = multi-trait model |
 | `intercept` | bool | `true` | overall mean |
 | `fixed` | array of tables | `[]` | `{ column = "...", type = "factor" or "covariate", traits = [...] }`; `traits` restricts a term to some traits (default: all) |
-| `random` | array of tables | **required** | exactly one `kind = "additive"` term with `relationship = "pedigree" \| "genomic" \| "single_step"`; optional `kind = "iid"` terms with `column` (default: the animal id column) |
+| `random` | array of tables | **required** | exactly one `kind = "additive"` term with `relationship = "pedigree" \| "genomic" \| "single_step"`; optional `kind = "iid"` terms with `column` (default: the animal id column); optional `kind = "maternal"` (maternal genetic effect of the dam from the pedigree; Bayesian multi-trait Gibbs models only, §7.16) |
 
 Example:
 
@@ -1737,6 +1737,45 @@ correlated. ABP 0.10 rescales the effects and their covariance matrix jointly ev
 iteration ("scale moves"); without them the example had not converged after 16,000
 iterations (bulk ESS about 100), with them it converges (ESS ≥ 570). Proper priors
 for P0 and R0 can be added to `prior_covariance` (§5.14).
+
+**Maternal effects.** For traits influenced by the dam (weaning weight, early
+growth), add a maternal genetic term; ABP takes each record's dam from the pedigree
+and samples the 2 × 2 genetic covariance matrix of direct and maternal effects per
+trait (2t × 2t with t traits), including their covariance. A maternal permanent
+environment is an iid term on a column holding the dam:
+
+```toml
+random = [
+  { name = "animal", kind = "additive", relationship = "pedigree" },
+  { name = "maternal", kind = "maternal" },           # dam from the pedigree
+  { name = "mpe", kind = "iid", column = "dam" },     # maternal permanent environment
+]
+
+[bayes]
+method = "multitrait"                                 # also for a single trait
+```
+
+`ebv_multitrait.csv` then has maternal EBVs (`mebv_<trait>`, `mreliability_<trait>`,
+`msep_<trait>`) next to the direct ones; results report the maternal variance, the
+direct-maternal correlation, `m2` (maternal heritability) and `h2`, both relative to
+σ²_A + σ²_M + σ_AM + P + R. With `variance_prior = "inverse_wishart"`, the
+`prior_covariance` of the additive term is the 2t × 2t matrix (direct traits first,
+then maternal). Example 18 (weaning weight of 1,896 lambs of 454 dams; synthetic data
+from `make_data.py`; about 3 minutes):
+
+```bash
+abp run examples/18_sheep_wwt_maternal_bayes/analysis.toml --out runs/ex18
+```
+
+It converged after 8,000 iterations. All simulated values lie inside the 95%
+posterior intervals, but the intervals are wide and the maternal variance was
+estimated high (posterior mean 3.9, interval 2.0–6.2, true 2.0; direct 5.1, interval
+2.7–8.6, true 4.0; direct-maternal correlation −0.52, interval −0.76 to −0.20, true
+−0.35): with one record per lamb and 4 lambs per dam the maternal genetic, maternal
+permanent-environment and direct effects are hard to separate — a known property of
+the maternal animal model, not specific to ABP. Reliabilities divide by the posterior
+mean variance, so an overestimated maternal variance makes maternal reliabilities
+look higher. More generations of records on daughters and granddaughters help.
 
 How well calibrated are the posterior PEVs? In a simulation with 1,000 animals,
 full-rank covariance matrices and low-heritability traits (validation report,

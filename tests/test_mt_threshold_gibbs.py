@@ -629,3 +629,112 @@ def test_threshold_model_with_permanent_environment_runs_and_keeps_r0cc():
     assert np.all(res.traces["P0_0_0"] > 0) and res.P0 is not None
     assert "R0_0_0" not in res.traces and res.R0["mean"][0][0] == 1.0
     assert 0 < res.derived["c2_0"]["mean"] < 1 and res.pe_mean.shape == (q, 2)
+
+
+def _dense_maternal(Y, Xs, animal_col, dam_col, Kinv, R0, G0):
+    """C and r of the maternal animal model from the definition: unknowns beta, then
+    per animal (direct_1..t, maternal_1..t); a record of trait j loads its animal's
+    direct j and, if the dam is known, the dam's maternal j."""
+    n, t = Y.shape
+    q, r = Kinv.shape[0], 2 * Y.shape[1]
+    off = np.cumsum([0] + [X.shape[1] for X in Xs])
+    nb = int(off[-1])
+    obs = [(i, j) for i in range(n) for j in range(t) if not np.isnan(Y[i, j])]
+    W = np.zeros((len(obs), nb + q * r))
+    row_in_trait = {j: {i: k for k, i in enumerate(np.flatnonzero(~np.isnan(Y[:, j])))}
+                    for j in range(t)}
+    for k, (i, j) in enumerate(obs):
+        W[k, off[j]:off[j + 1]] = Xs[j].toarray()[row_in_trait[j][i]]
+        W[k, nb + animal_col[i] * r + j] = 1.0
+        if dam_col[i] >= 0:
+            W[k, nb + dam_col[i] * r + t + j] = 1.0
+    Rinv = np.zeros((len(obs), len(obs)))
+    for i in range(n):
+        idx = [k for k, (ii, _) in enumerate(obs) if ii == i]
+        tr = [obs[k][1] for k in idx]
+        Rinv[np.ix_(idx, idx)] = np.linalg.inv(R0[np.ix_(tr, tr)])
+    prior = np.zeros((W.shape[1], W.shape[1]))
+    prior[nb:, nb:] = np.kron(Kinv, np.linalg.inv(G0))
+    y = np.array([Y[i, j] for i, j in obs])
+    return W.T @ Rinv @ W + prior, W.T @ Rinv @ y, nb
+
+
+def test_maternal_effects_with_fixed_covariances_equal_dense_mme():
+    """Round 11: direct and maternal genetic effects (dam from the pedigree; some
+    dams unknown); with G0 (2t x 2t) and R0 known the posterior means and covariance
+    blocks of the direct and maternal effects equal the dense MME solution and C^-1."""
+    ped, rng = _ped(60, 23, 10)
+    q = ped.n
+    animal_col = np.arange(q)
+    dam_col = np.asarray(ped.dam, dtype=np.int64)          # -1 for founders
+    Y = np.column_stack([rng.normal(10, 2, q), rng.normal(5, 1, q)])
+    Y[rng.random(q) < 0.25, 1] = np.nan
+    Xs = [sp.csr_matrix(np.ones((int(mk.sum()), 1))) for mk in (~np.isnan(Y)).T]
+    G0 = np.array([[1.0, 0.3, -0.2, 0.0], [0.3, 0.5, 0.0, -0.1],
+                   [-0.2, 0.0, 0.6, 0.1], [0.0, -0.1, 0.1, 0.3]])
+    R0 = np.array([[3.0, 0.5], [0.5, 1.0]])
+    C, rhs, nb = _dense_maternal(Y, Xs, animal_col, dam_col, ped.ainv().toarray(), R0, G0)
+    Ci = np.linalg.inv(C)
+    mean = Ci @ rhs
+    U_ref = mean[nb:].reshape(q, 4)
+    blocks = np.array([Ci[nb + 4 * a:nb + 4 * a + 4, nb + 4 * a:nb + 4 * a + 4]
+                       for a in range(q)])
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=6000, burn_in=500, thin=1,
+                                    max_iterations=6000, seed=6, start_G0=G0, start_R0=R0,
+                                    fix_covariances=True)
+    res = MT.mt_threshold_gibbs(Y, None, Xs, animal_col, ped.ainv(), cfg, dam_col=dam_col)
+    sd = np.sqrt(np.einsum("ijj->ij", blocks))
+    assert np.max(np.abs(res.ebv - U_ref[:, :2]) / sd[:, :2]) < 0.07
+    assert np.max(np.abs(res.maternal_ebv - U_ref[:, 2:]) / sd[:, 2:]) < 0.07
+    np.testing.assert_allclose(res.genetic_blocks, blocks, atol=0.04 * sd.max() ** 2)
+    np.testing.assert_allclose(res.pev_blocks, blocks[:, :2, :2], atol=0.04 * sd.max() ** 2)
+    assert "G0_0_2" in res.traces and "m2_0" in res.derived
+
+
+def test_maternal_variances_are_recovered_single_trait():
+    """Simulated weaning-weight-like data (one trait, 300 animals, dams known for the
+    non-founders): posterior means of the direct, maternal and residual variances and
+    of the direct-maternal covariance within 3 posterior SD of the truth; one trait
+    with a maternal effect is allowed (r = 2)."""
+    from scipy.sparse.linalg import spsolve_triangular
+    ped, rng = _ped(300, 29, 30)
+    q = ped.n
+    G0 = np.array([[1.0, -0.2], [-0.2, 0.5]])
+    F = spsolve_triangular(ped._l_matrix(), np.sqrt(ped.mendelian_d())[:, None]
+                           * rng.standard_normal((q, 2)), lower=True, unit_diagonal=True)
+    U = F @ np.linalg.cholesky(G0).T
+    dam_col = np.asarray(ped.dam, dtype=np.int64)
+    y = 20 + U[:, 0] + np.where(dam_col >= 0, U[np.maximum(dam_col, 0), 1], 0.0) \
+        + rng.standard_normal(q) * 1.2
+    rec = np.flatnonzero(dam_col >= 0)                   # records on non-founders
+    Y = y[rec, None]
+    X = sp.csr_matrix(np.ones((rec.size, 1)))
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=1500, burn_in=300, thin=1,
+                                    max_iterations=3000, seed=12, rhat_max=1.05,
+                                    ess_min=100)
+    res = MT.mt_threshold_gibbs(Y, None, X, rec, ped.ainv(), cfg, dam_col=dam_col[rec])
+    m, sd = np.array(res.G0["mean"]), np.array(res.G0["sd"])
+    assert res.converged
+    assert np.all(np.abs(m - G0) < 3 * sd), (m, sd)
+    assert abs(res.R0["mean"][0][0] - 1.44) < 3 * res.R0["sd"][0][0]
+    assert res.maternal_ebv.shape == (q, 1) and 0 < res.derived["m2_0"]["mean"] < 1
+
+
+def test_maternal_configuration_is_checked():
+    ped, rng = _ped(40, 3, 8)
+    q = ped.n
+    Y = rng.normal(size=(q, 1))
+    X = sp.csr_matrix(np.ones((q, 1)))
+    base = dict(chains=2, iterations=10, burn_in=5, max_iterations=10)
+    with pytest.raises(ABPError):                    # one trait without maternal effect
+        MT.mt_threshold_gibbs(Y, None, X, np.arange(q), ped.ainv(),
+                              MT.MTThresholdGibbsConfig(**base))
+    dam = np.asarray(ped.dam, dtype=np.int64)
+    with pytest.raises(ABPError):                    # prior G0 must be 2t x 2t
+        MT.mt_threshold_gibbs(Y, None, X, np.arange(q), ped.ainv(),
+                              MT.MTThresholdGibbsConfig(**base, prior_nu=4.0,
+                                                        prior_G0=np.eye(1)), dam_col=dam)
+    with pytest.raises(ABPError):                    # too few known dams
+        MT.mt_threshold_gibbs(Y, None, X, np.arange(q), ped.ainv(),
+                              MT.MTThresholdGibbsConfig(**base),
+                              dam_col=np.where(np.arange(q) < 3, 0, -1))
