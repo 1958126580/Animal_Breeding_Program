@@ -26,6 +26,13 @@ Definite Systems*; Liu 1990 for the elimination tree)
   topological order - then ``L[k, j] = y_j / d_j`` and
   ``d_k = B_kk - sum_j L[k, j] y_j``.  A pivot ``d_k <= 0`` means the matrix is
   not positive definite (``FACTORIZATION_FAILED``).
+* **Dense trailing block** (round 12): when a dense factorization of the last ``m``
+  columns (``128 <= m <= 6000``) saves work (:func:`dense_tail_split`), the up-looking
+  kernel stops the reach at ``s = n - m`` and returns the Schur complement
+  ``S = B22 - L21 D1 L21'``; ``S = Lc Lc'`` by LAPACK Cholesky, then
+  ``d = diag(Lc)^2`` and ``L22 = Lc diag(Lc)^{-1}`` on the symbolic pattern (block
+  elimination; Golub & Van Loan 2013, sec. 4.2; the dense-front idea of supernodal and
+  multifrontal codes, Duff & Reid 1983).  ``dense_tail=False`` turns it off.
 * **Solve**: ``x = P' L^{-T} D^{-1} L^{-1} P b`` for one or many right-hand sides.
 
 The Python functions are the reference; the compiled kernels
@@ -106,9 +113,18 @@ def mindegree_order(C: sp.spmatrix) -> tuple[np.ndarray, str]:
 
 
 # ----------------------------------------------------------------- numeric
-def ldl_numeric_python(Bp, Bi, Bx, colptr, rowidx, n):
+def ldl_numeric_python(Bp, Bi, Bx, colptr, rowidx, n, split=None):
     """Up-looking LDL' of the permuted matrix (full symmetric CSC ``Bp, Bi, Bx``)
-    on the symbolic pattern ``(colptr, rowidx)``; returns ``(d, lval)``."""
+    on the symbolic pattern ``(colptr, rowidx)``; returns ``(d, lval)``.
+
+    With ``split < n`` only the columns ``< split`` are factorized; for the rows
+    ``k >= split`` the elimination-tree reach is cut at ``split``, which leaves row
+    ``k`` of the Schur complement ``S = B22 - L21 D1 L21'`` of the trailing block in
+    ``y[split:k]`` and ``dkk``.  Returns ``(d, lval, S)`` then (``S`` dense, lower
+    triangle; ``d`` and ``lval`` of the trailing columns are zero)."""
+    split = n if split is None else int(split)
+    m = n - split
+    S = np.zeros((m, m)) if split < n else None
     parent = np.full(n, -1, dtype=np.int64)
     for j in range(n):
         if colptr[j + 1] > colptr[j]:
@@ -129,7 +145,7 @@ def ldl_numeric_python(Bp, Bi, Bx, colptr, rowidx, n):
             elif i < k:
                 y[i] += Bx[p]
                 path = []
-                while i != -1 and i < k and mark[i] != k:
+                while i != -1 and i < k and i < split and mark[i] != k:
                     path.append(i)
                     mark[i] = k
                     i = parent[i]
@@ -149,11 +165,16 @@ def ldl_numeric_python(Bp, Bi, Bx, colptr, rowidx, n):
                                "symbolic pattern (internal error)", row=int(k), col=int(j))
             lval[p] = lkj
             fill[j] += 1
+        if k >= split:
+            S[k - split, :k - split] = y[split:k]
+            y[split:k] = 0.0
+            S[k - split, k - split] = dkk
+            continue
         if not dkk > 0.0:
             raise ABPError("FACTORIZATION_FAILED", "coefficient matrix is not positive "
                            "definite (non-positive pivot in LDL')", pivot=float(dkk), index=int(k))
         d[k] = dkk
-    return d, lval
+    return (d, lval) if S is None else (d, lval, S)
 
 
 def ldl_solve_python(colptr, rowidx, lval, d, b):
@@ -200,12 +221,65 @@ def _on_pattern(C: sp.csr_matrix, pat: sp.csr_matrix) -> sp.csr_matrix:
     return sp.csr_matrix((data, pat.indices.copy(), pat.indptr.copy()), shape=pat.shape)
 
 
+# Dense trailing block (round 12).  With a fill-reducing order the last columns of L are
+# often nearly dense (a separator of the pedigree graph; the maternal animal model on a
+# pedigree with long-range links: 85% of the work in the last 20% of the columns).  The
+# up-looking kernel does that work one scalar at a time; the trailing block is instead
+# formed as the Schur complement S = B22 - L21 D1 L21' and factorized densely with LAPACK.
+DENSE_TAIL_MIN = 128          # smallest trailing block worth a dense factorization
+DENSE_TAIL_MAX = 6000         # 6000^2 doubles = 288 MB for S
+DENSE_SPEED_RATIO = 8.0       # LAPACK potrf / up-looking kernel flop rate (build machine:
+                              # 16-20 vs ~2 GFlop/s, one thread); see the validation report
+
+
+def dense_tail_split(colptr: np.ndarray, n: int, *, min_size: int = DENSE_TAIL_MIN,
+                     max_size: int = DENSE_TAIL_MAX,
+                     speed_ratio: float = DENSE_SPEED_RATIO) -> int:
+    """First column ``s = n - m`` of the trailing block whose dense factorization saves
+    the most work, or ``n`` (no dense block) when none saves any.  The up-looking work
+    of column ``j`` is about ``c_j^2`` (``c_j`` = entries below the diagonal); every
+    entry of a trailing column lies in the block, so the work of the last ``m`` columns
+    is a suffix sum; the dense work is ``m^3 / 3`` at ``speed_ratio`` times the rate:
+    choose ``m`` (``min_size <= m <= max_size``) maximizing
+    ``sum_{j >= n-m} c_j^2 - m^3 / (3 speed_ratio)``."""
+    if n < min_size:
+        return n
+    cnt = np.diff(np.asarray(colptr, dtype=np.int64)).astype(np.float64)
+    m = np.arange(1, n + 1, dtype=np.float64)                 # block sizes 1..n
+    work = np.cumsum((cnt * cnt)[::-1])                       # up-looking work, last m columns
+    gain = work - m ** 3 / (3.0 * speed_ratio)
+    gain[(m < min_size) | (m > max_size)] = -np.inf
+    best = int(np.argmax(gain))
+    return n if not gain[best] > 0.0 else n - int(m[best])
+
+
+def _dense_tail_factor(S: np.ndarray, split: int, colptr, rowidx, d, lval) -> None:
+    """Cholesky of the Schur complement ``S`` (lower triangle given) and its
+    ``L D L'`` written into ``d[split:]`` and the trailing columns of ``lval``."""
+    import scipy.linalg as sla
+    m = S.shape[0]
+    try:                                       # potrf reads only the lower triangle
+        Lc = sla.cholesky(S, lower=True, overwrite_a=True, check_finite=False)
+    except np.linalg.LinAlgError:
+        raise ABPError("FACTORIZATION_FAILED", "coefficient matrix is not positive definite "
+                       "(dense trailing block of LDL')", index=int(split)) from None
+    piv = np.diag(Lc).copy()
+    if not (np.all(piv > 0.0) and np.all(np.isfinite(piv))):
+        raise ABPError("FACTORIZATION_FAILED", "coefficient matrix is not positive definite "
+                       "(dense trailing block of LDL')", index=int(split))
+    d[split:] = piv * piv
+    a = int(colptr[split])
+    cols = np.repeat(np.arange(m), np.diff(np.asarray(colptr[split:], dtype=np.int64)))
+    lval[a:] = Lc[np.asarray(rowidx[a:], dtype=np.int64) - split, cols] / piv[cols]
+
+
 class SparseLDL:
     """``C = P' L D L' P`` with minimum-degree ``P``; same interface as ``SparseLU``."""
 
     kind = "sparse_direct"
 
-    def __init__(self, C: sp.spmatrix, memory_budget_bytes: int = 4 * 2**30):
+    def __init__(self, C: sp.spmatrix, memory_budget_bytes: int = 4 * 2**30,
+                 dense_tail: bool = True):
         C = _symmetric_pattern(C)
         self.C = C
         self.n = C.shape[0]
@@ -226,23 +300,57 @@ class SparseLDL:
         Bp = np.ascontiguousarray(B.indptr, dtype=np.int64)
         Bi = np.ascontiguousarray(B.indices, dtype=np.int64)
         Bx = np.ascontiguousarray(B.data, dtype=np.float64)
-        if native_ldl_available():
+        # the dense block needs ~3 m^2 doubles (S, its factor, the copy from the kernel)
+        cap = int(np.sqrt(max(memory_budget_bytes - need, 0) / 24.0))
+        self.split = (dense_tail_split(self.colptr, self.n, min_size=DENSE_TAIL_MIN,
+                                       max_size=min(DENSE_TAIL_MAX, cap),
+                                       speed_ratio=DENSE_SPEED_RATIO)
+                      if dense_tail else self.n)
+        k3 = self._numeric(Bp, Bi, Bx)
+        tail = (f", dense trailing block {self.n - self.split} (LAPACK)"
+                if self.split < self.n else "")
+        self.kernel = f"order {k1}, symbolic {k2}, numeric {k3}{tail}"
+        self._selinv = None
+
+    @property
+    def nnz_factor(self) -> int:
+        return int(self.rowidx.size)
+
+    def _numeric(self, Bp, Bi, Bx) -> str:
+        """Numeric LDL' of the permuted matrix into ``self.d`` and ``self.lval``; with a
+        dense trailing block the leading columns and the Schur complement come from the
+        up-looking kernel and the block from LAPACK.  Returns the kernel name."""
+        split = self.split
+        native = native_ldl_available()
+        if native and split < self.n and not hasattr(_native, "ldl_numeric_split"):
+            split = self.split = self.n                 # older compiled kernel
+        if split < self.n:
+            m = self.n - split
+            if native:
+                try:
+                    raw_d, raw_l, raw_s = _native.ldl_numeric_split(Bp, Bi, Bx, self.colptr,
+                                                                    self.rowidx, split)
+                except ValueError as exc:
+                    raise ABPError("FACTORIZATION_FAILED",
+                                   f"sparse LDL' failed: {exc}") from None
+                d = np.frombuffer(raw_d, dtype=np.float64).copy()
+                lval = np.frombuffer(raw_l, dtype=np.float64).copy()
+                S = np.frombuffer(raw_s, dtype=np.float64).reshape(m, m).copy()
+            else:
+                d, lval, S = ldl_numeric_python(Bp, Bi, Bx, self.colptr, self.rowidx, self.n,
+                                                split=split)
+            _dense_tail_factor(S, split, self.colptr, self.rowidx, d, lval)
+            self.d, self.lval = d, lval
+        elif native:
             try:
                 raw_d, raw_l = _native.ldl_numeric(Bp, Bi, Bx, self.colptr, self.rowidx)
             except ValueError as exc:
                 raise ABPError("FACTORIZATION_FAILED", f"sparse LDL' failed: {exc}") from None
             self.d = np.frombuffer(raw_d, dtype=np.float64).copy()
             self.lval = np.frombuffer(raw_l, dtype=np.float64).copy()
-            k3 = "native_cpp"
         else:
             self.d, self.lval = ldl_numeric_python(Bp, Bi, Bx, self.colptr, self.rowidx, self.n)
-            k3 = "python"
-        self.kernel = f"order {k1}, symbolic {k2}, numeric {k3}"
-        self._selinv = None
-
-    @property
-    def nnz_factor(self) -> int:
-        return int(self.rowidx.size)
+        return "native_cpp" if native else "python"
 
     def refactor(self, C: sp.spmatrix) -> None:
         """Numeric refactorization of a matrix with the **same sparsity pattern**
@@ -259,15 +367,7 @@ class SparseLDL:
         Bp = np.ascontiguousarray(B.indptr, dtype=np.int64)
         Bi = np.ascontiguousarray(B.indices, dtype=np.int64)
         Bx = np.ascontiguousarray(B.data, dtype=np.float64)
-        if native_ldl_available():
-            try:
-                raw_d, raw_l = _native.ldl_numeric(Bp, Bi, Bx, self.colptr, self.rowidx)
-            except ValueError as exc:
-                raise ABPError("FACTORIZATION_FAILED", f"sparse LDL' failed: {exc}") from None
-            self.d = np.frombuffer(raw_d, dtype=np.float64).copy()
-            self.lval = np.frombuffer(raw_l, dtype=np.float64).copy()
-        else:
-            self.d, self.lval = ldl_numeric_python(Bp, Bi, Bx, self.colptr, self.rowidx, self.n)
+        self._numeric(Bp, Bi, Bx)
         self.C = C
         self._selinv = None
 
@@ -288,17 +388,7 @@ class SparseLDL:
             self._bp = np.ascontiguousarray(B.indptr, dtype=np.int64)
             self._bi = np.ascontiguousarray(B.indices, dtype=np.int64)
         Bx = np.ascontiguousarray(data[self._bmap])
-        if native_ldl_available():
-            try:
-                raw_d, raw_l = _native.ldl_numeric(self._bp, self._bi, Bx, self.colptr,
-                                                   self.rowidx)
-            except ValueError as exc:
-                raise ABPError("FACTORIZATION_FAILED", f"sparse LDL' failed: {exc}") from None
-            self.d = np.frombuffer(raw_d, dtype=np.float64).copy()
-            self.lval = np.frombuffer(raw_l, dtype=np.float64).copy()
-        else:
-            self.d, self.lval = ldl_numeric_python(self._bp, self._bi, Bx, self.colptr,
-                                                   self.rowidx, self.n)
+        self._numeric(self._bp, self._bi, Bx)
         self.C = sp.csr_matrix((data, self.C.indices, self.C.indptr), shape=self.C.shape)
         self._selinv = None
 

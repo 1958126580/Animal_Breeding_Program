@@ -561,7 +561,7 @@ name = "Sparse LDL' factorization with minimum-degree ordering"
 estimand = "factorization of the MME coefficient matrix (not an estimate)"
 scope = "symmetric positive-definite systems on the sparse direct path; default when the compiled kernel is present"
 math = "docs/methods.md#21-sparse-ldl-factorization"
-sources = ["George & Liu 1981 (minimum degree)", "Liu 1990 SIAM J Matrix Anal Appl 11:134 (elimination tree)"]
+sources = ["George & Liu 1981 (minimum degree)", "Liu 1990 SIAM J Matrix Anal Appl 11:134 (elimination tree)", "Golub & Van Loan 2013 Matrix Computations 4th ed. sec. 4.2 (block Cholesky)", "Duff & Reid 1983 ACM TOMS 9:302 (multifrontal dense fronts)"]
 errata = []
 exact_or_approximate = "exact (floating point); non-positive pivots refused"
 complexity = "ordering on the explicit elimination graph (dense rows last); numeric work proportional to the factor's flops"
@@ -570,11 +570,15 @@ tests = ["tests/test_cholesky.py::test_ldl_solve_logdet_inverse_equal_dense",
          "tests/test_cholesky.py::test_native_ordering_and_numeric_equal_python_reference",
          "tests/test_cholesky.py::test_minimum_degree_reduces_fill_against_natural_order",
          "tests/test_cholesky.py::test_not_positive_definite_is_refused",
-         "tests/test_cholesky.py::test_blup_ldl_equals_superlu_and_dense"]
+         "tests/test_cholesky.py::test_blup_ldl_equals_superlu_and_dense",
+         "tests/test_cholesky.py::test_dense_trailing_block_equals_up_looking_factor",
+         "tests/test_cholesky.py::test_native_split_kernel_equals_python_reference",
+         "tests/test_cholesky.py::test_dense_tail_split_rule",
+         "tests/test_cholesky.py::test_dense_trailing_block_not_positive_definite_is_refused"]
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_applicable", G5 = "not_applicable", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["single-threaded", "explicit elimination graph (not an approximate-minimum-degree quotient graph); ordering time grows with fill", "Python fallback is slow for large systems (SuperLU is used then)"]
+known_limits = ["single-threaded up-looking kernel; only a nearly dense trailing block (round 12) goes to LAPACK, no general supernodes", "the block-size rule uses a flop-rate ratio (8) measured on one machine", "explicit elimination graph (not an approximate-minimum-degree quotient graph); ordering time grows with fill", "Python fallback is slow for large systems (SuperLU is used then)"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]

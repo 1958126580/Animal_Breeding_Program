@@ -876,9 +876,17 @@ std::string mindegree_kernel(const int64_t* indptr, const int64_t* indices, int6
     return std::string();
 }
 
+// With split < n (ldl_numeric_split): columns 0..split-1 as above; for rows k >= split the
+// reach is cut at split, so after the row's updates y[split..k-1] and dkk hold row k of the
+// Schur complement S = B22 - L21 D1 L21' of the trailing block, which is written to the
+// dense row-major array schur (m x m, m = n - split; lower triangle) for a dense
+// factorization by the caller.  d and lval of the trailing columns are left untouched.
 std::string ldl_numeric_kernel(const int64_t* Bp, const int64_t* Bi, const double* Bx,
                                const int64_t* colptr, const int64_t* rowidx, int64_t n,
-                               double* d, double* lval) {
+                               double* d, double* lval, int64_t split = -1,
+                               double* schur = nullptr) {
+    if (split < 0) split = n;
+    const int64_t m = n - split;
     std::vector<int64_t> parent(static_cast<size_t>(n), -1), fill(static_cast<size_t>(n));
     for (int64_t j = 0; j < n; ++j) {
         if (colptr[j + 1] > colptr[j]) parent[static_cast<size_t>(j)] = rowidx[colptr[j]];
@@ -895,7 +903,7 @@ std::string ldl_numeric_kernel(const int64_t* Bp, const int64_t* Bi, const doubl
                 dkk += Bx[p];
             } else if (i < k) {
                 y[static_cast<size_t>(i)] += Bx[p];
-                while (i != -1 && i < k && mark[static_cast<size_t>(i)] != k) {
+                while (i != -1 && i < k && i < split && mark[static_cast<size_t>(i)] != k) {
                     mark[static_cast<size_t>(i)] = k;
                     reach.push_back(i);
                     i = parent[static_cast<size_t>(i)];
@@ -914,6 +922,15 @@ std::string ldl_numeric_kernel(const int64_t* Bp, const int64_t* Bi, const doubl
             if (p >= colptr[j + 1] || rowidx[p] != k) return "ldl_numeric: entry outside the symbolic pattern";
             lval[p] = lkj;
             fill[static_cast<size_t>(j)] = p + 1;
+        }
+        if (k >= split) {
+            double* row = schur + (k - split) * m;
+            for (int64_t r = split; r < k; ++r) {
+                row[r - split] = y[static_cast<size_t>(r)];
+                y[static_cast<size_t>(r)] = 0.0;
+            }
+            row[k - split] = dkk;
+            continue;
         }
         if (!(dkk > 0.0)) return "coefficient matrix is not positive definite (non-positive pivot "
                                  "at permuted index " + std::to_string(k) + ")";
@@ -1002,6 +1019,53 @@ PyObject* py_ldl_numeric(PyObject*, PyObject* args) {
     return Py_BuildValue("(NN)", dd, lv);
 }
 
+PyObject* py_ldl_numeric_split(PyObject*, PyObject* args) {
+    Py_buffer bp, bi, bx, cp, ri;
+    long long split_ll;
+    if (!PyArg_ParseTuple(args, "y*y*y*y*y*L", &bp, &bi, &bx, &cp, &ri, &split_ll)) return nullptr;
+    const int64_t n = static_cast<int64_t>(bp.len / 8) - 1;
+    const int64_t nnz = static_cast<int64_t>(ri.len / 8);
+    const int64_t split = static_cast<int64_t>(split_ll);
+    PyObject* dd = nullptr;
+    PyObject* lv = nullptr;
+    PyObject* sc = nullptr;
+    std::string err;
+    if (n < 0 || cp.len != bp.len || bi.len != bx.len || split < 0 || split > n) {
+        err = "ldl_numeric_split: buffer sizes or split do not match";
+    } else {
+        const int64_t m = n - split;
+        dd = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(n * 8));
+        lv = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(nnz * 8));
+        sc = PyBytes_FromStringAndSize(nullptr, static_cast<Py_ssize_t>(m * m * 8));
+        if (dd == nullptr || lv == nullptr || sc == nullptr) {
+            err = "ldl_numeric_split: out of memory";
+        } else {
+            double* dp = reinterpret_cast<double*>(PyBytes_AS_STRING(dd));
+            double* lp = reinterpret_cast<double*>(PyBytes_AS_STRING(lv));
+            double* sp = reinterpret_cast<double*>(PyBytes_AS_STRING(sc));
+            Py_BEGIN_ALLOW_THREADS
+            std::fill(dp, dp + n, 0.0);
+            std::fill(lp, lp + nnz, 0.0);
+            std::fill(sp, sp + m * m, 0.0);
+            err = ldl_numeric_kernel(static_cast<const int64_t*>(bp.buf),
+                                     static_cast<const int64_t*>(bi.buf),
+                                     static_cast<const double*>(bx.buf),
+                                     static_cast<const int64_t*>(cp.buf),
+                                     static_cast<const int64_t*>(ri.buf), n, dp, lp, split, sp);
+            Py_END_ALLOW_THREADS
+        }
+    }
+    for (Py_buffer* b : {&bp, &bi, &bx, &cp, &ri}) PyBuffer_Release(b);
+    if (!err.empty()) {
+        Py_XDECREF(dd);
+        Py_XDECREF(lv);
+        Py_XDECREF(sc);
+        PyErr_SetString(PyExc_ValueError, err.c_str());
+        return nullptr;
+    }
+    return Py_BuildValue("(NNN)", dd, lv, sc);
+}
+
 PyObject* py_ldl_solve(PyObject*, PyObject* args) {
     Py_buffer cp, ri, lv, db, xb;
     if (!PyArg_ParseTuple(args, "y*y*y*y*y*", &cp, &ri, &lv, &db, &xb)) return nullptr;
@@ -1059,6 +1123,10 @@ PyMethodDef methods[] = {
     {"ldl_numeric", py_ldl_numeric, METH_VARARGS,
      "ldl_numeric(Bp, Bi, Bx, colptr, rowidx) -> (d, lval) bytes: up-looking LDL' on the "
      "symbolic pattern (see abp/solvers/cholesky.py)."},
+    {"ldl_numeric_split", py_ldl_numeric_split, METH_VARARGS,
+     "ldl_numeric_split(Bp, Bi, Bx, colptr, rowidx, split) -> (d, lval, schur) bytes: "
+     "up-looking LDL' of columns < split and the dense Schur complement (lower triangle, "
+     "row-major) of the trailing block (see abp/solvers/cholesky.py)."},
     {"ldl_solve", py_ldl_solve, METH_VARARGS,
      "ldl_solve(colptr, rowidx, lval, d, x) -> bytes: solves L D L' x = b for the right-hand "
      "sides stored row-wise in x."},

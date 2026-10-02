@@ -117,7 +117,7 @@ class MTThresholdGibbsResult:
     fixed_mean: list                # per trait: posterior means of beta_j
     thresholds_mean: np.ndarray     # tau_1 .. tau_{K-1}
     categories: np.ndarray
-    G0: dict                        # "mean", "sd", "q025", "q975" (t x t lists)
+    G0: dict                        # "mean", "sd", "median", "q025", "q975" (t x t lists)
     R0: dict
     derived: dict                   # h2_<j>, rG_<j>_<k> summaries
     summaries: dict
@@ -714,6 +714,7 @@ class _Chain:
 
 def _summ(A: np.ndarray) -> dict:
     return {"mean": A.mean(axis=0).tolist(), "sd": A.std(axis=0, ddof=1).tolist(),
+            "median": np.median(A, axis=0).tolist(),
             "q025": np.quantile(A, 0.025, axis=0).tolist(),
             "q975": np.quantile(A, 0.975, axis=0).tolist()}
 

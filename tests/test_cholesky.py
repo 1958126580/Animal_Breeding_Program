@@ -138,3 +138,93 @@ def test_superlu_selected_inverse_with_asymmetric_pattern(monkeypatch):
     ev = MR.ReducedRankEvaluator(data, ped.ainv(), ped.logdet_a(), 2)
     f, g = ev.value_and_gradient(MR._rr_pack(lam, R0s))
     assert np.isfinite(f) and np.all(np.isfinite(g))
+
+
+# ---------------------------------------------------------------- dense trailing block (round 12)
+def _arrow_spd(n, seed):
+    """Sparse SPD matrix whose last columns fill in densely under minimum degree:
+    a random sparse part plus 60 rows linked to random halves of the matrix."""
+    rng = np.random.default_rng(seed)
+    A = sp.random(n, n, density=4.0 / n, random_state=seed)
+    rows, cols = [], []
+    for r in range(n - 60, n):
+        c = rng.choice(n - 60, size=(n - 60) // 2, replace=False)
+        rows.extend([r] * c.size)
+        cols.extend(c)
+    B = sp.csr_matrix((rng.standard_normal(len(rows)), (rows, cols)), shape=(n, n))
+    A = A + B
+    return ((A + A.T) + sp.identity(n) * n).tocsr()
+
+
+@pytest.mark.parametrize("native", [True, False])
+def test_dense_trailing_block_equals_up_looking_factor(native, monkeypatch):
+    if native and not (CH.native_ldl_available() and hasattr(CH._native, "ldl_numeric_split")):
+        pytest.skip("native kernel not built or disabled (ABP_DISABLE_NATIVE)")
+    if not native:
+        monkeypatch.setenv("ABP_DISABLE_NATIVE", "1")
+    A = _arrow_spd(400, 3)
+    ref = CH.SparseLDL(A, dense_tail=False)
+    monkeypatch.setattr(CH, "DENSE_TAIL_MIN", 20)
+    monkeypatch.setattr(CH, "DENSE_SPEED_RATIO", 1e9)      # force the largest useful block
+    f = CH.SparseLDL(A)
+    assert f.split < f.n and "dense trailing block" in f.kernel
+    np.testing.assert_array_equal(f.colptr, ref.colptr)
+    np.testing.assert_allclose(f.d, ref.d, rtol=1e-12)
+    np.testing.assert_allclose(f.lval, ref.lval, atol=1e-12)
+    Ad = A.toarray()
+    b = np.random.default_rng(2).standard_normal(A.shape[0])
+    np.testing.assert_allclose(f.solve(b), np.linalg.solve(Ad, b), atol=1e-12)
+    assert f.logdet() == pytest.approx(np.linalg.slogdet(Ad)[1], abs=1e-9)
+    c = A.tocoo()
+    np.testing.assert_allclose(f.selected_inverse().entries(c.row, c.col),
+                               np.linalg.inv(Ad)[c.row, c.col], atol=1e-14)
+    # numeric refactorization on the same pattern keeps the split
+    A2 = A + sp.identity(A.shape[0]) * 3.0
+    f.refactor(A2)
+    np.testing.assert_allclose(f.solve(b), np.linalg.solve(A2.toarray(), b), atol=1e-12)
+    f.refactor_values(f.C.data * 2.0)
+    np.testing.assert_allclose(f.solve(b), np.linalg.solve(2.0 * A2.toarray(), b), atol=1e-12)
+
+
+@pytest.mark.skipif(not (NATIVE and hasattr(CH._native, "ldl_numeric_split")),
+                    reason="native kernel not built")
+def test_native_split_kernel_equals_python_reference():
+    A = _arrow_spd(300, 5)
+    f = CH.SparseLDL(A, dense_tail=False)
+    B = sp.csc_matrix(A)[f.q][:, f.q]
+    B.sort_indices()
+    Bp, Bi = B.indptr.astype(np.int64), B.indices.astype(np.int64)
+    Bx = B.data.astype(np.float64)
+    s = f.n - 80
+    d_py, l_py, S_py = CH.ldl_numeric_python(Bp, Bi, Bx, f.colptr, f.rowidx, f.n, split=s)
+    d_n, l_n, S_n = CH._native.ldl_numeric_split(Bp, Bi, Bx, f.colptr, f.rowidx, s)
+    np.testing.assert_allclose(np.frombuffer(d_n), d_py, rtol=1e-13)
+    np.testing.assert_allclose(np.frombuffer(l_n), l_py, atol=1e-13)
+    np.testing.assert_allclose(np.frombuffer(S_n).reshape(80, 80), S_py, atol=1e-11)
+    # S is the Schur complement of the leading block (dense algebra)
+    Bd = B.toarray()
+    schur = Bd[s:, s:] - Bd[s:, :s] @ np.linalg.solve(Bd[:s, :s], Bd[:s, s:])
+    np.testing.assert_allclose(np.tril(S_py), np.tril(schur), atol=1e-10)
+
+
+def test_dense_tail_split_rule():
+    # tridiagonal: no fill, no dense block
+    n = 500
+    T = sp.diags([np.full(n - 1, -1.0), np.full(n, 4.0), np.full(n - 1, -1.0)], [-1, 0, 1])
+    assert CH.SparseLDL(T).split == n
+    # a dense trailing triangle of 300 columns saves work: block >= 128 chosen
+    colptr = np.concatenate([[0], np.full(200, 0), np.cumsum(np.arange(299, -1, -1))])
+    s = CH.dense_tail_split(colptr, 500)
+    assert s < 500 and 500 - s >= CH.DENSE_TAIL_MIN
+    assert CH.dense_tail_split(colptr, 500, max_size=100) == 500     # below min_size
+    assert CH.dense_tail_split(colptr[:51], 50) == 50                # too small
+
+
+def test_dense_trailing_block_not_positive_definite_is_refused(monkeypatch):
+    A = _arrow_spd(300, 7).tolil()
+    A[299, 299] = -1e6                                   # last pivot negative
+    monkeypatch.setattr(CH, "DENSE_TAIL_MIN", 20)
+    monkeypatch.setattr(CH, "DENSE_SPEED_RATIO", 1e9)
+    with pytest.raises(ABPError) as e:
+        CH.SparseLDL(A.tocsr())
+    assert e.value.code == "ABP-E404"

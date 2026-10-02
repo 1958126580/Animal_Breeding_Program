@@ -12,10 +12,19 @@ R-hat/ESS passed is recorded and every fit is scored.
 
 Scores (truth used only for scoring): posterior means of the variances; for the
 direct and the maternal EBVs of all animals: MSE / mean PEV, coverage of nominal 95%
-intervals, realized accuracy.  Means +- Monte-Carlo SE over replicates.
+intervals, realized accuracy.  Means +- Monte-Carlo SE over replicates.  The posterior
+medians of the (co)variances are recorded too (round 12).
+
+``--prior equal`` (round 12, finding F19): weak proper inverse-Wishart priors on G0
+(2 x 2), the maternal pe variance and the residual variance, each centred on an equal
+share of the observed phenotypic variance Vp (G_prior = diag(Vp/4, Vp/4), P_prior = Vp/4,
+R_prior = Vp/4; nu = dimension + 2, the smallest integer nu with a finite prior mean).
+Uses the data only, never the true values; the shares are deliberately not tuned (the
+maternal share Vp/4 is above the true value).
 
 Usage: python benchmarks/maternal_study.py [--replicates 20] [--workers 3]
-       [--animals 1500] [--iterations 4000] [--out docs/validation/maternal_study.json]
+       [--animals 1500] [--iterations 4000] [--prior flat|equal]
+       [--out docs/validation/maternal_study.json]
 """
 
 from __future__ import annotations
@@ -42,6 +51,16 @@ from abp.solvers.mt_threshold_gibbs import MTThresholdGibbsConfig, mt_threshold_
 G0 = np.array([[4.0, -1.0], [-1.0, 2.0]])
 VAR_C, VAR_E = 1.5, 8.0
 N_ANIMALS, ITER = 1500, 4000
+PRIOR = "flat"                        # --prior; inherited by forked workers
+
+
+def _prior_kwargs(y: np.ndarray) -> dict:
+    if PRIOR == "flat":
+        return {}
+    vp = float(np.var(y, ddof=1))
+    return {"prior_nu": 4.0, "prior_G0": np.diag([vp / 4, vp / 4]),
+            "prior_nu_pe": 3.0, "prior_P0": np.array([[vp / 4]]),
+            "prior_nu_r": 3.0, "prior_R0": np.array([[vp / 4]])}
 
 
 def simulate(seed: int, n: int):
@@ -84,12 +103,16 @@ def replicate(seed: int) -> dict:
     g = mt_threshold_gibbs(y[:, None], None, sp.csr_matrix(np.ones((rec.size, 1))), rec,
                            ped.ainv(), MTThresholdGibbsConfig(
                                chains=4, iterations=ITER, burn_in=ITER // 4, thin=4,
-                               max_iterations=ITER, seed=seed),
+                               max_iterations=ITER, seed=seed, **_prior_kwargs(y)),
                            pe_col=pe_col, dam_col=damrec)
     return {"seed": seed, "converged": g.converged, "wall_s": time.time() - t0,
             "max_rhat": float(max(v["rhat"] for v in g.summaries.values())),
             "min_ess_bulk": float(min(v["ess_bulk"] for v in g.summaries.values())),
             "G0": g.G0["mean"], "P0": g.P0["mean"][0][0], "R0": g.R0["mean"][0][0],
+            "G0_median": g.G0["median"], "P0_median": g.P0["median"][0][0],
+            "R0_median": g.R0["median"][0][0],
+            "G0_cover95": [[bool(lo <= tv <= hi) for lo, hi, tv in zip(rl, rh, rt)]
+                           for rl, rh, rt in zip(g.G0["q025"], g.G0["q975"], G0.tolist())],
             "direct": _score(AM[:, 0], g.ebv[:, 0], g.pev[:, 0]),
             "maternal": _score(AM[:, 1], g.maternal_ebv[:, 0], g.maternal_pev[:, 0])}
 
@@ -101,15 +124,16 @@ def _ms(v):
 
 
 def main():
-    global N_ANIMALS, ITER
+    global N_ANIMALS, ITER, PRIOR
     ap = argparse.ArgumentParser()
     ap.add_argument("--replicates", type=int, default=20)
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--animals", type=int, default=1500)
     ap.add_argument("--iterations", type=int, default=4000)
+    ap.add_argument("--prior", choices=("flat", "equal"), default="flat")
     ap.add_argument("--out", default=str(ROOT / "docs" / "validation" / "maternal_study.json"))
     a = ap.parse_args()
-    N_ANIMALS, ITER = a.animals, a.iterations
+    N_ANIMALS, ITER, PRIOR = a.animals, a.iterations, a.prior
     t0 = time.time()
     seeds = list(range(1, a.replicates + 1))
     if a.workers > 1:
@@ -123,12 +147,24 @@ def main():
          "maternal_variance": {**_ms([r["G0"][1][1] for r in reps]), "true": 2.0},
          "direct_maternal_covariance": {**_ms([r["G0"][0][1] for r in reps]), "true": -1.0},
          "maternal_pe_variance": {**_ms([r["P0"] for r in reps]), "true": VAR_C},
-         "residual_variance": {**_ms([r["R0"] for r in reps]), "true": VAR_E}}
+         "residual_variance": {**_ms([r["R0"] for r in reps]), "true": VAR_E},
+         "posterior_median": {
+             "direct_variance": _ms([r["G0_median"][0][0] for r in reps]),
+             "maternal_variance": _ms([r["G0_median"][1][1] for r in reps]),
+             "direct_maternal_covariance": _ms([r["G0_median"][0][1] for r in reps]),
+             "maternal_pe_variance": _ms([r["P0_median"] for r in reps]),
+             "residual_variance": _ms([r["R0_median"] for r in reps])},
+         "interval_coverage95": {
+             "direct_variance": _ms([r["G0_cover95"][0][0] for r in reps]),
+             "maternal_variance": _ms([r["G0_cover95"][1][1] for r in reps]),
+             "direct_maternal_covariance": _ms([r["G0_cover95"][0][1] for r in reps])},
+         "max_rhat_median": float(np.median([r["max_rhat"] for r in reps])),
+         "wall_s_per_replicate": _ms([r["wall_s"] for r in reps])}
     for eff in ("direct", "maternal"):
         s[eff] = {k: _ms([r[eff][k] for r in reps]) for k in reps[0][eff]}
     doc = {"study": "Bayesian maternal animal model (direct + maternal genetic + maternal pe)",
            "replicates": a.replicates, "seeds": f"1..{a.replicates}", "animals": N_ANIMALS,
-           "iterations": ITER, "true": {"G0": G0.tolist(), "var_c": VAR_C, "var_e": VAR_E},
+           "iterations": ITER, "prior": PRIOR, "true": {"G0": G0.tolist(), "var_c": VAR_C, "var_e": VAR_E},
            "wall_seconds": time.time() - t0, "summary": s, "replicate_results": reps}
     Path(a.out).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(s, indent=1))

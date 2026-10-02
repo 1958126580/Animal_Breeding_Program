@@ -938,8 +938,8 @@ Simulation evidence: `benchmarks/threshold_study.py`.
 ## 21. Sparse LDL' factorization
 
 Code: `abp/solvers/cholesky.py` (`SparseLDL`, `mindegree_order`,
-`ldl_numeric_python`, `ldl_solve_python`), C++ kernels `mindegree_order`,
-`ldl_numeric`, `ldl_solve`; factory `abp/solvers/mme.py::make_sparse_factor`.
+`ldl_numeric_python`, `ldl_solve_python`, `dense_tail_split`), C++ kernels
+`mindegree_order`, `ldl_numeric`, `ldl_numeric_split`, `ldl_solve`; factory `abp/solvers/mme.py::make_sparse_factor`.
 Registry id `num.sparse_ldl`.
 
 * **Ordering:** minimum degree on the explicit elimination graph (George &
@@ -955,6 +955,26 @@ Registry id `num.sparse_ldl`.
   descendant always precedes its ancestors):
   `y_i −= L_ij y_j` over the filled part of column `j`, `L_kj = y_j/d_j`,
   `d_k = B_kk − Σ L_kj y_j`. `d_k ≤ 0` stops with `ABP-E404`.
+* **Dense trailing block (round 12):** with a fill-reducing order the last
+  columns of `L` are often nearly dense (a separator of the graph). In the
+  maternal animal model on a pedigree with long-range links (example 18,
+  `benchmarks/maternal_study.py`) the last 20% of the 3,505 columns carry
+  85% of the work, which the up-looking kernel does one scalar at a time.
+  With `s = n − m`, the kernel factorizes columns `< s` as above, cuts the
+  reach of every row `k ≥ s` at `s` and so leaves row `k` of the Schur
+  complement `S = B₂₂ − L₂₁D₁L₂₁ᵀ` in `y[s:k]` and `d_k`; then
+  `S = L_c L_cᵀ` (LAPACK `potrf`), `d_k = (L_c)_kk²` and
+  `L₂₂ = L_c diag(L_c)⁻¹`, stored on the symbolic pattern (block elimination,
+  Golub & Van Loan 2013 §4.2; the dense front of supernodal and multifrontal
+  codes, Duff & Reid 1983). Entries of `L_c` outside the symbolic pattern
+  are structurally zero and are exactly zero in floating point. The block size
+  `m` (`128 ≤ m ≤ 6000`, and within the memory budget) maximizes
+  `Σ_{j≥s} c_j² − m³/(3·8)` (`c_j` = entries of column `j` below the diagonal;
+  8 = measured ratio of the LAPACK and up-looking flop rates on the build
+  machine, one thread); no block is used when nothing is saved. Everything
+  that reads the factor (solve, log-determinant, selected inversion,
+  perturbation draws) is unchanged. `SparseLDL(C, dense_tail=False)` keeps the
+  pure up-looking factor.
 * **Solve:** `x = P'L⁻ᵀD⁻¹L⁻¹Pb` for many right-hand sides; `log|C| = Σ log d_k`.
 
 `solver.factorization = "auto"` uses this factor when the compiled kernel is
@@ -965,7 +985,12 @@ path. Both give the same selected inverse (tested to 1e−12 and on the
 **Tests.** `test_ldl_solve_logdet_inverse_equal_dense` (native and Python,
 with and without a dense row), `test_native_ordering_and_numeric_equal_python_reference`,
 `test_minimum_degree_reduces_fill_against_natural_order`,
-`test_not_positive_definite_is_refused`, `test_blup_ldl_equals_superlu_and_dense`.
+`test_not_positive_definite_is_refused`, `test_blup_ldl_equals_superlu_and_dense`;
+dense trailing block: `test_dense_trailing_block_equals_up_looking_factor` (native and
+Python: `d`, `L`, solve, log-determinant, selected inverse, both refactorizations),
+`test_native_split_kernel_equals_python_reference` (and `S` equals the Schur complement
+from dense algebra), `test_dense_tail_split_rule`,
+`test_dense_trailing_block_not_positive_definite_is_refused`.
 
 ## 22. APY inverse of G
 
