@@ -17,7 +17,9 @@ round 7: run
 round 8: run
 [36727601564](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36727601564);
 round 9: run
-[36832541614](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36832541614); §3a).
+[36832541614](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36832541614);
+round 10: run
+[36883815725](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36883815725); §3a).
 Raw logs: `docs/validation/`. Status vocabulary: passed, failed, blocked,
 not_run.
 
@@ -55,7 +57,7 @@ AlphaMate has been run.
 | Command | Result | Log |
 |---|---|---|
 | `python -m pytest -v` (native C++ kernel; round 10; machine otherwise idle) | **326 passed**, 0 failed, 0 skipped, 765.8 s (run before two statistical tests were made smaller for the pure-Python job; the smaller versions passed separately with both kernels) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 10) | PURE_RESULT | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 10) | **321 passed**, 0 failed, 5 skipped (native-only comparisons), 3694.7 s (machine otherwise idle) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
 | `abp selftest` with and without the native kernel (round 10) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel; T03 names the depth kernel) | `docs/validation/selftest-linux.log` |
 | `python benchmarks/bayes_vs_reml_study.py --replicates 50 --workers 3 --iterations 4000` (round 9, F16; 2 scenarios) | completed (see §7.13) | `docs/validation/bayes_vs_reml_study.json`, `.log` |
 | `python benchmarks/bayes_vs_reml_study.py --scenarios t2_full --seeds 1 2 3 4 5 6 --iterations 16000` (round 9, convergence check) | see §7.13 | `docs/validation/bayes_vs_reml_study_16000it.json`, `.log` |
@@ -176,6 +178,15 @@ commit d3e2a71 (run
 succeeded on all 7 jobs. The release commit 15d7d38 (ABP 0.9.0): run
 [36832541614](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36832541614),
 7 of 7 jobs succeeded (pure-Python job 67 min).
+
+Round 10: commit a569d8f (run
+[36865978675](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36865978675)
+and the pull-request run 36865986803) succeeded on all 7 jobs, but the pure-Python job
+took 2 h 17 min because two new statistical tests ran the Python sparse LDL for tens of
+thousands of iterations; they were made smaller. The release commit 8a32efe (ABP
+0.10.0): run
+[36883815725](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36883815725)
+and pull-request run 36883826721, 7 of 7 jobs succeeded (pure-Python job 84 min).
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer

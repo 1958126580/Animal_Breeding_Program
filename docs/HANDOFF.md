@@ -86,6 +86,14 @@ method in `docs/method_registry.toml`):
 
 ## 2. Commands that were run (Linux) and their results
 
+Round 10: full test suites (native 326 passed; pure-Python kernels 321 passed, 5
+native-only skipped), self-test T01–T18 with both kernels, all 20 example runs (examples 15–17 with the
+new moves), the F16 weak-prior study (30 replicates, three traits); CI after every
+push: a569d8f green (pure-Python job 2 h 17 min, tests then made smaller), release
+commit 8a32efe (ABP 0.10.0): run
+[36883815725](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36883815725),
+7 of 7 jobs succeeded.
+
 Round 9: full test suites (native 317 passed; pure-Python kernels 312 passed,
 5 native-only skipped; both with one BLAS thread while a study used the other
 cores), self-test T01–T18 with both kernels, all 19 example runs (including
