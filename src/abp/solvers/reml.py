@@ -312,6 +312,18 @@ def _optimize(ev: REMLEvaluator, theta0: np.ndarray, cfg: dict, history: list,
                    history_tail=history[-3:])
 
 
+def kt_rejects_zero(score_at_zero: float, residual: float, loglik: float) -> bool:
+    """Kuhn-Tucker test of a variance held at 0: True when the score there is positive.
+
+    The score is in units of 1/variance, so it is scaled by the residual variance (the
+    change of logL for a step of one residual variance) before the comparison with the
+    tolerance ``1e-6 |logL|``; the decision is then invariant to the measurement unit.
+    (Before round 15 the unscaled score was compared, which accepted a zero additive
+    variance with a positive score for yields in pounds: variances near 1e7.)
+    """
+    return score_at_zero * residual > 1e-6 * max(1.0, abs(loglik))
+
+
 def _score_at_zero(y, X, terms: Sequence[RandomTerm], active_vc: dict[str, float],
                    zero_term: RandomTerm, memory_budget_bytes: int = 4 * 2**30) -> float:
     """dlogL/dtheta_k at theta_k = 0 (term absent from V), from the sub-model:
@@ -429,7 +441,7 @@ def reml_fit(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm], cfg: 
             zt = next(t for t in terms if t.name == name)
             g0 = _score_at_zero(y, X, active, vc_active, zt, memory_budget_bytes)
             history.append({"event": f"score at zero for {name}", "score": g0})
-            if g0 > 1e-6 * max(1.0, abs(point.loglik)):
+            if kt_rejects_zero(g0, vc_active["residual"], point.loglik):
                 rejected = (name, g0)
                 break
         if rejected is None:

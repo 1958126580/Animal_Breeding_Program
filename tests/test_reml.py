@@ -256,3 +256,27 @@ def test_score_at_zero_equals_v_form_derivative(sparse, monkeypatch):
         _, P = reml_loglik_v_form(y, Xd, covs, theta)
         ref = 0.5 * (y @ P @ covs[k_zero] @ P @ y - np.trace(P @ covs[k_zero]))
         assert g == pytest.approx(ref, rel=1e-9, abs=1e-10), zero.name
+
+
+def test_boundary_decision_is_invariant_to_the_unit():
+    """Round 15 (found on real milk yields in pounds): the Kuhn-Tucker check compared
+    the score at zero (units 1/variance) with 1e-6 |logL|, so with large variances it
+    accepted a zero additive variance whose score was positive (old code: this data set
+    in units x 3000 ended at animal = 0 with logL 1.02 below the interior optimum).
+    Rescaling y by c must rescale every variance by c^2 and leave the status unchanged."""
+    import abp.solvers.reml as R
+    ids, sires, dams, rec, grp, rng = _problem(8, n_anim=100, n_rec=250)
+    ped = Pedigree.from_parent_ids(ids, sires, dams)
+    y = _simulate(ids, sires, dams, rec, grp, 0.4, 1.5, 3.0, rng)
+    fd = build_fixed_design({"g": grp}, [FixedTerm("g", "factor")], True, len(rec))
+    terms = [animal_term(ped, rec), iid_term("pe", rec)]
+    base = reml_fit(y, fd.X, terms, CFG)
+    c = 3000.0
+    big = reml_fit(c * y, fd.X, terms, CFG)
+    assert big.status == base.status == "converged"
+    for k in ("animal", "pe", "residual"):
+        assert big.variances[k] == pytest.approx(c**2 * base.variances[k], rel=1e-5), k
+    # the helper itself: the same relative score gives the same decision at any scale
+    for s in (1e-4, 1.0, 1e7):
+        assert R.kt_rejects_zero(2e-3 / s, 3.0 * s, -500.0)
+        assert not R.kt_rejects_zero(-2e-3 / s, 3.0 * s, -500.0)

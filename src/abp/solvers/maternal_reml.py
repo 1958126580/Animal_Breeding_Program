@@ -68,6 +68,7 @@ from scipy.sparse.linalg import lsqr
 
 from ..errors import ABPError
 from .mme import DenseCholesky, dense_bytes
+from .reml import kt_rejects_zero
 
 DENSE_MAX = 2000      #: dense trace path up to this many equations
 BOUNDARY_REL = 1e-6   #: an iid variance below this share of s_P counts as on the boundary
@@ -505,7 +506,7 @@ def maternal_reml_fit(data: MaternalData, k_inv, logdet_k: float, cfg: dict,
                                shape=(data.y.size, int(nl)))
             g0 = _score_at_zero(ev, point.theta, Zd)
             history.append({"event": f"score at zero for {name}", "score": g0})
-            if g0 > 1e-6 * max(1.0, abs(point.loglik)):
+            if kt_rejects_zero(g0, float(point.theta[-1]), point.loglik):
                 rejected = (name, g0)
                 break
         if rejected is None:
