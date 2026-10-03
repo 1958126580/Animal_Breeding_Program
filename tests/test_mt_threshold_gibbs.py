@@ -738,3 +738,113 @@ def test_maternal_configuration_is_checked():
         MT.mt_threshold_gibbs(Y, None, X, np.arange(q), ped.ainv(),
                               MT.MTThresholdGibbsConfig(**base),
                               dam_col=np.where(np.arange(q) < 3, 0, -1))
+
+
+# ---------------------------------------------------------- several categorical traits (round 14)
+def _log_post_two_binary(theta, Y, G0, Kinv):
+    """log p(theta | y) up to a constant for two binary traits with R0 = I (each in its
+    own residual group), one intercept per trait, record r = animal r, flat prior on
+    beta: -1/2 tr(G0^-1 U'K^-1 U) + sum_j sum_r log Phi(s_rj eta_rj)."""
+    n = Y.shape[0]
+    U = theta[2:].reshape(n, 2)
+    eta = theta[:2][None, :] + U
+    lp = -0.5 * np.trace(np.linalg.solve(G0, U.T @ Kinv @ U))
+    for j in range(2):
+        ob = ~np.isnan(Y[:, j])
+        sign = np.where(Y[ob, j] == 2, 1.0, -1.0)
+        lp += np.sum(log_ndtr(sign * eta[ob, j]))
+    return lp
+
+
+def test_two_categorical_traits_with_fixed_covariances_equal_importance_sampling():
+    """Two binary traits, genetically correlated (G0 fixed), residuals independent
+    (separate groups): posterior means and variances of the EBVs against importance
+    sampling of the closed-form posterior (liabilities integrated out)."""
+    ped, rng = _ped(8, 9, 3)
+    n = ped.n
+    Y = np.column_stack([np.array([1, 2, 2, 1, 2, 1, 2, 1], float),
+                         np.array([2, 2, np.nan, 1, 2, 1, 1, 2], float)])
+    X = sp.csr_matrix(np.ones((n, 1)))
+    G0 = np.array([[0.6, 0.35], [0.35, 0.8]])
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=40000, burn_in=2000, thin=2,
+                                    max_iterations=40000, seed=21, start_G0=G0,
+                                    start_R0=np.eye(2), fix_covariances=True,
+                                    residual_groups=[[0], [1]])
+    res = MT.mt_threshold_gibbs(Y, [0, 1], X, np.arange(n), ped.ainv(), cfg)
+    assert set(res.thresholds_by_trait) == {0, 1}
+    Kinv = ped.ainv().toarray()
+    theta_m = np.concatenate([np.concatenate(res.fixed_mean), res.ebv.ravel()])
+    C, _ = _dense_c(Y, X, Kinv, np.eye(2), G0)
+    V = 2.0 * np.linalg.inv(C + 1e-9 * np.eye(C.shape[0]))
+    Lc = np.linalg.cholesky(V)
+    N, df = 400000, 5
+    zz = rng.standard_normal((N, theta_m.size))
+    chi = rng.chisquare(df, N) / df
+    T = theta_m + (zz @ Lc.T) / np.sqrt(chi)[:, None]
+    logq = -0.5 * (df + theta_m.size) * np.log1p(np.sum(zz ** 2, axis=1) / chi / df)
+    logp = np.array([_log_post_two_binary(th, Y, G0, Kinv) for th in T])
+    lw = logp - logq
+    w = np.exp(lw - lw.max())
+    w /= w.sum()
+    assert 1.0 / np.sum(w ** 2) > 5000
+    is_mean = w @ T
+    is_var = w @ (T - is_mean) ** 2
+    u_is = is_mean[2:].reshape(n, 2)
+    sd_u = np.sqrt(is_var[2:].reshape(n, 2))
+    assert np.max(np.abs(res.ebv - u_is) / sd_u) < 0.05, np.max(np.abs(res.ebv - u_is) / sd_u)
+    np.testing.assert_allclose(res.pev, sd_u ** 2, rtol=0.06)
+
+
+def test_uncorrelated_categorical_traits_reduce_to_single_trait_threshold_models():
+    """Two ordinal traits and a continuous one, all covariances zero and fixed: each
+    categorical trait equals its single-trait threshold model (EBVs and thresholds)."""
+    from abp.solvers.blup import RandomTerm
+    from abp.solvers.threshold_gibbs import ThresholdGibbsConfig, threshold_gibbs
+    ped, rng = _ped(40, 17, 8)
+    n = ped.n
+    y1 = rng.integers(1, 4, n).astype(float)                    # three categories
+    y2 = rng.integers(1, 3, n).astype(float)                    # binary
+    yo = rng.normal(10, 2, n)
+    Y = np.column_stack([y1, yo, y2])
+    X = sp.csr_matrix(np.ones((n, 1)))
+    Z = sp.identity(n, format="csr")
+    G0 = np.diag([0.4, 2.0, 0.6])
+    R0 = np.diag([1.0, 3.0, 1.0])
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=12000, burn_in=2000, thin=2,
+                                    max_iterations=12000, seed=7, start_G0=G0, start_R0=R0,
+                                    fix_covariances=True, residual_groups=[[0, 1], [2]])
+    mt = MT.mt_threshold_gibbs(Y, [0, 2], X, np.arange(n), ped.ainv(), cfg)
+    term = [RandomTerm("animal", Z, ped.ainv(), ped.ids, True, k_diag=1 + ped.inbreeding())]
+    for j, yc, var, seed in ((0, y1, 0.4, 8), (2, y2, 0.6, 9)):
+        st = threshold_gibbs(yc, X, term, True, ThresholdGibbsConfig(
+            chains=4, iterations=12000, burn_in=2000, thin=2, max_iterations=12000,
+            seed=seed, start={"animal": var}, fix_variances=True))
+        u_st = st.terms["animal"].solution
+        sd = np.sqrt(st.terms["animal"].pev)
+        assert np.max(np.abs(mt.ebv[:, j] - u_st) / sd) < 0.1, j
+        np.testing.assert_allclose(mt.thresholds_by_trait[j], st.thresholds_mean, atol=0.03)
+    # single-categorical interface keeps working on the first categorical trait
+    np.testing.assert_allclose(mt.thresholds_mean, mt.thresholds_by_trait[0])
+
+
+def test_several_categorical_traits_need_separate_residual_groups():
+    ped, rng = _ped(40, 19, 8)
+    n = ped.n
+    Y = np.column_stack([rng.integers(1, 3, n).astype(float),
+                         rng.integers(1, 3, n).astype(float), rng.normal(0, 1, n)])
+    X = sp.csr_matrix(np.ones((n, 1)))
+    cfg = MT.MTThresholdGibbsConfig(chains=2, iterations=20, burn_in=5, thin=1,
+                                    max_iterations=20, seed=1)
+    for groups in (None, [[0, 1], [2]]):
+        with pytest.raises(ABPError) as e:
+            MT.mt_threshold_gibbs(Y, [0, 1], X, np.arange(n), ped.ainv(),
+                                  MT.MTThresholdGibbsConfig(**{**cfg.__dict__,
+                                                               "residual_groups": groups}))
+        assert "residual group" in str(e.value)
+    with pytest.raises(ABPError):
+        MT.mt_threshold_gibbs(Y, [0, 0], X, np.arange(n), ped.ainv(), cfg)
+    # allowed: a categorical trait may share its group with continuous traits
+    res = MT.mt_threshold_gibbs(Y, [0, 1], X, np.arange(n), ped.ainv(),
+                                MT.MTThresholdGibbsConfig(**{**cfg.__dict__,
+                                                             "residual_groups": [[0, 2], [1]]}))
+    assert "tau0_2" not in res.traces and res.R0["mean"][0][1] == 0.0

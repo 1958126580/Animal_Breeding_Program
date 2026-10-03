@@ -135,6 +135,8 @@ class MTThresholdGibbsResult:
     maternal_ebv: np.ndarray | None = None   # q x t maternal genetic effects (dam_col only)
     maternal_pev: np.ndarray | None = None   # q x t their posterior variances
     genetic_blocks: np.ndarray | None = None  # q x 2t x 2t direct+maternal (dam_col only)
+    thresholds_by_trait: dict = field(default_factory=dict)   # trait -> tau_1..tau_{K-1}
+    categories_by_trait: dict = field(default_factory=dict)   # trait -> category codes
 
 
 def _check_pd(S: np.ndarray, what: str) -> np.ndarray:
@@ -154,7 +156,7 @@ def split_design(X, Y: np.ndarray) -> list:
 class MTProblem:
     """Data and fixed structure shared by the chains."""
 
-    def __init__(self, Y: np.ndarray, cat: int | None, X_per_trait: list,
+    def __init__(self, Y: np.ndarray, cat, X_per_trait: list,
                  animal_col: np.ndarray, k_inv, pe_col: np.ndarray | None = None,
                  dam_col: np.ndarray | None = None):
         Y = np.asarray(Y, dtype=np.float64)
@@ -166,28 +168,39 @@ class MTProblem:
         if self.r < 2:
             raise ABPError("SPEC_INVALID", "the multi-trait sampler needs >= 2 traits "
                                            "(or one trait with a maternal genetic effect)")
-        if cat is not None and not 0 <= cat < t:
-            raise ABPError("SPEC_INVALID", "categorical trait index out of range")
-        self.c = cat
+        # categorical traits: None, one index, or a list (round 14: several, each in its own
+        # residual group - checked by the driver)
+        cs = [] if cat is None else ([int(cat)] if np.ndim(cat) == 0 else
+                                     sorted(int(x) for x in cat))
+        if len(set(cs)) != len(cs) or any(not 0 <= c < t for c in cs):
+            raise ABPError("SPEC_INVALID", "categorical trait index out of range or repeated")
+        self.cs = cs
+        self.c = cs[0] if len(cs) == 1 else None      # the single categorical trait (if one)
         obs = ~np.isnan(Y)
         if np.any(~obs.any(axis=1)):
             raise ABPError("SCHEMA_TYPE", "every record needs at least one observed trait")
         self.Y, self.obs = Y, obs
-        self.yk = np.zeros(self.n, dtype=np.int64)
-        if cat is None:                     # linear multi-trait model: no thresholds
-            self.cats = np.array([])
-            self.K = 1
-            self.cat_obs = np.zeros(self.n, dtype=bool)
-        else:
-            yc = Y[obs[:, cat], cat]
+        #: per categorical trait: categories, K, category index per record, observed mask
+        self.catinfo = {}
+        for c in cs:
+            yc = Y[obs[:, c], c]
             if not np.all(yc == np.round(yc)):
-                raise ABPError("SCHEMA_TYPE", "the categorical trait needs integer category codes")
-            self.cats = np.unique(yc)
-            self.K = self.cats.size
-            if self.K < 2:
-                raise ABPError("MODEL_NOT_IDENTIFIABLE", "all records are in one category")
-            self.cat_obs = obs[:, cat]
-            self.yk[self.cat_obs] = np.searchsorted(self.cats, Y[self.cat_obs, cat])
+                raise ABPError("SCHEMA_TYPE", f"categorical trait {c + 1} needs integer "
+                               "category codes")
+            cats = np.unique(yc)
+            if cats.size < 2:
+                raise ABPError("MODEL_NOT_IDENTIFIABLE", f"categorical trait {c + 1}: all "
+                               "records are in one category")
+            yk = np.zeros(self.n, dtype=np.int64)
+            yk[obs[:, c]] = np.searchsorted(cats, Y[obs[:, c], c])
+            self.catinfo[c] = {"cats": cats, "K": int(cats.size), "yk": yk, "obs": obs[:, c],
+                               "free": np.arange(2, int(cats.size))}
+        # single-categorical attributes (unchanged interface)
+        first = self.catinfo[cs[0]] if cs else None
+        self.cats = first["cats"] if first else np.array([])
+        self.K = first["K"] if first else 1
+        self.yk = first["yk"] if first else np.zeros(self.n, dtype=np.int64)
+        self.cat_obs = first["obs"] if first else np.zeros(self.n, dtype=bool)
         self.Xj = [sp.csr_matrix(X) for X in X_per_trait]
         if len(self.Xj) != t:
             raise ABPError("SPEC_INVALID", "one fixed design per trait is needed")
@@ -284,20 +297,19 @@ class MTProblem:
             if np.linalg.matrix_rank(Xd) < Xd.shape[1]:
                 raise ABPError("MODEL_NOT_IDENTIFIABLE", f"trait {j + 1}: the fixed-effect "
                                "design is not of full column rank on the records of this trait")
-        if self.c is None:
-            return
-        Xd = self.Xj[self.c].toarray()
-        yk = self.yk[self.cat_obs]
-        for k in range(Xd.shape[1]):
-            col = Xd[:, k]
-            if not np.all((col == 0) | (col == 1)) or np.all(col == 1):
-                continue
-            sel = col == 1
-            if sel.any() and (np.all(yk[sel] == 0) or np.all(yk[sel] == self.K - 1)):
-                raise ABPError("MODEL_NOT_IDENTIFIABLE",
-                               f"categorical trait, fixed-effect column {k}: all "
-                               f"{int(sel.sum())} records are in one extreme category (its "
-                               "effect is not finite under a flat prior); merge the level")
+        for c, ci in self.catinfo.items():
+            Xd = self.Xj[c].toarray()
+            yk = ci["yk"][ci["obs"]]
+            for k in range(Xd.shape[1]):
+                col = Xd[:, k]
+                if not np.all((col == 0) | (col == 1)) or np.all(col == 1):
+                    continue
+                sel = col == 1
+                if sel.any() and (np.all(yk[sel] == 0) or np.all(yk[sel] == ci["K"] - 1)):
+                    raise ABPError("MODEL_NOT_IDENTIFIABLE",
+                                   f"categorical trait {c + 1}, fixed-effect column {k}: all "
+                                   f"{int(sel.sum())} records are in one extreme category (its "
+                                   "effect is not finite under a flat prior); merge the level")
 
     def _build_maps(self):
         """Fixed symmetric pattern of ``C`` and the linear maps from the values of
@@ -442,7 +454,7 @@ def draw_location(P: MTProblem, fac, y: np.ndarray, R0: np.ndarray, G0: np.ndarr
     return fac.solve(rhs)
 
 
-def draw_R0(E: np.ndarray, c: int | None, rng, groups: list | None = None,
+def draw_R0(E: np.ndarray, c, rng, groups: list | None = None,
             nu: float | None = None, R_prior: np.ndarray | None = None) -> np.ndarray:
     """Exact draw of ``R0 | residuals`` (``E``: ``n x t``, complete).  ``groups``: a
     partition of the traits into residual blocks (covariances between blocks are 0;
@@ -455,12 +467,16 @@ def draw_R0(E: np.ndarray, c: int | None, rng, groups: list | None = None,
     n, t = E.shape
     if groups is None:
         groups = [list(range(t))]
+    cset = set() if c is None else ({int(c)} if np.ndim(c) == 0 else {int(x) for x in c})
     R0 = np.zeros((t, t))
     for B in groups:
         B = list(B)
         EB = E[:, B]
-        if c is not None and c in B:
-            R0[np.ix_(B, B)] = _draw_R0_categorical(EB, B.index(c), rng)
+        inb = [x for x in B if x in cset]
+        if len(inb) > 1:
+            raise ABPError("SPEC_INVALID", "at most one categorical trait per residual group")
+        if inb:
+            R0[np.ix_(B, B)] = _draw_R0_categorical(EB, B.index(inb[0]), rng)
         else:
             S = EB.T @ EB
             nb = -(len(B) + 1.0) if R_prior is None else float(nu)
@@ -515,7 +531,10 @@ class _Chain:
         t = P.t
         self.theta = np.zeros(P.n_eq)
         self.theta[:P.P] = beta0
-        self.tau = np.concatenate([[-np.inf], P.tau0, [np.inf]])
+        self.taus = {c: np.concatenate([[-np.inf], P.tau0s[c], [np.inf]]) for c in P.cs}
+        self.sds = {c: 0.1 for c in P.cs}
+        self.n_props = {c: 0 for c in P.cs}
+        self.n_accs = {c: 0 for c in P.cs}
         # the factor is built on the full pattern (a surrogate without exact zeros);
         # the actual C (zeros while R0, G0 are diagonal) is then refactorised on it
         surrogate = sp.csr_matrix((P.surrogate_values, P.cpat.indices, P.cpat.indptr),
@@ -524,10 +543,9 @@ class _Chain:
         if self.fac.C.nnz != P.cpat.nnz:
             raise ABPError("FACTORIZATION_FAILED", "internal: pattern of C changed")
         self._refactor()
-        self.sd = 0.1
         self.n_prop = self.n_acc = 0
         yo = P.Y[P.rec_idx, P.trait_idx]
-        self.y = yo.copy() if P.c is None else np.where(P.trait_idx == P.c, 0.0, yo)
+        self.y = np.where(np.isin(P.trait_idx, P.cs), 0.0, yo)
         self.e_full = np.zeros((P.n, t))
         self._draw_categorical(tuning=False, it=1, mh=False)
 
@@ -537,11 +555,16 @@ class _Chain:
             self.Rinv, np.linalg.inv(self.G0),
             None if self.P0 is None else np.linalg.inv(self.P0)))
 
+    @property
+    def tau(self):
+        """Thresholds of the (first) categorical trait (single-categorical interface)."""
+        return self.taus[self.P.cs[0]]
+
     # -- step 1: thresholds (Cowles) and categorical liabilities -----------------
-    def _cond_cat(self, eta):
-        """Mean and SD of ``l_rc`` given the record's observed continuous traits
-        (records where the categorical trait is observed; other entries unused)."""
-        P, c, R0 = self.P, self.P.c, self.R0
+    def _cond_cat(self, eta, c):
+        """Mean and SD of ``l_rc`` given the record's other observed traits (records
+        where categorical trait ``c`` is observed; other entries unused)."""
+        P, R0 = self.P, self.R0
         m = np.zeros(P.n)
         s = np.ones(P.n)
         for key, recs in P.patterns.items():
@@ -557,24 +580,30 @@ class _Chain:
         return m, s
 
     def _draw_categorical(self, tuning: bool, it: int, mh: bool = True):
+        """Step 1 for every categorical trait in turn, each given the current liabilities
+        of the others (a Gibbs sweep over the categorical traits)."""
+        for c in self.P.cs:
+            self._draw_categorical_trait(c, tuning, it, mh)
+
+    def _draw_categorical_trait(self, c: int, tuning: bool, it: int, mh: bool):
         P = self.P
-        if P.c is None:
-            return
+        ci = P.catinfo[c]
         eta = P.W @ self.theta
-        m, s = self._cond_cat(eta)
-        ob = P.cat_obs
-        mo, so, yk = m[ob], s[ob], P.yk[ob]
-        if mh and P.free.size:
-            old = self.tau
+        m, s = self._cond_cat(eta, c)
+        ob = ci["obs"]
+        mo, so, yk = m[ob], s[ob], ci["yk"][ob]
+        free = ci["free"]
+        if mh and free.size:
+            old = self.taus[c]
             new = old.copy()
-            sd = self.sd
-            for j in P.free:
+            sd = self.sds[c]
+            for j in free:
                 lo, hi = new[j - 1], old[j + 1]
                 a, b = (lo - old[j]) / sd, (hi - old[j]) / sd
                 pa, pb = ndtr(a), ndtr(b)
                 new[j] = old[j] + sd * ndtri(pa + self.rng.random() * (pb - pa))
             log_q = 0.0
-            for j in P.free:
+            for j in free:
                 log_q += math.log(max(ndtr((old[j + 1] - old[j]) / sd)
                                       - ndtr((new[j - 1] - old[j]) / sd), 1e-300))
                 log_q -= math.log(max(ndtr((new[j + 1] - new[j]) / sd)
@@ -583,16 +612,19 @@ class _Chain:
             lp_old, _ = _log_p((old[yk] - mo) / so, (old[yk + 1] - mo) / so)
             log_r = float(lp_new.sum() - lp_old.sum()) + log_q
             self.n_prop += 1
+            self.n_props[c] += 1
             if math.log(max(self.rng.random(), 1e-300)) < log_r:
-                self.tau = new
+                self.taus[c] = new
                 self.n_acc += 1
-            if tuning and it % 50 == 0 and self.n_prop:
-                rate = self.n_acc / self.n_prop
-                self.sd *= 0.7 if rate < 0.2 else (1.4 if rate > 0.5 else 1.0)
-                self.n_prop = self.n_acc = 0
-        z = rtruncnorm(self.rng, np.zeros(mo.size), (self.tau[yk] - mo) / so,
-                       (self.tau[yk + 1] - mo) / so)
-        self.y[P.pos[ob, P.c]] = mo + so * z
+                self.n_accs[c] += 1
+            if tuning and it % 50 == 0 and self.n_props[c]:
+                rate = self.n_accs[c] / self.n_props[c]
+                self.sds[c] *= 0.7 if rate < 0.2 else (1.4 if rate > 0.5 else 1.0)
+                self.n_props[c] = self.n_accs[c] = 0
+        tau = self.taus[c]
+        z = rtruncnorm(self.rng, np.zeros(mo.size), (tau[yk] - mo) / so,
+                       (tau[yk + 1] - mo) / so)
+        self.y[P.pos[ob, c]] = mo + so * z
 
     # -- step 2b: scale moves (parameter expansion) -------------------------------
     def _scale_move(self, j: int, term: str = "u"):
@@ -708,7 +740,7 @@ class _Chain:
         if P.m:
             self.P0 = draw_G0(P.pe(self.theta), sp.identity(P.m, format="csr"), self.rng,
                               P.nu_pe, P.p_prior)
-        self.R0 = draw_R0(self.e_full, P.c, self.rng, P.groups, P.nu_r, P.r_prior)
+        self.R0 = draw_R0(self.e_full, P.cs, self.rng, P.groups, P.nu_r, P.r_prior)
         self._refactor()
 
 
@@ -739,7 +771,8 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
     Y = np.asarray(Y, dtype=np.float64)
     Xs = list(X) if isinstance(X, (list, tuple)) else split_design(X, Y)
     P = MTProblem(Y, cat, Xs, animal_col, k_inv, pe_col, dam_col)
-    t, c, r = P.t, P.c, P.r
+    t, r, cs = P.t, P.r, P.cs
+    iscat = np.isin(np.arange(t), cs)
     P.nu = -(r + 1.0) if cfg.prior_nu is None else float(cfg.prior_nu)
     P.g_prior = None
     P.psi = None
@@ -765,21 +798,21 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
     elif cfg.prior_nu_pe is not None:
         raise ABPError("SPEC_INVALID", "prior_nu_pe needs prior_P0")
     P.nu_r, P.r_prior = None, None
-    vy = np.array([np.nanvar(Y[:, j]) if j != c else 1.0 for j in range(t)])
+    vy = np.array([np.nanvar(Y[:, j]) if not iscat[j] else 1.0 for j in range(t)])
     G0s = _check_pd(cfg.start_G0, "start G0") if cfg.start_G0 is not None else \
-        np.diag(np.concatenate([np.where(np.arange(t) == c, 0.2, 0.3 * vy)]
-                               + ([np.where(np.arange(t) == c, 0.1, 0.1 * vy)]
+        np.diag(np.concatenate([np.where(iscat, 0.2, 0.3 * vy)]
+                               + ([np.where(iscat, 0.1, 0.1 * vy)]
                                   if P.maternal else [])))
     if G0s.shape != (r, r):
         raise ABPError("SPEC_INVALID", f"start G0 must be {r} x {r}")
     R0s = _check_pd(cfg.start_R0, "start R0") if cfg.start_R0 is not None else \
-        np.diag(np.where(np.arange(t) == c, 1.0, 0.7 * vy))
-    if c is not None and abs(R0s[c, c] - 1.0) > 1e-12:
-        raise ABPError("SPEC_INVALID", "the residual variance of the categorical trait must be 1")
+        np.diag(np.where(iscat, 1.0, 0.7 * vy))
+    if any(abs(R0s[c, c] - 1.0) > 1e-12 for c in cs):
+        raise ABPError("SPEC_INVALID", "the residual variance of a categorical trait must be 1")
     P0s = None
     if P.m:
         P0s = _check_pd(cfg.start_P0, "start P0") if cfg.start_P0 is not None else \
-            np.diag(np.where(np.arange(t) == c, 0.1, 0.1 * vy))
+            np.diag(np.where(iscat, 0.1, 0.1 * vy))
     P.groups = None
     if cfg.residual_groups is not None:
         flat = sorted(int(j) for g in cfg.residual_groups for j in g)
@@ -791,6 +824,14 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
             label[g] = k
         if np.any((label[:, None] != label[None, :]) & (R0s != 0)):
             raise ABPError("SPEC_INVALID", "start R0 must be 0 between residual groups")
+    if len(cs) > 1:
+        # several categorical traits: each in a residual group of its own (no residual
+        # covariance between two liabilities; the Korsgaard step handles one per block)
+        blocks = P.groups or [list(range(t))]
+        if any(sum(1 for x in B if x in cs) > 1 for B in blocks):
+            raise ABPError("SPEC_INVALID", "with several categorical traits put each in a "
+                           "different residual group (residual_groups); residual covariances "
+                           "between two categorical traits are not estimated in this version")
     if cfg.prior_R0 is not None:
         if cfg.prior_nu_r is None:
             raise ABPError("SPEC_INVALID", "prior_R0 needs prior_nu_r")
@@ -799,24 +840,26 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
             raise ABPError("SPEC_INVALID", f"prior R0 must be {t} x {t}")
         blocks = P.groups or [list(range(t))]
         for B in blocks:
-            if c is not None and c in B and len(B) > 1:
+            if any(c in B for c in cs) and len(B) > 1:
                 raise ABPError("SPEC_INVALID", "an R0 prior applies to blocks of continuous "
                                "traits; put the categorical trait in its own residual group")
-            if (c is None or c not in B) and not cfg.prior_nu_r > len(B) - 1:
+            if not any(c in B for c in cs) and not cfg.prior_nu_r > len(B) - 1:
                 raise ABPError("SPEC_INVALID", f"a proper R0 prior needs nu > {len(B) - 1}")
         P.nu_r = float(cfg.prior_nu_r)
     elif cfg.prior_nu_r is not None:
         raise ABPError("SPEC_INVALID", "prior_nu_r needs prior_R0")
     # starting thresholds from the category proportions, tau_1 = 0 (intercept absorbs it)
-    raw = np.zeros(1)
-    if c is not None:
-        cum = np.cumsum(np.bincount(P.yk[P.cat_obs], minlength=P.K))[:-1] / P.cat_obs.sum()
-        raw = ndtri(np.clip(cum, 1e-6, 1 - 1e-6))
-    P.tau0 = raw - raw[0] if c is not None else np.zeros(0)
+    raws = {}
+    for c, ci in P.catinfo.items():
+        cum = np.cumsum(np.bincount(ci["yk"][ci["obs"]], minlength=ci["K"]))[:-1] \
+            / ci["obs"].sum()
+        raws[c] = ndtri(np.clip(cum, 1e-6, 1 - 1e-6))
+    P.tau0s = {c: raws[c] - raws[c][0] for c in cs}
+    P.tau0 = P.tau0s[cs[0]] if cs else np.zeros(0)
     beta0 = np.zeros(P.P)
     for j in range(t):
         rows = P.obs[:, j]
-        yj = Y[rows, j] if j != c else np.full(int(rows.sum()), -raw[0])
+        yj = Y[rows, j] if not iscat[j] else np.full(int(rows.sum()), -raws[j][0])
         beta0[P.p_off[j]:P.p_off[j + 1]] = lsqr(P.Xj[j], yj, atol=1e-10, btol=1e-10)[0]
     ss = np.random.SeedSequence(cfg.seed)
     child = ss.spawn(cfg.chains)
@@ -832,21 +875,26 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
             P0 = None if P0s is None else P0s * np.outer(f[:t], f[:t])
         chains.append(_Chain(P, cfg, rng, G0, R0, beta0, P0))
     tri = [(i, j) for i in range(t) for j in range(i, t)]
+    # free thresholds: tau_<k> with one categorical trait (unchanged names), tau<c>_<k>
+    # (trait c, 0-based) with several
+    tau_key = {(c, k): (f"tau_{k}" if len(cs) == 1 else f"tau{c}_{k}")
+               for c in cs for k in P.catinfo[c]["free"]}
+    tau_names = list(tau_key.values())
     trg = [(i, j) for i in range(r) for j in range(i, r)]
     scal = [f"G0_{i}_{j}" for i, j in trg] + \
-        [f"R0_{i}_{j}" for i, j in tri if not (i == c and j == c)] + \
+        [f"R0_{i}_{j}" for i, j in tri if not (i == j and iscat[i])] + \
         ([f"P0_{i}_{j}" for i, j in tri] if P.m else []) + \
         [f"rG_{i}_{j}" for i, j in trg if i < j] + [f"h2_{j}" for j in range(t)] + \
         ([f"c2_{j}" for j in range(t)] if P.m else []) + \
         ([f"m2_{j}" for j in range(t)] if P.maternal else []) + \
-        [f"tau_{j}" for j in P.free]
+        tau_names
     store = {k: [[] for _ in chains] for k in scal}
     Gs, Rs, Ps = [], [], []
     keep_ebv = P.q * r * (cfg.max_iterations // cfg.thin) * cfg.chains <= EBV_STORE_LIMIT
     ebv_draws = [[] for _ in chains]
     s_theta = np.zeros(P.n_eq)
     q_theta = np.zeros(P.n_eq)
-    s_tau = np.zeros(P.K - 1)
+    s_tau = {c: np.zeros(P.catinfo[c]["K"] - 1) for c in cs}
     s_uu = np.zeros((P.q, r, r))
     n_saved = 0
     it = 0
@@ -875,7 +923,7 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
                         vals.update({f"m2_{j}": G[t + j, t + j] / tot[j] for j in range(t)})
                     vals.update({f"h2_{j}": G[j, j] / tot[j] for j in range(t)})
                     vals.update({f"c2_{j}": Pm[j, j] / tot[j] for j in range(t)})
-                    vals.update({f"tau_{j}": chn.tau[j] for j in P.free})
+                    vals.update({nm: chn.taus[c][k] for (c, k), nm in tau_key.items()})
                     for key in scal:
                         store[key][k].append(float(vals[key]))
                     Gs.append(G.copy())
@@ -888,7 +936,8 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
                     s_theta += chn.theta
                     q_theta += chn.theta * chn.theta
                     s_uu += Ud[:, :, None] * Ud[:, None, :]
-                    s_tau += chn.tau[1:P.K]
+                    for c in cs:
+                        s_tau[c] += chn.taus[c][1:P.catinfo[c]["K"]]
                     if k == 0:
                         n_saved += 1
         summaries = {key: dg.summarize(np.array(store[key])) for key in scal
@@ -926,7 +975,8 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
     acc_n = sum(ch.n_acc for ch in chains)
     return MTThresholdGibbsResult(
         Um[:, :t].copy(), Uv[:, :t].copy(), pev_blocks,
-        [mean[P.p_off[j]:P.p_off[j + 1]].copy() for j in range(t)], s_tau / total, P.cats,
+        [mean[P.p_off[j]:P.p_off[j + 1]].copy() for j in range(t)],
+        (s_tau[cs[0]] / total) if cs else np.zeros(0), P.cats,
         _summ(Ga), _summ(Ra), derived, summaries, ediag, bool(ok), it, n_saved,
         [int(s.generate_state(1)[0]) for s in child],
         (acc_n / acc_prop) if acc_prop else None, time.perf_counter() - t0, P.n_eq,
@@ -935,4 +985,6 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
         pe_mean=P.pe(mean).copy() if P.m else None,
         maternal_ebv=Um[:, t:].copy() if P.maternal else None,
         maternal_pev=Uv[:, t:].copy() if P.maternal else None,
-        genetic_blocks=gen_blocks if P.maternal else None)
+        genetic_blocks=gen_blocks if P.maternal else None,
+        thresholds_by_trait={c: s_tau[c] / total for c in cs},
+        categories_by_trait={c: P.catinfo[c]["cats"] for c in cs})

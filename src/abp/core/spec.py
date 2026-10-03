@@ -658,9 +658,16 @@ def validate_spec_dict(raw: dict) -> dict:
     elif d["bayes"]["method"] in ("threshold", "multitrait") and (t > 1 or maternal):
         cat_traits = {tr["name"] for tr in d["traits"] if tr["type"] == "categorical"}
         n_cat = sum(1 for x in m["traits"] if x in cat_traits)
-        if d["bayes"]["method"] == "threshold" and n_cat != 1:
-            raise _err("bayes.method", "the multi-trait threshold model needs exactly one "
-                                       "categorical trait (the others continuous)")
+        if d["bayes"]["method"] == "threshold" and n_cat < 1:
+            raise _err("bayes.method", "the multi-trait threshold model needs at least one "
+                                       "categorical trait")
+        if d["bayes"]["method"] == "threshold" and n_cat > 1:
+            rg0 = d["bayes"]["residual_groups"]
+            cats_m = [x for x in m["traits"] if x in cat_traits]
+            if rg0 is None or len({rg0.get(x) for x in cats_m}) != n_cat:
+                raise _err("bayes.residual_groups", "with several categorical traits put each "
+                           "in a different residual group (their residual covariances are "
+                           "not estimated in this version)")
         if d["bayes"]["method"] == "multitrait" and n_cat != 0:
             raise _err("bayes.method", "'multitrait' is for continuous traits; a categorical "
                                        "trait needs method = 'threshold'")
@@ -704,11 +711,11 @@ def validate_spec_dict(raw: dict) -> dict:
             if not bz["nu"] > rdim - 1:
                 raise _err("bayes.nu", f"an inverse Wishart prior needs nu > {rdim - 1}")
             if "residual" in pc and n_cat:
-                cat = next(x for x in m["traits"] if x in cat_traits)
-                if rg is None or sum(1 for x in rg.values() if x == rg[cat]) > 1:
-                    raise _err("bayes.prior_covariance.residual", "with a categorical trait "
-                               "the R0 prior needs that trait alone in its residual group "
-                               "(bayes.residual_groups)")
+                for cat in (x for x in m["traits"] if x in cat_traits):
+                    if rg is None or sum(1 for x in rg.values() if x == rg[cat]) > 1:
+                        raise _err("bayes.prior_covariance.residual", "with categorical "
+                                   "traits the R0 prior needs each of them alone in its "
+                                   "residual group (bayes.residual_groups)")
         elif bz["variance_prior"] != "uniform":
             raise _err("bayes.variance_prior", "the Bayesian multi-trait models use 'uniform' "
                                                "or 'inverse_wishart'")

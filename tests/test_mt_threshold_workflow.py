@@ -241,7 +241,9 @@ def test_spec_rules_for_the_multitrait_threshold_model():
 
 @pytest.mark.parametrize("name", ["15_sheep_wwt_nlb1_threshold", "16_sheep_multitrait_bayes",
                                   "17_sheep_ewe_repeated_bayes", "18_sheep_wwt_maternal_bayes",
-                                  "18_sheep_wwt_maternal_bayes/analysis_equal_prior.toml"])
+                                  "18_sheep_wwt_maternal_bayes/analysis_equal_prior.toml",
+                                  "18_sheep_wwt_maternal_bayes/analysis_reml.toml",
+                                  "19_sheep_two_categorical"])
 def test_examples_15_16_spec_and_data_validate(name):
     """Examples 15-18 (and the weak-prior variant of example 18) pass spec and data
     validation (the full runs take minutes and are part of the examples log)."""
@@ -513,3 +515,39 @@ def test_spec_rules_for_maternal_effects():
         b = {k: v for k, v in b.items() if v is not None}
         with pytest.raises(ABPError):
             validate_spec_dict(b)
+
+
+def test_spec_rules_for_several_categorical_traits():
+    """Round 14: several categorical traits in bayes.method = 'threshold', each in a
+    different residual group; an R0 prior needs every categorical trait alone."""
+    base = {
+        "schema_version": "1",
+        "project": {"name": "x", "species": "sheep", "synthetic_data": True},
+        "analysis": {"task": "additive_ebv", "target_population": "t",
+                     "information_cutoff": "2025-12-31", "genetic_base": "b"},
+        "data": {"pedigree": "p.csv", "phenotypes": "y.csv"},
+        "traits": [{"name": "w", "unit": "kg"},
+                   {"name": "v", "unit": "s", "type": "categorical"},
+                   {"name": "s", "unit": "c", "type": "categorical"}],
+        "model": {"traits": ["w", "v", "s"],
+                  "random": [{"name": "animal", "kind": "additive",
+                              "relationship": "pedigree"}]},
+        "variances": {"mode": "bayes"},
+        "bayes": {"method": "threshold", "residual_groups": {"w": 1, "v": 2, "s": 3}},
+    }
+    assert validate_spec_dict(base)
+    assert validate_spec_dict(dict(base, bayes={"method": "threshold",
+                                                "residual_groups": {"w": 1, "v": 1, "s": 2}}))
+    G3 = [[1.0, 0.0, 0.0], [0.0, 0.2, 0.0], [0.0, 0.0, 0.2]]
+    bad = [
+        dict(base, bayes={"method": "threshold"}),                         # no groups
+        dict(base, bayes={"method": "threshold",                           # same group
+                          "residual_groups": {"w": 1, "v": 2, "s": 2}}),
+        dict(base, bayes={"method": "threshold", "residual_groups": {"w": 1, "v": 1, "s": 2},
+                          "variance_prior": "inverse_wishart", "nu": 5.0,
+                          "prior_covariance": {"animal": G3, "residual": G3}}),
+    ]
+    for b in bad:
+        with pytest.raises(ABPError):
+            validate_spec_dict(b)
+
