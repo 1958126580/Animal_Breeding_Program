@@ -75,38 +75,67 @@
     }
   },
   "cross_validation": {
-    "bw": {
-      "gblup": {
-        "correlation": 0.4302583041590648,
-        "correlation_se": 0.019751163733309433,
-        "regression_slope": 1.0820198655659998
+    "random": {
+      "bw": {
+        "gblup": {
+          "correlation": 0.4302583041590648,
+          "correlation_se": 0.019751163733309433,
+          "regression_slope": 1.0820198655659998
+        },
+        "pblup": {
+          "correlation": 0.43640274041782356,
+          "correlation_se": 0.01925988648071973,
+          "regression_slope": 1.1158388050176247
+        },
+        "gblup_minus_pblup": {
+          "correlation": -0.0061444362587587675,
+          "se": 0.017176263052247565
+        }
       },
-      "pblup": {
-        "correlation": 0.43640274041782356,
-        "correlation_se": 0.01925988648071973,
-        "regression_slope": 1.1158388050176247
-      },
-      "gblup_minus_pblup": {
-        "correlation": -0.0061444362587587675,
-        "se": 0.017176263052247565
+      "body_length": {
+        "gblup": {
+          "correlation": 0.27124680389611694,
+          "correlation_se": 0.021878362798184208,
+          "regression_slope": 1.2192748908215238
+        },
+        "pblup": {
+          "correlation": 0.31140860150336647,
+          "correlation_se": 0.02110030290637789,
+          "regression_slope": 1.1689150447692955
+        },
+        "gblup_minus_pblup": {
+          "correlation": -0.04016179760724953,
+          "se": 0.020490695497901747
+        }
       }
     },
-    "body_length": {
-      "gblup": {
-        "correlation": 0.27124680389611694,
-        "correlation_se": 0.021878362798184208,
-        "regression_slope": 1.2192748908215238
+    "across_family": {
+      "bw": {
+        "gblup": {
+          "correlation": 0.2746095280354331,
+          "correlation_se": 0.022150082491917293,
+          "regression_slope": 0.6575468206521824
+        },
+        "pblup": {
+          "correlation": null,
+          "sd_ebv": 0.0,
+          "note": "EBVs of hidden mice are constant: no relationship with the training mice in this matrix"
+        }
       },
-      "pblup": {
-        "correlation": 0.31140860150336647,
-        "correlation_se": 0.02110030290637789,
-        "regression_slope": 1.1689150447692955
-      },
-      "gblup_minus_pblup": {
-        "correlation": -0.04016179760724953,
-        "se": 0.020490695497901747
+      "body_length": {
+        "gblup": {
+          "correlation": 0.1086823266905874,
+          "correlation_se": 0.023809532334648952,
+          "regression_slope": 0.5181521748325759
+        },
+        "pblup": {
+          "correlation": null,
+          "sd_ebv": 0.0,
+          "note": "EBVs of hidden mice are constant: no relationship with the training mice in this matrix"
+        }
       }
     }
   },
-  "wall_seconds": 190.42304873466492
+  "n_families": 169,
+  "wall_seconds": 327.2614870071411
 }
