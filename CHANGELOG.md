@@ -4,6 +4,38 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.15.0] - 2026-10-03
+
+Fifteenth development round: first validation on real data (gate G5). Evidence and gaps:
+`docs/validation_report.md` §7.19.
+
+### Added
+- Example 20 (real data, downloaded on demand): Holstein lactations and pedigree of the R
+  package pedigreemm 0.3-5 (USDA AIPL; GPL ≥ 2, not stored in the repository).
+  `fetch_data.py` checks SHA-256, converts the data and fills in the missing pedigree sire
+  of 607 cows from their records' sire codes (a unique code-to-sire map, checked).
+  Analyses: somatic cell score repeatability model; three-trait first-lactation yields.
+- Example 21 (real data, downloaded on demand): heterogeneous-stock mice of the R package
+  BGLR 1.1.4 (1,814 mice, 10,346 SNPs; GPL-3, not stored); GBLUP for body weight with cage
+  as an independent random effect.
+- `benchmarks/real_milk_validation.py`: ABP REML against an independent dense V-form REML
+  (tabular A, Nelder–Mead) for three models; 5-fold cross-validation over cows for milk,
+  fat and protein.
+- `benchmarks/real_mice_validation.py`: GBLUP vs pedigree BLUP vs no additive effect
+  (REML, logL) and 5-fold cross-validation for body weight and body length.
+- Tests: the real-data example specs validate without data; end-to-end runs when the data
+  are fetched (skipped otherwise); score at zero equal to the V-form derivative (dense and
+  sparse `K⁻¹`).
+- Methods §35, manual §7.17, validation report §7.19, licence inventory rows.
+
+### Changed
+- **Speed (results unchanged):** single-trait REML uses sparse selected-inversion traces
+  above 2,000 equations when every structure matrix is sparse (`SPARSE_REML_ABOVE`;
+  dense structures keep the 12,000 limit). The Kuhn–Tucker score at zero uses only the
+  record columns of the dropped term and no dense inverse. Kackar–Harville uses the
+  sparse direct solver above 2,000 equations. Example 20 (SCS): 196 s → 27 s, logL
+  identical.
+
 ## [0.14.0] - 2026-10-03
 
 Fourteenth development round. Evidence and gaps: `docs/validation_report.md`.

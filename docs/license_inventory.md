@@ -56,3 +56,11 @@ rights.
 BLUPF90, MiXBLUP, ASReml, DMU, JWAS, BGLR, AlphaSimR and AlphaMate were
 **not** run, redistributed or linked. Any future comparison must first check
 each product's license terms.
+
+## Real data used for validation (round 15)
+
+| Data | Source | Licence | In repository? |
+|---|---|---|---|
+| `milk`, `pedCowsR` (Holstein lactations and pedigree; USDA AIPL) | R package pedigreemm 0.3-5 via the GitHub mirror of CRAN | GPL (>= 2) (package) | **No** — downloaded on demand by `examples/20_holstein_milk_real/fetch_data.py` (SHA-256 checked); only aggregate results are committed |
+| `rdata` (reader for `.rda` files) | PyPI | MIT | No — optional, used by the fetch script only |
+| `mice` (heterogeneous-stock mice: 1,814 animals, 10,346 SNPs, phenotypes, pedigree relationship matrix) | R package BGLR 1.1.4 via the GitHub mirror of CRAN; experiment of Valdar et al. (2006) | GPL-3 (package) | **No** — downloaded on demand by `examples/21_mice_bodyweight_real/fetch_data.py` (SHA-256 checked); only aggregate results are committed |

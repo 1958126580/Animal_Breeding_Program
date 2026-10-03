@@ -95,6 +95,12 @@ abp run examples/18_sheep_wwt_maternal_bayes/analysis.toml --out runs/ex18
 abp run examples/18_sheep_wwt_maternal_bayes/analysis_reml.toml --out runs/ex18_reml
 # weaning weight, vigour score and survival: two categorical traits (about 15 minutes)
 abp run examples/19_sheep_two_categorical/analysis.toml --out runs/ex19
+# REAL public data (downloaded on demand, not stored here; needs `pip install rdata`):
+# Holstein cows (pedigreemm) and genotyped mice (BGLR); manual section 7.17
+python examples/20_holstein_milk_real/fetch_data.py
+abp run examples/20_holstein_milk_real/analysis_scs_repeatability.toml --out runs/ex20
+python examples/21_mice_bodyweight_real/fetch_data.py
+abp run examples/21_mice_bodyweight_real/analysis_bw_gblup.toml --out runs/ex21
 abp run examples/10_sheep_fec_bayesc/analysis.toml --out runs/ex10
 abp mate examples/09_sheep_mating/mating.toml --out runs/mating
 ```

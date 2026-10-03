@@ -69,6 +69,20 @@ from .mme import DenseCholesky, dense_bytes, make_sparse_factor
 
 BOUNDARY_REL = 1e-6
 DENSE_REML_MAX = 12000   #: largest system for the dense REML path (same rule as BLUP 'auto')
+SPARSE_REML_ABOVE = 2000  #: with sparse K^-1 (pedigree, iid) selected inversion above this size
+#: (round 15: 3,397 real records, 7,967 equations - dense 143 s, sparse 2.3 s for the REML
+#: iterations; dense K^-1 (genomic) keeps the dense path up to DENSE_REML_MAX)
+
+
+def sparse_structures(terms) -> bool:
+    """True when every random term's ``K^-1`` is a sparse matrix (pedigree ``A^-1``, iid
+    ``I``): the coefficient matrix is then sparse and selected inversion beats the dense
+    inverse well below ``DENSE_REML_MAX`` equations."""
+    for t in terms:
+        k = t.k_inv
+        if not sp.issparse(k) or k.nnz > 0.05 * float(k.shape[0]) ** 2:
+            return False
+    return True
 
 
 @dataclass
@@ -131,7 +145,9 @@ class REMLEvaluator:
         n_eq = self.rx + sum(t.q for t in self.terms)
         need = dense_bytes(n_eq, True)
         self.budget = memory_budget_bytes
-        self.trace_method = ("dense_inverse" if n_eq <= DENSE_REML_MAX and need <= memory_budget_bytes
+        limit = min(DENSE_REML_MAX, SPARSE_REML_ABOVE) if sparse_structures(self.terms) \
+            else DENSE_REML_MAX
+        self.trace_method = ("dense_inverse" if n_eq <= limit and need <= memory_budget_bytes
                              else "sparse_selected_inversion")
         if self.n - self.rx <= 0:
             raise ABPError("MODEL_NOT_IDENTIFIABLE",
@@ -297,22 +313,50 @@ def _optimize(ev: REMLEvaluator, theta0: np.ndarray, cfg: dict, history: list,
 
 
 def _score_at_zero(y, X, terms: Sequence[RandomTerm], active_vc: dict[str, float],
-                   zero_term: RandomTerm) -> float:
+                   zero_term: RandomTerm, memory_budget_bytes: int = 4 * 2**30) -> float:
     """dlogL/dtheta_k at theta_k = 0 (term absent from V), from the sub-model:
-    1/2 [ (Z'Py)' K (Z'Py) - tr(Z'PZ K) ]."""
+    1/2 [ (Z'Py)' K (Z'Py) - tr(Z'PZ K) ].  Only the columns ``J`` of ``Z`` that carry
+    records matter (``Z K Z' = Z_J K_JJ Z_J'``); ``K_JJ`` comes from solves with ``K^-1``
+    (sparse factor when ``K^-1`` is sparse) instead of a dense inverse of ``K^-1``, and the
+    sub-model's equations are factorized sparsely above ``SPARSE_REML_ABOVE`` (round 15)."""
     system = build_system(y, X, terms, active_vc)
-    fac = DenseCholesky(system.C.toarray())
+    n_eq = system.C.shape[0]
+    if n_eq <= SPARSE_REML_ABOVE or not sparse_structures(terms):
+        fac = DenseCholesky(system.C.toarray())
+    else:
+        fac = make_sparse_factor(system.C, memory_budget_bytes)
     s = fac.solve(system.rhs)
     th0 = active_vc["residual"]
     Py = (y - system.W @ s) / th0
-    Z = zero_term.Z
-    zpy = Z.T @ Py
+    Z = sp.csc_matrix(zero_term.Z)
+    J = np.flatnonzero(np.diff(Z.indptr))
+    ZJ = Z[:, J]
     Kinv = zero_term.k_inv
-    Kd = Kinv.toarray() if sp.issparse(Kinv) else np.asarray(Kinv)
-    K = np.linalg.inv(Kd)
-    M = (system.W.T @ Z).toarray() / th0
-    ZPZ = (Z.T @ Z).toarray() / th0 - M.T @ fac.solve(M)
-    return 0.5 * (float(zpy @ K @ zpy) - float(np.sum(ZPZ * K)))
+    if sp.issparse(Kinv):
+        Kc = sp.csr_matrix(Kinv)
+        if Kc.nnz == Kc.shape[0] and np.all(Kc.indices == np.arange(Kc.shape[0])) \
+                and np.array_equal(Kc.indptr, np.arange(Kc.shape[0] + 1)):
+            KJJ = np.diag(1.0 / Kc.data[J])                       # diagonal K^-1
+        else:
+            from .cholesky import SparseLDL
+            fk = SparseLDL(Kc, memory_budget_bytes)
+            KJJ = np.empty((J.size, J.size))
+            for a in range(0, J.size, 512):
+                cols = J[a:a + 512]
+                E = np.zeros((Kc.shape[0], cols.size))
+                E[cols, np.arange(cols.size)] = 1.0
+                KJJ[:, a:a + cols.size] = fk.solve(E)[J]
+            KJJ = 0.5 * (KJJ + KJJ.T)
+    else:
+        Kd = np.asarray(Kinv)
+        KJJ = np.linalg.inv(Kd)[np.ix_(J, J)]
+    zpy = ZJ.T @ Py
+    ZPZ = (ZJ.T @ ZJ).toarray() / th0
+    WtZ = sp.csc_matrix(system.W.T @ ZJ)
+    for a in range(0, J.size, 512):
+        B = WtZ[:, a:a + 512].toarray() / th0
+        ZPZ[:, a:a + B.shape[1]] -= (WtZ.T @ fac.solve(B)) / th0
+    return 0.5 * (float(zpy @ KJJ @ zpy) - float(np.sum(ZPZ * KJJ)))
 
 
 def reml_fit(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm], cfg: dict,
@@ -383,7 +427,7 @@ def reml_fit(y: np.ndarray, X: sp.csr_matrix, terms: Sequence[RandomTerm], cfg: 
         rejected = None
         for name in boundary:
             zt = next(t for t in terms if t.name == name)
-            g0 = _score_at_zero(y, X, active, vc_active, zt)
+            g0 = _score_at_zero(y, X, active, vc_active, zt, memory_budget_bytes)
             history.append({"event": f"score at zero for {name}", "score": g0})
             if g0 > 1e-6 * max(1.0, abs(point.loglik)):
                 rejected = (name, g0)

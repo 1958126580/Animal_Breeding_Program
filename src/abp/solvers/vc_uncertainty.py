@@ -33,6 +33,10 @@ def kackar_harville_delta(y, X, terms, variances: dict[str, float], cov: np.ndar
                           memory_budget_bytes: int = 4 * 2**30,
                           factorization: str = "auto") -> np.ndarray:
     """``Delta_i`` for every equation of ``genetic_term`` (see module notes)."""
+    from .reml import SPARSE_REML_ABOVE, sparse_structures
+    n_eq = X.shape[1] + sum(t.q for t in terms)
+    if method == "auto" and n_eq > SPARSE_REML_ABOVE and sparse_structures(terms):
+        method = "sparse_direct"       # solutions only: the sparse factor beats dense Cholesky
     p = len(names)
     grads = []
     for k in range(p):

@@ -1891,6 +1891,40 @@ proper priors centred on a split of the phenotypic covariance (`variance_prior =
 instead of 1.10 and 1.20 with flat priors) at a small cost for the best-determined
 trait (1.08 instead of 1.05).
 
+### 7.17 Real data: examples 20 and 21
+
+Two examples use **real public data**. They are not stored in the repository, because
+the data are distributed under the GPL with R packages and the project licence is not
+chosen yet. A script downloads them from the read-only GitHub mirror of CRAN, checks
+their SHA-256 and converts them to ABP's formats. The script needs the `rdata` reader
+(MIT licence):
+
+```bash
+pip install rdata
+python examples/20_holstein_milk_real/fetch_data.py
+python examples/21_mice_bodyweight_real/fetch_data.py
+abp run examples/20_holstein_milk_real/analysis_scs_repeatability.toml --out runs/ex20_scs
+abp run examples/20_holstein_milk_real/analysis_first_lactation_multitrait.toml --out runs/ex20_mt
+abp run examples/21_mice_bodyweight_real/analysis_bw_gblup.toml --out runs/ex21
+```
+
+* **Example 20** (R package pedigreemm 0.3-5: 3,397 lactations of 1,359 Holstein cows in
+  57 herds, pedigree of 6,547 animals; yields in pounds). It has a repeatability model
+  for somatic cell score and a three-trait model for first-lactation milk, fat and
+  protein. The script fills in the missing pedigree sire of 607 cows from the sire code
+  on their records (README). The repeatability model for the yields puts the additive
+  variance at 0, so ABP refuses to rank animals (`ABP-E300`). An independent
+  implementation reaches the same optimum.
+* **Example 21** (R package BGLR 1.1.4: 1,814 heterogeneous-stock mice, 10,346 SNPs). It
+  fits GBLUP for body weight, with cage as an independent random effect. There is no
+  pedigree to blend with, so `G + 0.01 I` (`singular_policy = "ridge"`) keeps G
+  invertible.
+
+These examples check the methods on real data structures: unbalanced herds,
+incomplete pedigrees, real marker data. They are not breeding evaluations. The
+validation report (§7.19) gives the REML results against an independent
+implementation, and the cross-validated predictive ability.
+
 ---
 
 ## 8. Solvers, memory and run time

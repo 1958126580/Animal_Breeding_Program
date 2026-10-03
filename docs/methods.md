@@ -1654,7 +1654,36 @@ Kackar–Harville `Δ` equals the one from central differences of the V-form BLU
 estimates over 12 replicates within 3 MC SE; example 18 with REML and with the REML
 estimates as known values gives identical EBVs. **Evidence**: validation report §7.17.
 
-## 35. References (additions)
+## 35. Sparse traces for single-trait REML at moderate size; score at zero
+
+Code: `abp/solvers/reml.py` (`sparse_structures`, `SPARSE_REML_ABOVE`, `_score_at_zero`),
+`abp/solvers/vc_uncertainty.py::kackar_harville_delta` (round 15). Found by profiling the
+real-data example 20 (SCS repeatability model, 6,547 pedigree animals + 1,359 pe levels +
+fixed effects ≈ 8,000 equations): the dense path inverted the full coefficient matrix in
+every REML iteration, in the Kuhn–Tucker check and in each of the six Kackar–Harville BLUP
+solves (196 s in total).
+
+* **Trace path rule.** When every random term has a sparse `K⁻¹` (pedigree `A⁻¹`, identity;
+  at most 5% non-zero), REML uses sparse selected inversion (§18) above
+  `SPARSE_REML_ABOVE = 2000` equations instead of the dense inverse (whose limit,
+  `DENSE_REML_MAX = 12000`, is unchanged for dense structures such as `G⁻¹`). Both paths
+  compute the same traces `tr(K⁻¹C^{kk})`; only the cost differs.
+* **Score at zero** (Kuhn–Tucker check of a variance fixed at 0, §5). Only the records'
+  columns `J` of the dropped term enter: `∂V/∂σ_k = Z_J K_JJ Z_J′`, so
+  `∂logL/∂σ_k|₀ = ½[u′K_JJ u − tr(K_JJ Z_J′PZ_J)]`, `u = Z_J′Py`; `K_JJ` (the block of `K`
+  for the levels with records)
+  is formed from `K⁻¹` by solves with one `SparseLDL(K⁻¹)` (diagonal `K⁻¹`: its reciprocal;
+  dense: a dense inverse), `Z_J′PZ_J` in batches of 512 columns, and the sub-model factor is
+  sparse above 2,000 equations. No dense inverse of the full system is formed.
+* **Kackar–Harville** (§23): the central-difference BLUP solves use the sparse direct solver
+  above 2,000 equations when the structures are sparse.
+
+**Tests**: `tests/test_reml.py::test_score_at_zero_equals_v_form_derivative` (dense and
+sparse `K⁻¹`) compares the score at zero with `½(y′P dV P y − tr(P dV))` from the dense
+V-form; the existing REML reference tests (dense vs sparse traces, V-form optimum) are
+unchanged. **Effect** on example 20: 196 s → 27 s, logL unchanged (−2376.862195).
+
+## 36. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.

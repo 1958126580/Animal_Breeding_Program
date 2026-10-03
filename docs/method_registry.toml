@@ -103,7 +103,7 @@ dependencies = ["numpy", "scipy"]
 method_id = "reml.single_trait"
 name = "REML by average information with EM fallback and active-set boundary"
 estimand = "variance components; asymptotic SE from AI^-1 (interior only)"
-scope = "single trait; any number of random terms with known structures; dense path"
+scope = "single trait; any number of random terms with known structures; dense or sparse traces"
 math = "docs/methods.md#5-reml"
 sources = ["Patterson & Thompson 1971", "Gilmour, Thompson & Cullis 1995 Biometrics 51:1440", "Dempster, Laird & Rubin 1977"]
 errata = ["genetic-variance derivative uses Z A Z', not Z Z' (spec T05; old R teaching code)"]
@@ -116,11 +116,12 @@ tests = ["tests/test_reml.py::test_t05_score_matches_v_form_and_detects_wrong_de
          "tests/test_reml.py::test_forced_boundary_case_is_detected",
          "tests/test_reml.py::test_non_convergence_is_an_error_and_checkpoint_resume",
          "tests/test_reml.py::test_reml_calibration_by_simulation",
-         "tests/test_reml.py::test_reml_with_dense_genomic_structure_matches_v_form"]
+         "tests/test_reml.py::test_reml_with_dense_genomic_structure_matches_v_form",
+         "tests/test_reml.py::test_score_at_zero_equals_v_form_derivative"]
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_40_replicate_simulation", G5 = "not_run", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["above 12,000 equations: sparse factor + selected inversion, bounded by factor memory", "no multi-trait REML", "SE invalid at the boundary"]
+known_limits = ["sparse factor + selected inversion above 12,000 equations (above 2,000 when every structure matrix is sparse, round 15), bounded by factor memory", "multi-trait REML is a separate method", "SE invalid at the boundary"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]

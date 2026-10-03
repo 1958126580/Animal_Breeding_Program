@@ -230,3 +230,29 @@ def test_reml_with_dense_genomic_structure_matches_v_form():
                       options={"xatol": 1e-10, "fatol": 1e-12, "maxiter": 5000})
     np.testing.assert_allclose([fit.variances["animal"], fit.variances["residual"]],
                                np.exp(opt.x), rtol=2e-5)
+
+
+@pytest.mark.parametrize("sparse", [False, True])
+def test_score_at_zero_equals_v_form_derivative(sparse, monkeypatch):
+    """Round 15: the score at zero of a dropped term (additive with K = A, or iid) from
+    the record columns only, dense or sparse sub-model, equals the V-form derivative
+    1/2 [y'P dV P y - tr(P dV)] at theta_k = 0."""
+    import abp.solvers.reml as R
+    if sparse:
+        monkeypatch.setattr(R, "SPARSE_REML_ABOVE", 5)
+    ids, sires, dams, rec, grp, rng = _problem(7)
+    ped = Pedigree.from_parent_ids(ids, sires, dams)
+    y = rng.normal(5, 2, len(rec))
+    fd = build_fixed_design({"g": grp}, [FixedTerm("g", "factor")], True, len(rec))
+    animal, pe = animal_term(ped, rec), iid_term("pe", rec)
+    covs = _v_form_pieces(ids, sires, dams, rec, pe)
+    Xd = fd.X.toarray()
+    for zero, active, k_zero in ((animal, [pe], 0), (pe, [animal], 1)):
+        vc = {t.name: 0.8 for t in active}
+        vc["residual"] = 2.1
+        g = R._score_at_zero(y, fd.X, active, vc, zero)
+        theta = np.array([0.0, 0.0, 2.1])
+        theta[1 - k_zero] = 0.8
+        _, P = reml_loglik_v_form(y, Xd, covs, theta)
+        ref = 0.5 * (y @ P @ covs[k_zero] @ P @ y - np.trace(P @ covs[k_zero]))
+        assert g == pytest.approx(ref, rel=1e-9, abs=1e-10), zero.name
