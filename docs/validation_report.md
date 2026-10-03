@@ -972,7 +972,7 @@ Both starts reached the same optimum in every model.
 | first-lactation milk; herd fixed; animal | 1,314 | animal 1,840,737, residual 11,337,848 | 1,840,736, 11,337,850 | +3.9·10⁻⁹ |
 | SCS, all lactations; herd + lactation fixed; animal + pe | 3,397 | animal 0.08526, pe 0.27639, residual 1.16220 | 0.08525, 0.27639, 1.16220 | −6.3·10⁻¹⁰ |
 | milk, all lactations; same repeatability model, **before the fix** | 3,397 | animal **0** (boundary), pe 5,498,779, residual 10,400,042 | 925,610, 4,638,961, 10,398,543 | **−2.363** |
-| the same, **after the fix** | 3,397 | animal 925,611, pe 4,638,960, residual 10,398,543 () | | −1.3·10⁻⁹ |
+| the same, **after the fix** | 3,397 | animal 925,611, pe 4,638,960, residual 10,398,543 (`converged`) | as above | −1.3·10⁻⁹ |
 
 The third row is a **defect in ABP** (§9). The boundary check compared the score at zero
 with a tolerance that did not depend on the scale of the variances. The score at zero
