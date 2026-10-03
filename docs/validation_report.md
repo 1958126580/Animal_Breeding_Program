@@ -1,6 +1,6 @@
-# Validation report: ABP 0.13.0
+# Validation report: ABP 0.14.0
 
-Date: 2026-10-03 (round 13; rounds 11–12: 2026-10-02; rounds 9–10: 2026-10-01; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
+Date: 2026-10-03 (rounds 13–14; rounds 11–12: 2026-10-02; rounds 9–10: 2026-10-01; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
 evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
 (round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
@@ -35,7 +35,7 @@ not_run.
 | G1 mathematics | independent derivations, analytical cases, dimension, limit and equivalence tests | passed | §4, §5 |
 | G2 numerics | residuals, convergence, boundaries, exact references | passed | §4, §5; MCMC diagnostics equal ArviZ to ≤ 8·10⁻¹⁶ |
 | G3 software | ID mapping, bad inputs, recovery, interface consistency | passed (Linux; Windows CI) | §3, §5, §6 |
-| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); threshold priors, rank selection and reduced-rank Kackar–Harville PEV (§7.11); sampled-reliability estimator, EBVs of rank-selected models, multi-trait threshold model (prior-dependent genetic correlation, F18) (§7.12); posterior PEV of the Bayesian multi-trait linear model vs REML + Kackar–Harville (F16 partly resolved) (§7.13); maternal animal model: Bayesian EBVs calibrated, posterior mean of the maternal variance ~7% above REML (F19 revised); REML estimates unbiased over 200 replicates, plug-in maternal PEV optimistic when the variance is underestimated (F20) (§7.15–7.17); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
+| G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); threshold priors, rank selection and reduced-rank Kackar–Harville PEV (§7.11); sampled-reliability estimator, EBVs of rank-selected models, multi-trait threshold model (prior-dependent genetic correlation, F18) (§7.12); posterior PEV of the Bayesian multi-trait linear model vs REML + Kackar–Harville (F16 partly resolved) (§7.13); several categorical traits: EBVs more accurate than single-trait models, liability variance of a binary trait and genetic correlations prior-dependent (F21, §7.18); maternal animal model: Bayesian EBVs calibrated, posterior mean of the maternal variance ~7% above REML (F19 revised); REML estimates unbiased over 200 replicates, plug-in maternal PEV optimistic when the variance is underestimated (F20) (§7.15–7.17); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
 | G5 external validity | real data, time or population hold-out | **not_run** | no real data were available or authorized (the LR workflow exists and was run on synthetic data) |
 | G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`), including exact PEV for 100,500 equations and the matrix-free single step (50,000 animals, 6,000 genotyped: 1.7 GB instead of 10.9 GB; 200,000 animals, 30,000 genotyped, int8 genotypes: 6.75 GB; complete `abp run` with 120,000 animals / 30,000 genotyped from PLINK as int8: 261 s, 7.38 GB; 206 s after the round-8 speed-ups); Windows functional tests in CI (round 3: 211 tests passed on Windows and Linux, §3a), no Windows timings; no CUDA path |
 | G7 decision and release | feasible plans, installation reproduction, evidence package | **partial** | mating plans satisfy every hard constraint, verified per plan (§5, §6); no binary release; project license not chosen |
@@ -905,6 +905,43 @@ which integrates over the variances, was calibrated (maternal 0.98, §7.15).
 (posterior means 5.07, 3.89, −2.36, 1.13, 7.03), the data point to a high maternal
 variance (true 2.0, 1.3 SE away).
 
+### 7.18 Round-14 studies
+
+**Two categorical traits in one threshold model** (`two_categorical_study.json`,
+`.log`; `python benchmarks/two_categorical_study.py --replicates 30 --workers 3`;
+800 animals in random pedigrees, on every non-founder a three-category trait, a binary
+trait and a continuous trait; G0 with liability variances 0.25 and 0.16, genetic
+correlations 0.5 among all three traits; independent residuals; prior IW(5, 5·diag(0.2,
+0.2, 3.0)) — zero covariances; 4 chains × 3,000 iterations; every fit scored, 24 of 30
+met the strict R-hat/ESS criteria, median worst R-hat 1.006; 2,560 s). Single-trait
+threshold models with the same marginal priors on the same data as the reference.
+
+| | three-category trait | binary trait |
+|---|---|---|
+| realized accuracy, joint model | 0.582 ± 0.010 | 0.497 ± 0.009 |
+| realized accuracy, single-trait | 0.533 ± 0.011 | 0.417 ± 0.009 |
+| gain (paired) | +0.049 ± 0.003 | +0.080 ± 0.006 |
+| MSE/PEV, coverage (joint) | 0.945 ± 0.034, 0.954 | 0.743 ± 0.019, 0.977 |
+| MSE/PEV, coverage (single-trait) | 1.10 ± 0.05, 0.936 | 0.87 ± 0.03, 0.965 |
+
+Posterior means (true): liability variances 0.285 ± 0.013 (0.25) and 0.252 ± 0.018
+(0.16); continuous 3.96 ± 0.13 (4.0); genetic covariances 0.089 (0.10), 0.440 (0.50),
+0.374 (0.40); genetic correlations 0.347 ± 0.026 (0.5, between the two categorical
+traits), 0.424 ± 0.023 and 0.375 ± 0.024 (0.5); 95% interval coverage of the
+correlations 0.93, 0.93, 0.90. Joint modelling makes the EBVs of both categorical
+traits clearly more accurate and their reliabilities calibrated or conservative, but
+the binary trait's liability variance is overestimated by 58% (the prior's centre 0.2
+is above the truth and one binary record per animal carries little information) and
+the genetic correlations are pulled towards the prior's zero centre (finding F21; as
+F18 for one categorical trait). **Example 19** (`examples/19_sheep_two_categorical`,
+1,896 lambs: weaning weight, vigour score, survival): converged after 16,000
+iterations (19 min with the study alongside); posterior means (90% interval) of the
+liability variances 0.41 (0.26–0.61; simulated 0.30) and 0.56 (0.30–0.95; 0.20 — a
+single-trait threshold fit of survival on the same data gives 0.58, so this is the
+data and prior, not the joint sampler), genetic correlations 0.35 (wwt–vigour; 0.4),
+0.54 (wwt–survival; 0.3), 0.24 (vigour–survival; 0.5); realized accuracies 0.58, 0.58,
+0.53 against mean model accuracies 0.59, 0.60, 0.58.
+
 ### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
@@ -937,6 +974,7 @@ for the four-trait example.
 | F15 | Rank selection by the smallest AIC wrongly reduced a full-rank G0 (r_G 0.6) to rank 1 in 19 of 100 data sets, making trait-2 PEV about four times too small | **resolved** (round 7) | ABP moves to a lower rank only if its AIC is smaller by ≥ 2: 0 of 100 wrong reductions; the cost is that a true rank 1 is found in 58/100 instead of 97/100 (the full-rank model is kept in the rest) (§7.11) |
 | F19 | Bayesian maternal animal model (one record per animal, flat priors): the posterior mean of the maternal variance looked biased upwards (2.54 ± 0.19 vs 2.0 over 20 replicates; example 18: 3.9) while the EBV posterior PEVs were calibrated (direct 1.03, maternal 0.98) | revised (round 13) | REML on the same seeds gives 2.46 and is unbiased over 200 replicates (2.06 ± 0.07, §7.17): the 20 seeds were a high draw; the method-specific part is the posterior-mean excess over REML, +0.17 ± 0.05 (≈7%) with flat priors and −0.05 with weak data-only priors (§7.16). Use weak priors or REML for point estimates; report intervals |
 | F20 | Maternal animal model by REML: the plug-in maternal PEV is optimistic when the maternal variance is underestimated (MSE/PEV 1.56 ± 0.19 over 192 fits, median 1.04; 5.19 in the 24 fits with an estimate below 1.0) | open (round 13) | Kackar–Harville columns reduce it (1.35, median 1.00) but not for the low estimates (3.72); the Bayesian posterior PEV is calibrated (0.98); prefer the Bayesian model, or read maternal reliabilities from the Kackar–Harville columns, when the maternal variance is poorly determined |
+| F21 | Several categorical traits (one record per animal and trait): the binary trait's liability variance is overestimated (0.25 vs 0.16, prior centred at 0.2) and genetic correlations are pulled towards the prior's centre (0.35 vs 0.5 with a prior at zero covariance); residual covariances between categorical traits are fixed at 0 by the model | open (round 14) | joint modelling still improves the categorical EBVs (+0.05, +0.08 accuracy) with calibrated or conservative reliabilities (§7.18); take prior variances and covariances from published estimates and report them; repeated records or progeny-tested sires identify the covariances better |
 | E1 | Engineering: with every core busy, multi-threaded OpenBLAS made the 12 s API example's multi-trait REML exceed 600 s (thread oversubscription); with `OPENBLAS_NUM_THREADS=1` it took 20 s under the same load (round 9) | open (documented) | set `OPENBLAS_NUM_THREADS` (or the BLAS thread count) when ABP shares a machine; the benchmarks and studies already set one thread per worker |
 
 ## 9. Defects found and fixed

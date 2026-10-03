@@ -1597,6 +1597,37 @@ the true value 0.5 — choose `prior_covariance` from published estimates, not a
 placeholder. It needs many iterations (12,000 for 800 animals; example 15:
 10,000 with the residual groups, 20,000 without).
 
+**Several categorical traits** (since 0.14.0). A model may hold more than one
+categorical trait if each is in a residual group of its own (example 19: weaning
+weight, a vigour score with three categories and survival to weaning):
+
+```toml
+[bayes]
+method = "threshold"
+variance_prior = "inverse_wishart"
+nu = 5.0
+prior_covariance = { animal = [[3.0, 0.0, 0.0], [0.0, 0.25, 0.0], [0.0, 0.0, 0.25]] }
+residual_groups = { wwt = 1, vigour = 2, surv = 3 }
+```
+
+```bash
+abp run examples/19_sheep_two_categorical/analysis.toml --out runs/ex19
+```
+
+Every categorical trait has its own thresholds (`thresholds_by_trait` in the results)
+and a residual variance fixed at 1. ABP does **not** estimate residual covariances
+between two categorical traits: they are 0 by construction, so use the model for traits
+recorded at different times or accept that a residual correlation would partly show up
+in the genetic one. The genetic covariances between all traits are estimated. In a
+30-replicate study (validation report §7.18) the joint model made the EBVs of a
+three-category and a binary trait clearly more accurate than single-trait threshold
+models (realized accuracy +0.05 and +0.08) with calibrated or conservative
+reliabilities. But with one record per animal and trait the binary trait's liability
+variance came out too high (0.25 for 0.16) and the genetic correlations were pulled
+towards the prior's centre (0.35 for 0.5 with a prior at zero covariance; finding F21) —
+as for one categorical trait, take `prior_covariance` from published estimates and
+report it. Example 19 took about 15–20 minutes (16,000 iterations).
+
 ### 7.15 Very many genotyped animals: APY
 
 Inverting G costs time proportional to the cube of the number of genotyped

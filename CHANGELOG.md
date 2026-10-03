@@ -4,6 +4,20 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.14.0] - 2026-10-03
+
+Fourteenth development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Several ordered categorical traits in the multi-trait threshold model (`bayes.method = "threshold"`; `mt_threshold_gibbs(Y, cat=[...])`): every categorical trait has its own categories, thresholds (Cowles step, proposal scale tuned per trait) and liabilities, sampled in turn; each must be in its own residual group, so residual covariances between categorical traits are 0 (genetic covariances among all traits are estimated). Results `thresholds_by_trait`, `categories_by_trait`; scalars `tau<c>_<k>`.
+- Tests against importance sampling of the closed-form posterior (two genetically correlated binary traits, fixed covariances) and against single-trait threshold models (uncorrelated traits).
+- Example 19 (synthetic): weaning weight, lamb vigour score (3 categories), survival (binary).
+- `benchmarks/two_categorical_study.py` (30 replicates): categorical EBVs more accurate than with single-trait models (+0.049, +0.080), reliabilities calibrated or conservative; binary liability variance and genetic correlations prior-dependent (finding F21).
+- Methods §31 (several categorical traits), API section 34, manual §7.14, validation report §7.18.
+
+### Changed
+- Spec: `bayes.method = "threshold"` accepts more than one categorical trait when `bayes.residual_groups` separates them. Single-categorical models are unchanged (same random streams and names).
+
 ## [0.13.0] - 2026-10-03
 
 Thirteenth development round. Evidence and gaps: `docs/validation_report.md`.

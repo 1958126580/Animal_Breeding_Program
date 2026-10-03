@@ -773,14 +773,18 @@ dependencies = ["numpy", "scipy"]
 method_id = "threshold.gibbs_multitrait"
 name = "Gibbs sampler for a multi-trait model with one ordered categorical trait and continuous traits"
 estimand = "liability-scale / trait-scale EBVs (posterior means), PEV blocks (posterior covariances), G0, R0, heritabilities, genetic correlations, thresholds"
-scope = "one categorical + >= 1 continuous traits, one additive term (pedigree or other known K), own fixed design per trait, missing traits; variances.mode = 'bayes', bayes.method = 'threshold'"
+scope = "one categorical + >= 1 continuous traits, one additive term (pedigree or other known K), own fixed design per trait, missing traits; variances.mode = 'bayes', bayes.method = 'threshold'; several categorical traits (round 14), each in its own residual group (residual covariances between categorical traits fixed at 0)"
 math = "docs/methods.md#31-multi-trait-threshold-model-categorical-and-continuous-traits"
 sources = ["Korsgaard, Lund, Sorensen, Gianola, Madsen & Jensen 2003 Genet Sel Evol 35:159", "Sorensen, Andersen, Gianola & Korsgaard 1995 Genet Sel Evol 27:229", "Cowles 1996 Stat Comput 6:101", "Liu & Sabatti 2000 Biometrika 87:353"]
 errata = []
 exact_or_approximate = "exact MCMC (partially collapsed Gibbs with scale and shear parameter-expansion moves); convergence gated by R-hat/ESS"
 complexity = "per iteration: one numeric sparse LDL' of the multi-trait MME (pattern and value maps reused), one solve, O(n t^2) conditional draws"
 code = ["src/abp/solvers/mt_threshold_gibbs.py", "src/abp/workflows/mt_threshold.py", "src/abp/solvers/cholesky.py"]
-tests = ["tests/test_mt_threshold_gibbs.py::test_location_draw_has_the_exact_conditional_mean_and_covariance",
+tests = ["tests/test_mt_threshold_gibbs.py::test_two_categorical_traits_with_fixed_covariances_equal_importance_sampling",
+         "tests/test_mt_threshold_gibbs.py::test_uncorrelated_categorical_traits_reduce_to_single_trait_threshold_models",
+         "tests/test_mt_threshold_gibbs.py::test_several_categorical_traits_need_separate_residual_groups",
+         "tests/test_mt_threshold_workflow.py::test_spec_rules_for_several_categorical_traits",
+         "tests/test_mt_threshold_gibbs.py::test_location_draw_has_the_exact_conditional_mean_and_covariance",
          "tests/test_mt_threshold_gibbs.py::test_r0_step_matches_quadrature_and_closed_form_moments",
          "tests/test_mt_threshold_gibbs.py::test_g0_step_matches_an_independent_metropolis_sampler",
          "tests/test_mt_threshold_gibbs.py::test_posterior_with_fixed_covariances_equals_importance_sampling",
@@ -798,7 +802,7 @@ tests = ["tests/test_mt_threshold_gibbs.py::test_location_draw_has_the_exact_con
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_30_replicates_prior_dependent_covariance", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
-known_limits = ["exactly one categorical trait", "one additive and at most one iid (permanent-environment) term (round 10)", "one categorical record per animal needs a proper G0 prior (F17)", "genetic covariance with a single-record categorical trait follows the prior centre (F18)", "slow mixing: tens of thousands of iterations for about 2,000 animals"]
+known_limits = ["several categorical traits: residual covariances between them fixed at 0; binary liability variance and genetic correlations prior-dependent with one record per animal (F21; benchmarks/two_categorical_study.py: EBV accuracy +0.05/+0.08 over single-trait models)", "exactly one categorical trait", "one additive and at most one iid (permanent-environment) term (round 10)", "one categorical record per animal needs a proper G0 prior (F17)", "genetic covariance with a single-record categorical trait follows the prior centre (F18)", "slow mixing: tens of thousands of iterations for about 2,000 animals"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]

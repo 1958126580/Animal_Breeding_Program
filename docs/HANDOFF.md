@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-10-03, ABP 0.13.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-10-03, ABP 0.14.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -77,6 +77,9 @@ method in `docs/method_registry.toml`):
   maternal model 2.6–3.1 times faster per factorization); posterior medians of G0, R0,
   P0; F19 prior study (weak data-only priors) and example 18 variant
   `analysis_equal_prior.toml`;
+* **round 14**: several categorical traits in the multi-trait threshold model (each in
+  its own residual group; residual covariances between them 0); example 19;
+  30-replicate study (EBV accuracy +0.05/+0.08 over single-trait models; F21);
 * **round 13**: maternal animal model by REML or known variances (one trait;
   `abp.solvers.maternal_reml`, `workflows/maternal.py`; boundary of independent terms,
   singular G0 refused; Kackar–Harville PEV columns); example 18 `analysis_reml.toml`;
@@ -232,6 +235,10 @@ See `docs/validation_report.md` §8. The most important:
   2.46 and is unbiased over 200 replicates (2.06), so the seeds were a high draw; the
   posterior mean exceeds REML by +0.17 ± 0.05 (flat) and −0.05 (weak priors, round 12)
   on the same data (validation report §7.16–7.17).
+* **F21 (new, round 14)**: several categorical traits with one record per animal and
+  trait: binary liability variance overestimated (0.25 vs 0.16) and genetic
+  correlations pulled to the prior centre (0.35 vs 0.5); EBVs still better than
+  single-trait (validation report §7.18).
 * **F20 (new, round 13)**: maternal REML, plug-in maternal PEV optimistic when the
   maternal variance is underestimated (MSE/PEV 1.56, median 1.04; 5.2 for estimates
   below 1.0); Kackar–Harville columns 1.35; Bayesian posterior PEV calibrated (0.98).
@@ -272,13 +279,14 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 13 did task 1 of the round-12 list (maternal REML, F19 reference). Next:
+Round 14 did the first part of task 2 below (several categorical traits). Round 13
+did task 1 of the round-12 list (maternal REML, F19 reference). Next:
 
 1. Maternal models: multi-trait maternal REML; a second-order or bootstrap correction
    for the maternal PEV under REML (F20); a singular-G0 (reduced-rank) maternal fit
    instead of stopping with ABP-E300.
-2. Multi-trait Gibbs samplers: several categorical traits (joint liabilities with a
-   correlation-matrix step); more than one iid term.
+2. Multi-trait Gibbs samplers: residual correlations between categorical traits (a
+   correlation-matrix step for the liabilities); more than one iid term.
 3. Sparse LDL': general supernodes (dense updates for every front, not only the
    trailing block); measure the block-size rule's flop-rate ratio on other machines
    (Windows CI timings).
