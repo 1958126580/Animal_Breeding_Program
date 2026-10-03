@@ -259,3 +259,29 @@ def test_maternal_variances_are_recovered_on_average():
     truth = np.array([4.0, -1.0, 2.0, 1.5, 6.0])
     se = est.std(axis=0, ddof=1) / math.sqrt(len(est))
     assert np.all(np.abs(est.mean(axis=0) - truth) <= 3 * se + 1e-9), (est.mean(axis=0), se)
+
+
+def test_kackar_harville_delta_equals_the_marginal_form():
+    """Delta_a = J_a Sigma J_a' with J by central differences of the V-form BLUP
+    (independent implementation) equals the MME-based function."""
+    from abp.solvers.vc_uncertainty import kackar_harville_delta_maternal
+    data, ped = _problem(n=200, seed=21)
+    fit = maternal_reml_fit(data, ped.ainv(), ped.logdet_a(), {"tol": 1e-10, "max_iter": 300})
+    th = np.array([fit.G0[0, 0], fit.G0[0, 1], fit.G0[1, 1], fit.iid["mpe"], fit.residual])
+    D = kackar_harville_delta_maternal(data, ped.ainv(), th, fit.cov)
+    X = data.X.toarray()
+
+    def blup_v(t):
+        m2, V, P, dV, Zg, A, G0 = _vform(data, ped, t)
+        return (np.kron(A, G0) @ Zg.T @ P @ data.y).reshape(-1, 2)
+    J = []
+    for k in range(th.size):
+        h = 1e-4 * (math.sqrt(th[0] * th[2]) if k == 1 else th[k])
+        e = np.zeros_like(th)
+        e[k] = h
+        J.append((blup_v(th + e) - blup_v(th - e)) / (2 * h))
+    J = np.stack(J, axis=2)
+    Dv = np.einsum("ajk,kl,abl->ajb", J, fit.cov, J)
+    np.testing.assert_allclose(D, Dv, rtol=1e-5, atol=1e-10)
+    assert np.all(np.einsum("ajj->aj", D) >= 0)
+

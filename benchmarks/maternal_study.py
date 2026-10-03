@@ -26,7 +26,8 @@ maternal share Vp/4 is above the true value).
 (:mod:`abp.solvers.maternal_reml`) and BLUP at the estimates (PEV from ``C^-1``, not
 including the uncertainty of the estimates); records the estimates, their asymptotic SE,
 whether ``estimate +- 1.96 SE`` covers the true value, and fits that stopped (singular
-G0, ``ABP-E300``) or ended on the boundary.  REML takes seconds per replicate, so
+G0, ``ABP-E300``) or ended on the boundary; EBV scores with the plug-in PEV and with the
+Kackar-Harville PEV (``*_kh``; interior fits).  REML takes seconds per replicate, so
 ``--replicates`` can be much larger.
 
 Usage: python benchmarks/maternal_study.py [--replicates 20] [--workers 3]
@@ -135,6 +136,12 @@ def replicate_reml(seed: int) -> dict:
                                        fit.G0, [fit.iid["mpe"]] if keep else [], fit.residual)
     out["direct"] = _score(AM[:, 0], U[:, 0], pev[:, 0, 0])
     out["maternal"] = _score(AM[:, 1], U[:, 1], pev[:, 1, 1])
+    if fit.cov is not None:            # PEV including the uncertainty of the estimates
+        from abp.solvers.vc_uncertainty import kackar_harville_delta_maternal
+        th = np.array([fit.G0[0, 0], fit.G0[0, 1], fit.G0[1, 1], fit.iid["mpe"], fit.residual])
+        D = kackar_harville_delta_maternal(data, ped.ainv(), th, fit.cov)
+        out["direct_kh"] = _score(AM[:, 0], U[:, 0], pev[:, 0, 0] + D[:, 0, 0])
+        out["maternal_kh"] = _score(AM[:, 1], U[:, 1], pev[:, 1, 1] + D[:, 1, 1])
     out["wall_s"] = time.time() - t0
     return out
 
@@ -159,8 +166,10 @@ def main_reml(a, seeds):
         s["rmse"][k] = float(np.sqrt(np.mean((v - tv) ** 2)))
         cv = [r["cover95"][k] for r in ok if r["cover95"] is not None]
         s["cover95"][k] = _ms(cv) if len(cv) > 1 else None
-    for eff in ("direct", "maternal"):
-        s[eff] = {k: _ms([r[eff][k] for r in ok]) for k in ok[0][eff]}
+    for eff in ("direct", "maternal", "direct_kh", "maternal_kh"):
+        rr = [r for r in ok if eff in r]
+        s[eff] = {k: _ms([r[eff][k] for r in rr]) for k in rr[0][eff]}
+        s[eff]["pev_ratio_median"] = float(np.median([r[eff]["pev_ratio"] for r in rr]))
     s["wall_s_per_replicate"] = _ms([r["wall_s"] for r in reps])
     doc = {"study": "maternal animal model fitted by AI-REML (round 13; F19 reference)",
            "replicates": len(reps), "seeds": f"{seeds[0]}..{seeds[-1]}", "animals": N_ANIMALS,

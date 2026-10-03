@@ -112,3 +112,29 @@ def kackar_harville_delta_reduced_rank(data, k_inv, k_diag, x: np.ndarray, t: in
         grads.append((sols[0] - sols[1]) / (2.0 * h))
     J = np.stack(grads, axis=2)
     return np.einsum("iak,kl,ibl->iab", J, cov_x, J)
+
+
+def kackar_harville_delta_maternal(data, k_inv, theta: np.ndarray, cov: np.ndarray,
+                                   memory_budget_bytes: int = 4 * 2**30) -> np.ndarray:
+    """Maternal animal model (round 13): ``Delta_a = J_a Sigma J_a'`` (``2 x 2`` per animal:
+    direct, maternal) with ``J_a = d (a_hat, m_hat)_a / d theta``,
+    ``theta = (s_a, s_am, s_m, s_p..., s_e)`` in the order of
+    :mod:`abp.solvers.maternal_reml` and ``Sigma`` its inverse average-information matrix.
+    Central differences with the step ``REL_STEP * sqrt(s_a s_m)`` for the covariance and
+    ``REL_STEP * theta_k`` otherwise."""
+    from .maternal_reml import MaternalREMLEvaluator
+    ev = MaternalREMLEvaluator(data, k_inv, 0.0, memory_budget_bytes)
+    theta = np.asarray(theta, dtype=np.float64)
+    q = ev.q
+    grads = []
+    for k in range(theta.size):
+        h = REL_STEP * (np.sqrt(theta[0] * theta[2]) if k == 1 else theta[k])
+        sols = []
+        for sign in (1.0, -1.0):
+            th = theta.copy()
+            th[k] += sign * h
+            sols.append(ev.solve(th)[ev.g0:ev.g1].reshape(q, 2))
+        grads.append((sols[0] - sols[1]) / (2.0 * h))
+    J = np.stack(grads, axis=2)                      # q x 2 x p
+    return np.einsum("ajk,kl,abl->ajb", J, cov, J)
+

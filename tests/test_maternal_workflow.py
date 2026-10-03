@@ -36,7 +36,10 @@ def test_example18_reml_and_known_variances_agree(tmp_path):
     assert t["solver"]["relative_residual"] < 1e-10
     ebv = _rows(out.out_dir / "ebv_wwt.csv")
     assert len(ebv) == 2108
-    assert {"ebv", "reliability", "sep", "mebv", "mreliability", "msep"} <= set(ebv[0])
+    assert {"ebv", "reliability", "sep", "mebv", "mreliability", "msep",
+            "pev_incl_vc_uncertainty", "mreliability_incl_vc_uncertainty"} <= set(ebv[0])
+    for a, b in (("sep", "pev_incl_vc_uncertainty"), ("msep", "mpev_incl_vc_uncertainty")):
+        assert all(float(x[b]) >= float(x[a]) ** 2 * (1 - 1e-12) for x in ebv)
     rel = np.array([float(x["reliability"]) for x in ebv])
     mrel = np.array([float(x["mreliability"]) for x in ebv])
     assert np.all((rel >= 0) & (rel <= 1)) and np.all((mrel >= 0) & (mrel <= 1))

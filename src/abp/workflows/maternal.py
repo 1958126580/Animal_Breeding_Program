@@ -109,6 +109,16 @@ def run_maternal(spec: AnalysisSpec, records: RecordSet, trait: str,
                                        [iid_vars[i] for i in keep], resid,
                                        memory_budget_bytes=budget)
     k_diag = np.asarray(structure.k_diag, dtype=np.float64)
+    kh = None                      # PEV including the uncertainty of the REML estimates
+    if reml_info is not None and fit.cov is not None:
+        from ..solvers.vc_uncertainty import kackar_harville_delta_maternal
+        th = np.concatenate([[G0[0, 0], G0[0, 1], G0[1, 1]], iid_vars, [resid]])
+        D = kackar_harville_delta_maternal(data, structure.k_inv, th, fit.cov,
+                                           memory_budget_bytes=budget)
+        kh = pev + D
+        log.info("maternal model: PEV including REML uncertainty (Kackar-Harville): mean "
+                 "relative increase direct %.4f, maternal %.4f",
+                 float(np.mean(D[:, 0, 0] / pev[:, 0, 0])), float(np.mean(D[:, 1, 1] / pev[:, 1, 1])))
     rel = np.clip(1.0 - pev[:, 0, 0] / (k_diag * G0[0, 0]), 0.0, 1.0)
     mrel = np.clip(1.0 - pev[:, 1, 1] / (k_diag * G0[1, 1]), 0.0, 1.0)
     sep, msep = np.sqrt(pev[:, 0, 0]), np.sqrt(pev[:, 1, 1])
@@ -119,6 +129,11 @@ def run_maternal(spec: AnalysisSpec, records: RecordSet, trait: str,
         n_rec[a] = n_rec.get(a, 0) + 1
     header = ["animal", "sire", "dam", "sex", "generation", "inbreeding", "ebv", "reliability",
               "sep", "mebv", "mreliability", "msep", "n_records"]
+    if kh is not None:
+        header += ["pev_incl_vc_uncertainty", "reliability_incl_vc_uncertainty",
+                   "mpev_incl_vc_uncertainty", "mreliability_incl_vc_uncertainty"]
+        rel_kh = np.clip(1.0 - kh[:, 0, 0] / (k_diag * G0[0, 0]), 0.0, 1.0)
+        mrel_kh = np.clip(1.0 - kh[:, 1, 1] / (k_diag * G0[1, 1]), 0.0, 1.0)
     rows = []
     for i, a in enumerate(structure.labels):
         k = ped.index_of([a])[0]
@@ -126,7 +141,9 @@ def run_maternal(spec: AnalysisSpec, records: RecordSet, trait: str,
                      ped.ids[ped.dam[k]] if ped.dam[k] >= 0 else "", sex.get(a, "U"),
                      int(ped.generation[k]), float(F[k]), float(U[i, 0]), float(rel[i]),
                      float(sep[i]), float(U[i, 1]), float(mrel[i]), float(msep[i]),
-                     n_rec.get(a, 0)])
+                     n_rec.get(a, 0)]
+                    + ([float(kh[i, 0, 0]), float(rel_kh[i]), float(kh[i, 1, 1]),
+                        float(mrel_kh[i])] if kh is not None else []))
     files = {"ebv": f"ebv_{trait}.csv", "fixed_effects": f"fixed_effects_{trait}.csv"}
     write_csv(stage.path(files["ebv"]), header, rows)
     fr, k = [], 0

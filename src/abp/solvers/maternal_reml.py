@@ -254,6 +254,17 @@ class MaternalREMLEvaluator:
         si = self._fac.selected_inverse()
         return self._fac, si.entries
 
+    def solve(self, theta: np.ndarray) -> np.ndarray:
+        """MME solution at ``theta`` (no inverse: for the Kackar-Harville differences)."""
+        theta = np.asarray(theta, dtype=np.float64)
+        C = self._coefficient(theta)
+        se = theta[-1]
+        if self.dense:
+            return DenseCholesky(C.toarray()).solve(self.Wty / se)
+        from .cholesky import _on_pattern
+        self._fac.refactor_values(_on_pattern(C, self._pat).data)
+        return self._fac.solve(self.Wty / se)
+
     def evaluate(self, theta: np.ndarray, with_ai: bool = True) -> _Point:
         theta = np.asarray(theta, dtype=np.float64)
         G0, vp, se = _unpack(theta, self.n_iid)
