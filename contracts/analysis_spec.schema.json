@@ -287,7 +287,7 @@
                   "iid",
                   "maternal"
                 ],
-                "description": "'maternal': maternal genetic effect of the record's dam (dam from the pedigree; same relationship as the additive term; Bayesian multi-trait Gibbs models only)."
+                "description": "'maternal': maternal genetic effect of the record's dam (dam from the pedigree; same relationship as the additive term; one trait with REML or known variances - the additive term's value is then the 2 x 2 matrix (direct, maternal) - or the Bayesian multi-trait Gibbs models)."
               },
               "relationship": {
                 "type": "string",

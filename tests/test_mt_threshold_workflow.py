@@ -493,7 +493,9 @@ def test_spec_rules_for_maternal_effects():
                                                 "variance_prior": "inverse_wishart",
                                                 "nu": 4.0, "prior_covariance": {"animal": G2}}))
     bad = [
-        dict(base, variances={"mode": "reml"}, bayes=None),                  # REML: refused
+        dict(base, variances={"mode": "reml"}, bayes=None,                   # multi-trait REML
+             traits=[{"name": "w", "unit": "kg"}, {"name": "v", "unit": "kg"}],
+             model=dict(base["model"], traits=["w", "v"])),
         dict(base, bayes={"method": "multitrait", "variance_prior": "inverse_wishart",
                           "nu": 4.0, "prior_covariance": {"animal": [[1.0]]}}),  # not 2x2
         dict(base, bayes={"method": "multitrait", "variance_prior": "inverse_wishart",

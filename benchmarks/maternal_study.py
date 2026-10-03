@@ -22,8 +22,15 @@ R_prior = Vp/4; nu = dimension + 2, the smallest integer nu with a finite prior 
 Uses the data only, never the true values; the shares are deliberately not tuned (the
 maternal share Vp/4 is above the true value).
 
+``--method reml`` (round 13): the same simulated data fitted by AI-REML
+(:mod:`abp.solvers.maternal_reml`) and BLUP at the estimates (PEV from ``C^-1``, not
+including the uncertainty of the estimates); records the estimates, their asymptotic SE,
+whether ``estimate +- 1.96 SE`` covers the true value, and fits that stopped (singular
+G0, ``ABP-E300``) or ended on the boundary.  REML takes seconds per replicate, so
+``--replicates`` can be much larger.
+
 Usage: python benchmarks/maternal_study.py [--replicates 20] [--workers 3]
-       [--animals 1500] [--iterations 4000] [--prior flat|equal]
+       [--animals 1500] [--iterations 4000] [--prior flat|equal] [--method gibbs|reml]
        [--out docs/validation/maternal_study.json]
 """
 
@@ -52,6 +59,7 @@ G0 = np.array([[4.0, -1.0], [-1.0, 2.0]])
 VAR_C, VAR_E = 1.5, 8.0
 N_ANIMALS, ITER = 1500, 4000
 PRIOR = "flat"                        # --prior; inherited by forked workers
+METHOD = "gibbs"                      # --method
 
 
 def _prior_kwargs(y: np.ndarray) -> dict:
@@ -95,6 +103,74 @@ def _score(true, ebv, pev):
             "realized_accuracy": float(np.corrcoef(true, ebv)[0, 1])}
 
 
+def replicate_reml(seed: int) -> dict:
+    from abp.errors import ABPError
+    from abp.solvers.maternal_reml import MaternalData, maternal_blup, maternal_reml_fit
+    ped, rec, dam, y, AM = simulate(seed, N_ANIMALS)
+    damrec = dam[rec]
+    levels, pe_col = np.unique(damrec, return_inverse=True)
+    data = MaternalData(y, sp.csr_matrix(np.ones((rec.size, 1))), rec, damrec,
+                        [("mpe", pe_col, levels.size)])
+    t0 = time.time()
+    out = {"seed": seed}
+    try:
+        fit = maternal_reml_fit(data, ped.ainv(), ped.logdet_a(), {"tol": 1e-8, "max_iter": 300})
+    except ABPError as exc:
+        out.update({"status": exc.code, "message": exc.message[:200],
+                    "wall_s": time.time() - t0})
+        return out
+    th = {"direct": fit.G0[0, 0], "covariance": fit.G0[0, 1], "maternal": fit.G0[1, 1],
+          "mpe": fit.iid["mpe"], "residual": fit.residual}
+    truth = {"direct": G0[0, 0], "covariance": G0[0, 1], "maternal": G0[1, 1],
+             "mpe": VAR_C, "residual": VAR_E}
+    se_key = {"direct": "direct", "covariance": "direct-maternal covariance",
+              "maternal": "maternal", "mpe": "mpe", "residual": "residual"}
+    out.update({"status": fit.status, "iterations": fit.iterations,
+                "estimates": {k: float(v) for k, v in th.items()},
+                "se": None if fit.se is None else {k: fit.se[se_key[k]] for k in th},
+                "cover95": None if fit.se is None else {
+                    k: bool(abs(th[k] - truth[k]) <= 1.96 * fit.se[se_key[k]]) for k in th}})
+    keep = [] if fit.iid["mpe"] == 0.0 else data.iid
+    beta, U, pev, _, _ = maternal_blup(MaternalData(y, data.X, rec, damrec, keep), ped.ainv(),
+                                       fit.G0, [fit.iid["mpe"]] if keep else [], fit.residual)
+    out["direct"] = _score(AM[:, 0], U[:, 0], pev[:, 0, 0])
+    out["maternal"] = _score(AM[:, 1], U[:, 1], pev[:, 1, 1])
+    out["wall_s"] = time.time() - t0
+    return out
+
+
+def main_reml(a, seeds):
+    t0 = time.time()
+    if a.workers > 1:
+        from multiprocessing import Pool
+        with Pool(a.workers) as pool:
+            reps = list(pool.imap(replicate_reml, seeds))
+    else:
+        reps = [replicate_reml(s) for s in seeds]
+    ok = [r for r in reps if "estimates" in r]
+    truth = {"direct": 4.0, "covariance": -1.0, "maternal": 2.0, "mpe": VAR_C,
+             "residual": VAR_E}
+    s = {"n": len(reps), "status": {}, "estimates": {}, "rmse": {}, "cover95": {}}
+    for r in reps:
+        s["status"][r["status"]] = s["status"].get(r["status"], 0) + 1
+    for k, tv in truth.items():
+        v = np.array([r["estimates"][k] for r in ok])
+        s["estimates"][k] = {**_ms(v), "true": tv}
+        s["rmse"][k] = float(np.sqrt(np.mean((v - tv) ** 2)))
+        cv = [r["cover95"][k] for r in ok if r["cover95"] is not None]
+        s["cover95"][k] = _ms(cv) if len(cv) > 1 else None
+    for eff in ("direct", "maternal"):
+        s[eff] = {k: _ms([r[eff][k] for r in ok]) for k in ok[0][eff]}
+    s["wall_s_per_replicate"] = _ms([r["wall_s"] for r in reps])
+    doc = {"study": "maternal animal model fitted by AI-REML (round 13; F19 reference)",
+           "replicates": len(reps), "seeds": f"{seeds[0]}..{seeds[-1]}", "animals": N_ANIMALS,
+           "method": "reml", "true": {"G0": G0.tolist(), "var_c": VAR_C, "var_e": VAR_E},
+           "wall_seconds": time.time() - t0, "summary": s, "replicate_results": reps}
+    Path(a.out).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+    print(json.dumps(s, indent=1))
+    print(f"wrote {a.out}")
+
+
 def replicate(seed: int) -> dict:
     ped, rec, dam, y, AM = simulate(seed, N_ANIMALS)
     damrec = dam[rec]
@@ -124,18 +200,22 @@ def _ms(v):
 
 
 def main():
-    global N_ANIMALS, ITER, PRIOR
+    global N_ANIMALS, ITER, PRIOR, METHOD
     ap = argparse.ArgumentParser()
     ap.add_argument("--replicates", type=int, default=20)
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--animals", type=int, default=1500)
     ap.add_argument("--iterations", type=int, default=4000)
     ap.add_argument("--prior", choices=("flat", "equal"), default="flat")
+    ap.add_argument("--method", choices=("gibbs", "reml"), default="gibbs")
+    ap.add_argument("--first-seed", type=int, default=1)
     ap.add_argument("--out", default=str(ROOT / "docs" / "validation" / "maternal_study.json"))
     a = ap.parse_args()
-    N_ANIMALS, ITER, PRIOR = a.animals, a.iterations, a.prior
+    N_ANIMALS, ITER, PRIOR, METHOD = a.animals, a.iterations, a.prior, a.method
     t0 = time.time()
-    seeds = list(range(1, a.replicates + 1))
+    seeds = list(range(a.first_seed, a.first_seed + a.replicates))
+    if METHOD == "reml":
+        return main_reml(a, seeds)
     if a.workers > 1:
         from multiprocessing import Pool
         with Pool(a.workers) as pool:

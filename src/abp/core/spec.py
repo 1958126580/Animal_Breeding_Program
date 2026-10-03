@@ -156,7 +156,9 @@ SCHEMA = Section({
             "kind": Field("str", required=True, choices=("additive", "iid", "maternal"),
                           doc="'maternal': maternal genetic effect of the record's dam (dam "
                               "from the pedigree; same relationship as the additive term; "
-                              "Bayesian multi-trait Gibbs models only)."),
+                              "one trait with REML or known variances - the additive "
+                              "term's value is then the 2 x 2 matrix (direct, maternal) - "
+                              "or the Bayesian multi-trait Gibbs models)."),
             "relationship": Field("str", choices=("pedigree", "genomic", "single_step"),
                                   doc="Covariance structure of an additive term."),
             "column": Field("str", doc="Grouping column of an iid term (default: animal id)."),
@@ -523,10 +525,17 @@ def validate_spec_dict(raw: dict) -> dict:
         (raw.get("bayes") or {}).get("method") in ("threshold", "multitrait")
     maternal = [r for r in m["random"] if r["kind"] == "maternal"]
     if maternal:
+        mode = (raw.get("variances") or {}).get("mode")
+        if not mt_gibbs and not (mode in ("known", "reml") and len(m["traits"]) == 1):
+            raise ABPError("UNSUPPORTED_COMBINATION", "maternal genetic effects need one trait "
+                           "with variances.mode = 'reml' or 'known', or variances.mode = "
+                           "'bayes' with bayes.method = 'multitrait' (or 'threshold')")
         if not mt_gibbs:
-            raise ABPError("UNSUPPORTED_COMBINATION", "maternal genetic effects need "
-                           "variances.mode = 'bayes' and bayes.method = 'multitrait' (or "
-                           "'threshold') in this version")
+            for sec in ("upg", "metafounders", "validation"):
+                if raw.get(sec) is not None:
+                    raise ABPError("UNSUPPORTED_COMBINATION", "the maternal animal model with "
+                                   f"REML or known variances cannot be combined with {sec} in "
+                                   "this version")
         if len(maternal) > 1:
             raise _err("model.random", "at most one maternal term")
         if additive[0]["relationship"] != "pedigree":
@@ -580,15 +589,27 @@ def validate_spec_dict(raw: dict) -> dict:
     if d["genomic"]["frequency_source"] == "file" and d["data"]["allele_frequencies"] is None:
         raise _err("data.allele_frequencies", "required when genomic.frequency_source = 'file'")
     v = d["variances"]
-    expected = set(names) | {"residual"}
+    mat_names = {r["name"] for r in m["random"] if r["kind"] == "maternal"}
+    add_names = {r["name"] for r in m["random"] if r["kind"] == "additive"}
+    # with a maternal term the additive term carries the 2 x 2 matrix (direct, maternal)
+    expected = (set(names) - mat_names) | {"residual"}
     t = len(m["traits"])
     if v["mode"] == "known":
         if v["values"] is None:
             raise _err("variances.values", "required when mode = 'known'")
         if set(v["values"]) != expected:
             raise _err("variances.values",
-                       f"must give exactly {sorted(expected)}, got {sorted(v['values'])}")
+                       f"must give exactly {sorted(expected)}, got {sorted(v['values'])}"
+                       + (" (the maternal variance and the direct-maternal covariance are "
+                          "entries of the additive term's 2 x 2 matrix)" if mat_names else ""))
         for k, val in v["values"].items():
+            if mat_names and k in add_names:
+                if not (isinstance(val, list) and len(val) == 2
+                        and all(isinstance(r_, list) and len(r_) == 2 for r_ in val)):
+                    raise _err(f"variances.values.{k}", "with a maternal term the additive term "
+                               "needs the 2 x 2 matrix [[direct, covariance], [covariance, "
+                               "maternal]]")
+                continue
             if t == 1 and not isinstance(val, float):
                 raise _err(f"variances.values.{k}", "single-trait models need a number")
             if t > 1 and not (isinstance(val, list) and len(val) == t):
@@ -597,6 +618,9 @@ def validate_spec_dict(raw: dict) -> dict:
         if t > 1 and d["reml"]["start"] is not None:
             raise _err("reml.start", "multi-trait REML starts from a data-based heuristic; "
                                      "reml.start is for single-trait models")
+        if mat_names and d["reml"]["start"] is not None:
+            raise _err("reml.start", "maternal-model REML starts from a data-based heuristic; "
+                                     "remove reml.start")
         if v["values"] is not None:
             raise _err("variances.values", "not used with mode = 'reml' (use reml.start)")
         start = d["reml"]["start"]

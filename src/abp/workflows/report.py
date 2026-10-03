@@ -63,6 +63,25 @@ def render_report(results: dict, manifest: dict) -> str:
                  + (f" (approx. SE {_f(t['reml']['heritability_se'])})"
                     if t.get("reml") and t["reml"].get("heritability_se") is not None else "")
                  + ".")
+        if t.get("maternal"):
+            mt = t["maternal"]
+
+            def _v(x):
+                return _f(x["mean"]) + " (posterior mean)" if isinstance(x, dict) else _f(x)
+            se = (t.get("reml") or {}).get("derived") or {}
+            L.append("")
+            L.append(f"Maternal genetic effect `{mt['term']}` (dam from the pedigree): maternal "
+                     f"heritability m2 = {_v(mt['m2'])}"
+                     + (f" (approx. SE {_f(se['m2_se'])})" if se.get("m2_se") is not None else "")
+                     + f", direct-maternal genetic correlation {_v(mt['direct_maternal_correlation'])}"
+                     + (f" (approx. SE {_f(se['direct_maternal_correlation_se'])})"
+                        if se.get("direct_maternal_correlation_se") is not None else "")
+                     + "; h2 and m2 are relative to s_A + s_M + s_AM + independent terms + "
+                       "residual (Willham 1972). Maternal EBVs, reliabilities and SEPs are in "
+                       "the `mebv`, `mreliability` and `msep` columns of the EBV file. With one "
+                       "record per animal the direct, maternal and maternal permanent-"
+                       "environment variances are hard to separate: read them with their "
+                       "standard errors or intervals.")
         if t.get("reml"):
             r = t["reml"]
             L.append("")
