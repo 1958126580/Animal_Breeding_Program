@@ -103,6 +103,13 @@ method in `docs/method_registry.toml`):
 
 ## 2. Commands that were run (Linux) and their results
 
+Round 14: full test suites (native 357 passed; pure-Python kernels 351 passed, 6
+native-only skipped), self-test T01–T18 with both kernels, all 24 example runs (example
+19: 1,145 s), the 30-replicate two-categorical study (2,560 s). CI: 683fe36, dd7ed61 and
+d80fc5c (ABP 0.14.0), runs 37097684360, 37098406846 and
+[37100055863](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37100055863),
+7 of 7 jobs succeeded each.
+
 Round 13: full test suites (native 351 passed; pure-Python kernels 345 passed, 6
 native-only skipped), self-test T01–T18 with both kernels, all 23 example runs (example
 18 REML: 1.3 s), the 200-replicate maternal REML study (373 s). CI: 2b86935, b520d82 and

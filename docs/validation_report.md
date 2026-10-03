@@ -23,7 +23,9 @@ round 10: run
 round 11: run
 [37008139663](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37008139663);
 round 13: run
-[37089590066](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37089590066); §3a).
+[37089590066](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37089590066);
+round 14: run
+[37100055863](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37100055863); §3a).
 Raw logs: `docs/validation/`. Status vocabulary: passed, failed, blocked,
 not_run.
 
@@ -60,16 +62,17 @@ AlphaMate has been run.
 
 | Command | Result | Log |
 |---|---|---|
-| `python -m pytest -v` (native C++ kernel; round 13) | **351 passed**, 0 failed, 0 skipped, 1298.9 s (with the examples and the pure-Python suite alongside) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
-| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 13) | **345 passed**, 0 failed, 6 skipped (native-only comparisons), 5781.7 s (with the examples and the native suite alongside) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
-| `abp selftest` with and without the native kernel (round 13) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
+| `python -m pytest -v` (native C++ kernel; round 14) | **357 passed**, 0 failed, 0 skipped, 1493.6 s (with the examples and the pure-Python suite alongside) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
+| `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 14) | **351 passed**, 0 failed, 6 skipped (native-only comparisons), 6240.0 s (with the examples and the native suite alongside) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
+| `abp selftest` with and without the native kernel (round 14) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
+| `python benchmarks/two_categorical_study.py --replicates 30 --workers 3` (round 14, F21) | completed, 2,560 s; 24 of 30 met the strict criteria; see §7.18 | `docs/validation/two_categorical_study.json`, `.log` |
 | `python benchmarks/maternal_study.py --method reml --replicates 200 --workers 3` (round 13, F19/F20) | completed, 373 s (5.5 s per replicate); 192 converged, 3 boundary, 5 `ABP-E300`; see §7.17 | `docs/validation/maternal_study_reml.json`, `.log` |
 | `python benchmarks/maternal_study.py --replicates 20 --workers 3 --animals 1500 --iterations 4000 --prior equal` and `--prior flat --out …_flat_r12.json` (round 12, F19) | completed, 2,835 s and 2,866 s (402 / 408 s per replicate); 16 of 20 and 1 of 20 met the strict criteria; see §7.16 | `docs/validation/maternal_study_equal_prior.json`, `maternal_study_flat_r12.json`, `.log` |
 | `python benchmarks/maternal_study.py --replicates 20 --workers 3 --animals 1500 --iterations 4000` (round 11) | completed, 8,672 s; 1 of 20 passed the strict R-hat/ESS criteria (median worst R-hat 1.015); see §7.15 and F19 | `docs/validation/maternal_study.json`, `.log` |
 | `python benchmarks/bayes_vs_reml_study.py --replicates 50 --workers 3 --iterations 4000` (round 9, F16; 2 scenarios) | completed (see §7.13) | `docs/validation/bayes_vs_reml_study.json`, `.log` |
 | `python benchmarks/bayes_vs_reml_study.py --scenarios t2_full --seeds 1 2 3 4 5 6 --iterations 16000` (round 9, convergence check) | see §7.13 | `docs/validation/bayes_vs_reml_study_16000it.json`, `.log` |
 | `python benchmarks/inbreeding_benchmark.py` (round 9) | completed; identical F, 5 pedigrees | `docs/validation/inbreeding_benchmark.json`, `.log` |
-| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–18 (+ 18 `analysis_equal_prior.toml` and `analysis_reml.toml`), `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 13, with both test suites alongside) | all 23 exit status 0; examples 15–18 gave the round-11/12 posterior means; example 18 REML: 11 iterations, 1.3 s | `docs/validation/examples-linux.log` |
+| `abp run` examples 01–06, 08, 10, 11 (+ `analysis_fixed.toml`), 12–19 (+ 18 `analysis_equal_prior.toml` and `analysis_reml.toml`), `abp index` 07, `abp mate` 09, `compare.py`, `api_example.py` (round 14, with both test suites alongside) | all 24 exit status 0; examples 15–18 gave the earlier posterior means; example 19 (two categorical traits): 16,000 iterations, 1,145 s | `docs/validation/examples-linux.log` |
 | `python benchmarks/bayes_vs_reml_study.py --scenarios t3_full --seeds 1..30 --prior pheno` (round 10, F16 follow-up) | completed (§7.14) | `docs/validation/bayes_vs_reml_study_pheno_prior.json`, `.log` |
 | `python benchmarks/pev_estimator_study.py` (round 8) | completed; SD ratio 0.575 | `docs/validation/pev_estimator_study.json`, `.log` |
 | `python benchmarks/rank_selection_study.py --replicates 100 --workers 4` (round 8, 4 scenarios) | completed | `docs/validation/rank_selection_study.json`, `.log` |
@@ -214,6 +217,11 @@ Round 13: commits 2b86935 (maternal REML), b520d82 (Kackar–Harville) and 62b2a
 (docs, ABP 0.13.0): runs 37088933310, 37089408924 and
 [37089590066](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37089590066),
 7 of 7 jobs succeeded on each (Windows and Linux, Python 3.11–3.13, pure-Python kernels).
+
+Round 14: commits 683fe36 (several categorical traits), dd7ed61 and d80fc5c (docs, ABP
+0.14.0): runs 37097684360, 37098406846 and
+[37100055863](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37100055863),
+7 of 7 jobs succeeded on each.
 
 The byte-reproducibility tests of examples 09 and 11 passed on every job,
 including Windows (line endings fixed by `.gitattributes`) and the newer
