@@ -1,0 +1,170 @@
+{
+  "benchmark": "inbreeding kernels",
+  "environment": {
+    "os": "Linux-6.18.44-fc-v50-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "blas": {
+      "name": "scipy-openblas",
+      "version": "0.3.31.188.0"
+    },
+    "cpu_count": 4,
+    "gpu": null,
+    "native_kernel": true,
+    "dtype": "float64"
+  },
+  "cases": [
+    {
+      "case": "discrete_20x10000_50_sires",
+      "n": 200000,
+      "mean_F": 0.021118428605831106,
+      "meuwissen_luo_kernel_s": 16.363429391999944,
+      "depth_mode0": {
+        "s": 1.7486805690000438,
+        "depths": 20,
+        "meuwissen_luo_pairs": 49263,
+        "colleau_columns": 700,
+        "colleau_depths": 14,
+        "max_abs_diff": 0.0
+      },
+      "depth_mode1": {
+        "s": 18.276753713999824,
+        "depths": 20,
+        "meuwissen_luo_pairs": 186318,
+        "colleau_columns": 0,
+        "colleau_depths": 0,
+        "max_abs_diff": 0.0
+      },
+      "depth_mode2": {
+        "s": 1.5882759149999401,
+        "depths": 20,
+        "meuwissen_luo_pairs": 0,
+        "colleau_columns": 950,
+        "colleau_depths": 19,
+        "max_abs_diff": 0.0
+      }
+    },
+    {
+      "case": "discrete_20x10000_1000_sires",
+      "n": 200000,
+      "mean_F": 0.0013045368554044034,
+      "meuwissen_luo_kernel_s": 116.36621616699995,
+      "depth_mode0": {
+        "s": 17.36986516700017,
+        "depths": 20,
+        "meuwissen_luo_pairs": 100057,
+        "colleau_columns": 8999,
+        "colleau_depths": 9,
+        "max_abs_diff": 0.0
+      },
+      "depth_mode1": {
+        "s": 122.08745094100004,
+        "depths": 20,
+        "meuwissen_luo_pairs": 189806,
+        "colleau_columns": 0,
+        "colleau_depths": 0,
+        "max_abs_diff": 0.0
+      },
+      "depth_mode2": {
+        "s": 19.49372458500011,
+        "depths": 20,
+        "meuwissen_luo_pairs": 0,
+        "colleau_columns": 18999,
+        "colleau_depths": 19,
+        "max_abs_diff": 0.0
+      }
+    },
+    {
+      "case": "discrete_10x20000_2000_sires",
+      "n": 200000,
+      "mean_F": 0.00026401729583740234,
+      "meuwissen_luo_kernel_s": 3.1756934410000213,
+      "depth_mode0": {
+        "s": 3.229717632000302,
+        "depths": 10,
+        "meuwissen_luo_pairs": 179918,
+        "colleau_columns": 0,
+        "colleau_depths": 0,
+        "max_abs_diff": 0.0
+      },
+      "depth_mode1": {
+        "s": 3.427839047999896,
+        "depths": 10,
+        "meuwissen_luo_pairs": 179918,
+        "colleau_columns": 0,
+        "colleau_depths": 0,
+        "max_abs_diff": 0.0
+      },
+      "depth_mode2": {
+        "s": 18.925932946000103,
+        "depths": 10,
+        "meuwissen_luo_pairs": 0,
+        "colleau_columns": 17999,
+        "colleau_depths": 9,
+        "max_abs_diff": 0.0
+      }
+    },
+    {
+      "case": "overlapping_100000_300_sires",
+      "n": 100000,
+      "mean_F": 0.0018263021321417883,
+      "meuwissen_luo_kernel_s": 189.25120351099986,
+      "depth_mode0": {
+        "s": 22.64544015599995,
+        "depths": 101,
+        "meuwissen_luo_pairs": 23714,
+        "colleau_columns": 41772,
+        "colleau_depths": 74,
+        "max_abs_diff": 6.611378111642807e-14
+      },
+      "depth_mode1": {
+        "s": 204.41057659599983,
+        "depths": 101,
+        "meuwissen_luo_pairs": 89755,
+        "colleau_columns": 0,
+        "colleau_depths": 0,
+        "max_abs_diff": 5.972999872483342e-14
+      },
+      "depth_mode2": {
+        "s": 17.9270201559998,
+        "depths": 101,
+        "meuwissen_luo_pairs": 0,
+        "colleau_columns": 55426,
+        "colleau_depths": 100,
+        "max_abs_diff": 6.611378111642807e-14
+      }
+    },
+    {
+      "case": "overlapping_100000_all_males",
+      "n": 100000,
+      "mean_F": 0.0025945211677676026,
+      "meuwissen_luo_kernel_s": 232.69277557400028,
+      "depth_mode0": {
+        "s": 32.93141599399996,
+        "depths": 165,
+        "meuwissen_luo_pairs": 17141,
+        "colleau_columns": 53293,
+        "colleau_depths": 135,
+        "max_abs_diff": 6.827394552488819e-14
+      },
+      "depth_mode1": {
+        "s": 245.4209849599997,
+        "depths": 165,
+        "meuwissen_luo_pairs": 89768,
+        "colleau_columns": 0,
+        "colleau_depths": 0,
+        "max_abs_diff": 7.593925488436071e-14
+      },
+      "depth_mode2": {
+        "s": 20.85594595900011,
+        "depths": 165,
+        "meuwissen_luo_pairs": 0,
+        "colleau_columns": 65171,
+        "colleau_depths": 164,
+        "max_abs_diff": 6.827394552488819e-14
+      }
+    }
+  ]
+}

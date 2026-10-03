@@ -1,0 +1,73 @@
+{
+  "created_at": "2026-09-30T13:09:09+00:00",
+  "environment": {
+    "os": "Linux-6.18.44-fc-v50-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "blas": {
+      "name": "scipy-openblas",
+      "version": "0.3.31.188.0"
+    },
+    "cpu_count": 4,
+    "gpu": null,
+    "native_kernel": true,
+    "dtype": "float64"
+  },
+  "size": {
+    "animals": 120000,
+    "records": 110000,
+    "genotyped": 30000,
+    "markers": 20000,
+    "bed_bytes": 150000003
+  },
+  "data_generation_s": 34.57450943799995,
+  "abp_run_exit_status": 0,
+  "abp_run_wall_s": 205.90790768099941,
+  "abp_run_peak_rss_gb": 7.3697357177734375,
+  "log_tail": [
+    "status: passed",
+    "outputs: /tmp/tmpz9tua4gw/out",
+    "report: /tmp/tmpz9tua4gw/out/report.md",
+    "2026-09-30T13:05:43 INFO ABP run 20260930T130543Z-b45e1282 started; spec /tmp/tmpz9tua4gw/a.toml (sha256 414e51d1a430)",
+    "2026-09-30T13:05:44 INFO read 110000 phenotype rows and 120000 pedigree rows",
+    "2026-09-30T13:05:48 INFO pedigree QC passed: 120000 animals, max generation 11, mean F 0.0029 (native_cpp_meuwissen_luo kernel)",
+    "2026-09-30T13:05:48 INFO phenotype QC passed: 110000 records used, 0 excluded (listed in qc_excluded_records.csv)",
+    "2026-09-30T13:07:58 INFO y: 110000 records, 400 fixed columns kept (1 constrained), random terms ['animal']",
+    "2026-09-30T13:08:03 INFO y: solved 120400 equations with pcg (matrix-free single step: H^-1 applied as an operator); relative residual 9.80e-09; 5.06 s",
+    "2026-09-30T13:09:07 INFO y: PEV by 10 simulations (seed 20260925); mean Monte-Carlo SE of reliability 0.1010",
+    "2026-09-30T13:09:09 INFO run 20260930T130543Z-b45e1282 passed in 205.49 s"
+  ],
+  "solver": {
+    "method": "pcg",
+    "selection_reason": "matrix-free single step: H^-1 applied as an operator",
+    "n_equations": 120400,
+    "relative_residual": 9.795733373172116e-09,
+    "iterations": 69,
+    "wall_seconds": 5.056352675999733,
+    "pev": "sampled"
+  },
+  "reliability_summary": {
+    "mean": 0.3410059232343836,
+    "min": 0.0,
+    "max": 0.98120828977348,
+    "n_rounding_clamped": 0
+  },
+  "relationship": {
+    "kind": "single_step",
+    "n": 120000,
+    "n_genotyped": 30000,
+    "n_markers": 20000,
+    "genotype_storage": "int8",
+    "single_step_mode": "matrix_free"
+  },
+  "pev_sampling": {
+    "method": "simulation (Garcia-Cortes et al. 1995)",
+    "reliability_estimator": "orthogonal (mean h^2 / (mean h^2 + mean d^2))",
+    "n_samples": 10,
+    "seed": 20260925,
+    "mean_pcg_iterations": 92.3,
+    "mean_reliability_mc_se": 0.10097966110124204
+  }
+}

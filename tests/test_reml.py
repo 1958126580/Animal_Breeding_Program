@@ -146,7 +146,6 @@ def test_forced_boundary_case_is_detected():
     one record per animal makes pe confounded with residual only through the
     likelihood of an animal model; use strongly negative intra-animal correlation."""
     rng = np.random.default_rng(5)
-    ped = Pedigree.from_parent_ids([f"f{i}" for i in range(60)], [None] * 60, [None] * 60)
     rec = [f"f{i}" for i in range(60) for _ in range(2)]
     # records of the same animal deviate in opposite directions -> negative
     # within-animal covariance -> animal and pe variance estimates hit zero
@@ -231,3 +230,53 @@ def test_reml_with_dense_genomic_structure_matches_v_form():
                       options={"xatol": 1e-10, "fatol": 1e-12, "maxiter": 5000})
     np.testing.assert_allclose([fit.variances["animal"], fit.variances["residual"]],
                                np.exp(opt.x), rtol=2e-5)
+
+
+@pytest.mark.parametrize("sparse", [False, True])
+def test_score_at_zero_equals_v_form_derivative(sparse, monkeypatch):
+    """Round 15: the score at zero of a dropped term (additive with K = A, or iid) from
+    the record columns only, dense or sparse sub-model, equals the V-form derivative
+    1/2 [y'P dV P y - tr(P dV)] at theta_k = 0."""
+    import abp.solvers.reml as R
+    if sparse:
+        monkeypatch.setattr(R, "SPARSE_REML_ABOVE", 5)
+    ids, sires, dams, rec, grp, rng = _problem(7)
+    ped = Pedigree.from_parent_ids(ids, sires, dams)
+    y = rng.normal(5, 2, len(rec))
+    fd = build_fixed_design({"g": grp}, [FixedTerm("g", "factor")], True, len(rec))
+    animal, pe = animal_term(ped, rec), iid_term("pe", rec)
+    covs = _v_form_pieces(ids, sires, dams, rec, pe)
+    Xd = fd.X.toarray()
+    for zero, active, k_zero in ((animal, [pe], 0), (pe, [animal], 1)):
+        vc = {t.name: 0.8 for t in active}
+        vc["residual"] = 2.1
+        g = R._score_at_zero(y, fd.X, active, vc, zero)
+        theta = np.array([0.0, 0.0, 2.1])
+        theta[1 - k_zero] = 0.8
+        _, P = reml_loglik_v_form(y, Xd, covs, theta)
+        ref = 0.5 * (y @ P @ covs[k_zero] @ P @ y - np.trace(P @ covs[k_zero]))
+        assert g == pytest.approx(ref, rel=1e-9, abs=1e-10), zero.name
+
+
+def test_boundary_decision_is_invariant_to_the_unit():
+    """Round 15 (found on real milk yields in pounds): the Kuhn-Tucker check compared
+    the score at zero (units 1/variance) with 1e-6 |logL|, so with large variances it
+    accepted a zero additive variance whose score was positive (old code: this data set
+    in units x 3000 ended at animal = 0 with logL 1.02 below the interior optimum).
+    Rescaling y by c must rescale every variance by c^2 and leave the status unchanged."""
+    import abp.solvers.reml as R
+    ids, sires, dams, rec, grp, rng = _problem(8, n_anim=100, n_rec=250)
+    ped = Pedigree.from_parent_ids(ids, sires, dams)
+    y = _simulate(ids, sires, dams, rec, grp, 0.4, 1.5, 3.0, rng)
+    fd = build_fixed_design({"g": grp}, [FixedTerm("g", "factor")], True, len(rec))
+    terms = [animal_term(ped, rec), iid_term("pe", rec)]
+    base = reml_fit(y, fd.X, terms, CFG)
+    c = 3000.0
+    big = reml_fit(c * y, fd.X, terms, CFG)
+    assert big.status == base.status == "converged"
+    for k in ("animal", "pe", "residual"):
+        assert big.variances[k] == pytest.approx(c**2 * base.variances[k], rel=1e-5), k
+    # the helper itself: the same relative score gives the same decision at any scale
+    for s in (1e-4, 1.0, 1e7):
+        assert R.kt_rejects_zero(2e-3 / s, 3.0 * s, -500.0)
+        assert not R.kt_rejects_zero(-2e-3 / s, 3.0 * s, -500.0)

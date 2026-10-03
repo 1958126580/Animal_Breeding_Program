@@ -17,6 +17,7 @@ Generated from `abp.errors` (`python -m abp.errors docs/error_codes.md`; `abp er
 | ABP-E202 | PEDIGREE_SEX_CONFLICT | 4 | An animal is used both as sire and dam, or its declared sex contradicts its parental role. | Correct the parent IDs or the sex column for the listed animals. |
 | ABP-E203 | PEDIGREE_BIRTH_ORDER | 4 | A parent is born on or after the birth date of its offspring. | Correct the birth dates or the parent IDs of the listed animals. |
 | ABP-E204 | PEDIGREE_CONFLICTING_DUPLICATE | 4 | An animal appears in several pedigree rows with different parents or sex. | Keep exactly one row per animal. |
+| ABP-E205 | PEDIGREE_UNASSIGNED_BASE | 4 | With metafounders, an unknown parent is not assigned to any metafounder. | Code the unknown parent with a metafounder label (metafounders.prefix) or declare metafounders.default. |
 | ABP-E210 | PHENOTYPE_UNKNOWN_ANIMAL | 4 | A phenotype record refers to an animal that is not in the pedigree. | Add the animal to the pedigree, fix the ID, or set qc.unknown_animals = "add_as_founder" if this is intended. |
 | ABP-E211 | PHENOTYPE_OUT_OF_RANGE | 4 | A phenotype lies outside the valid range declared for the trait. | Correct the value, or set qc.out_of_range = "quarantine" to exclude such records (they are then listed in the QC report). |
 | ABP-E212 | NO_USABLE_RECORDS | 4 | No phenotype record remains for the analysis after QC. | Check trait columns, missing-value codes and QC settings. |

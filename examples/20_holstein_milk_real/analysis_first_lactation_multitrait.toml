@@ -1,0 +1,62 @@
+# Example 20 (REAL data): first-lactation 305-day milk, fat and protein yield of Holstein
+# cows, multi-trait animal model; genetic and residual covariance matrices by REML.
+# Data: the 'milk' and 'pedCowsR' data sets of the R package pedigreemm 0.3-5 (GPL >= 2;
+# USDA AIPL records; Vazquez et al. 2010, J Anim Sci 88:497); 1,314 first lactations.
+# NOT stored in the repository: run
+#   pip install rdata && python examples/20_holstein_milk_real/fetch_data.py
+# first. Yields in pounds. Herd as fixed effect for every trait.
+schema_version = "1"
+
+[project]
+name = "holstein_first_lactation_real"
+species = "cattle"
+synthetic_data = false
+
+[analysis]
+task = "additive_ebv"
+target_population = "Holstein cows in the 57 herds of the pedigreemm 'milk' data (USDA AIPL)"
+information_cutoff = "2024-10-14"           # publication of pedigreemm 0.3-5
+genetic_base = "animals of unknown parents in pedCowsR: unrelated, non-inbred, mean 0"
+applicability = "method validation on public real data; not a breeding evaluation"
+
+[data]
+pedigree = "data/pedigree.csv"
+phenotypes = "data/lactations_first.csv"
+
+[data.phenotype_columns]
+record_id = "record_id"
+
+[[traits]]
+name = "milk"
+unit = "lb"
+min = 3000.0
+max = 60000.0
+description = "305-day milk yield, first lactation"
+
+[[traits]]
+name = "fat"
+unit = "lb"
+min = 50.0
+max = 3000.0
+description = "305-day fat yield, first lactation"
+
+[[traits]]
+name = "prot"
+unit = "lb"
+min = 50.0
+max = 3000.0
+description = "305-day protein yield, first lactation"
+
+[model]
+traits = ["milk", "fat", "prot"]
+fixed = [{ column = "herd", type = "factor" }]
+random = [{ name = "animal", kind = "additive", relationship = "pedigree" }]
+
+[variances]
+mode = "reml"
+
+[qc]
+out_of_range = "quarantine"
+
+[output]
+top_n = 15

@@ -1,0 +1,9 @@
+# command: python benchmarks/inbreeding_benchmark.py
+# date: 2026-10-01T02:24:21+00:00
+discrete_20x10000_50_sires: n 200000, round-1 kernel 16.36 s, mode 0 1.75 s (diff 0.0e+00), mode 1 18.28 s (diff 0.0e+00), mode 2 1.59 s (diff 0.0e+00)
+discrete_20x10000_1000_sires: n 200000, round-1 kernel 116.37 s, mode 0 17.37 s (diff 0.0e+00), mode 1 122.09 s (diff 0.0e+00), mode 2 19.49 s (diff 0.0e+00)
+discrete_10x20000_2000_sires: n 200000, round-1 kernel 3.18 s, mode 0 3.23 s (diff 0.0e+00), mode 1 3.43 s (diff 0.0e+00), mode 2 18.93 s (diff 0.0e+00)
+overlapping_100000_300_sires: n 100000, round-1 kernel 189.25 s, mode 0 22.65 s (diff 6.6e-14), mode 1 204.41 s (diff 6.0e-14), mode 2 17.93 s (diff 6.6e-14)
+overlapping_100000_all_males: n 100000, round-1 kernel 232.69 s, mode 0 32.93 s (diff 6.8e-14), mode 1 245.42 s (diff 7.6e-14), mode 2 20.86 s (diff 6.8e-14)
+wrote /home/user/Animal_Breeding_Program/docs/validation/inbreeding_benchmark.json
+# exit_code: 0

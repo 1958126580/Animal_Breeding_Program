@@ -1,0 +1,35 @@
+t2_rank1 {"1": 58, "2": 42}
+             all   chosen_plugin trait1: MSE/PEV 1.020 cov 0.947 acc 0.744 trait2: MSE/PEV 1.005 cov 0.949 acc 0.741
+             all       chosen_kh trait1: MSE/PEV 1.006 cov 0.949 acc 0.744 trait2: MSE/PEV 0.960 cov 0.953 acc 0.741
+             all true_parameters trait1: MSE/PEV 0.997 cov 0.950 acc 0.746 trait2: MSE/PEV 0.997 cov 0.950 acc 0.746
+   chosen_rank_1   chosen_plugin trait1: MSE/PEV 1.025 cov 0.946 acc 0.743 trait2: MSE/PEV 1.082 cov 0.940 acc 0.743
+   chosen_rank_1       chosen_kh trait1: MSE/PEV 1.011 cov 0.948 acc 0.743 trait2: MSE/PEV 1.044 cov 0.944 acc 0.743
+   chosen_rank_1 true_parameters trait1: MSE/PEV 0.997 cov 0.950 acc 0.745 trait2: MSE/PEV 0.997 cov 0.950 acc 0.745
+   chosen_rank_2   chosen_plugin trait1: MSE/PEV 1.013 cov 0.948 acc 0.745 trait2: MSE/PEV 0.898 cov 0.961 acc 0.737
+   chosen_rank_2       chosen_kh trait1: MSE/PEV 0.999 cov 0.950 acc 0.745 trait2: MSE/PEV 0.844 cov 0.966 acc 0.737
+   chosen_rank_2 true_parameters trait1: MSE/PEV 0.998 cov 0.950 acc 0.746 trait2: MSE/PEV 0.998 cov 0.950 acc 0.746
+t2_full {"2": 100}
+             all   chosen_plugin trait1: MSE/PEV 1.035 cov 0.946 acc 0.737 trait2: MSE/PEV 1.206 cov 0.926 acc 0.550
+             all       chosen_kh trait1: MSE/PEV 1.020 cov 0.948 acc 0.737 trait2: MSE/PEV 1.136 cov 0.933 acc 0.550
+             all true_parameters trait1: MSE/PEV 0.998 cov 0.951 acc 0.739 trait2: MSE/PEV 0.996 cov 0.951 acc 0.565
+   chosen_rank_2   chosen_plugin trait1: MSE/PEV 1.035 cov 0.946 acc 0.737 trait2: MSE/PEV 1.206 cov 0.926 acc 0.550
+   chosen_rank_2       chosen_kh trait1: MSE/PEV 1.020 cov 0.948 acc 0.737 trait2: MSE/PEV 1.136 cov 0.933 acc 0.550
+   chosen_rank_2 true_parameters trait1: MSE/PEV 0.998 cov 0.951 acc 0.739 trait2: MSE/PEV 0.996 cov 0.951 acc 0.565
+t3_rank2 {"3": 35, "2": 65}
+             all   chosen_plugin trait1: MSE/PEV 1.055 cov 0.944 acc 0.740 trait2: MSE/PEV 1.055 cov 0.944 acc 0.691 trait3: MSE/PEV 1.058 cov 0.943 acc 0.640
+             all       chosen_kh trait1: MSE/PEV 1.035 cov 0.946 acc 0.740 trait2: MSE/PEV 1.012 cov 0.948 acc 0.691 trait3: MSE/PEV 1.016 cov 0.948 acc 0.640
+             all true_parameters trait1: MSE/PEV 0.996 cov 0.951 acc 0.743 trait2: MSE/PEV 1.002 cov 0.949 acc 0.699 trait3: MSE/PEV 0.990 cov 0.951 acc 0.648
+   chosen_rank_2   chosen_plugin trait1: MSE/PEV 1.067 cov 0.942 acc 0.740 trait2: MSE/PEV 1.064 cov 0.943 acc 0.690 trait3: MSE/PEV 1.104 cov 0.938 acc 0.643
+   chosen_rank_2       chosen_kh trait1: MSE/PEV 1.047 cov 0.944 acc 0.740 trait2: MSE/PEV 1.026 cov 0.947 acc 0.690 trait3: MSE/PEV 1.061 cov 0.943 acc 0.643
+   chosen_rank_2 true_parameters trait1: MSE/PEV 0.998 cov 0.951 acc 0.743 trait2: MSE/PEV 1.003 cov 0.949 acc 0.697 trait3: MSE/PEV 0.979 cov 0.952 acc 0.652
+   chosen_rank_3   chosen_plugin trait1: MSE/PEV 1.032 cov 0.947 acc 0.741 trait2: MSE/PEV 1.037 cov 0.945 acc 0.692 trait3: MSE/PEV 0.973 cov 0.953 acc 0.634
+   chosen_rank_3       chosen_kh trait1: MSE/PEV 1.012 cov 0.949 acc 0.741 trait2: MSE/PEV 0.985 cov 0.951 acc 0.692 trait3: MSE/PEV 0.931 cov 0.957 acc 0.634
+   chosen_rank_3 true_parameters trait1: MSE/PEV 0.993 cov 0.951 acc 0.744 trait2: MSE/PEV 1.001 cov 0.949 acc 0.703 trait3: MSE/PEV 1.009 cov 0.949 acc 0.642
+t3_full {"3": 100}
+             all   chosen_plugin trait1: MSE/PEV 1.063 cov 0.942 acc 0.734 trait2: MSE/PEV 1.193 cov 0.928 acc 0.571 trait3: MSE/PEV 1.249 cov 0.927 acc 0.577
+             all       chosen_kh trait1: MSE/PEV 1.043 cov 0.945 acc 0.734 trait2: MSE/PEV 1.135 cov 0.935 acc 0.571 trait3: MSE/PEV 1.174 cov 0.933 acc 0.577
+             all true_parameters trait1: MSE/PEV 1.008 cov 0.949 acc 0.737 trait2: MSE/PEV 1.002 cov 0.950 acc 0.586 trait3: MSE/PEV 0.998 cov 0.950 acc 0.590
+   chosen_rank_3   chosen_plugin trait1: MSE/PEV 1.063 cov 0.942 acc 0.734 trait2: MSE/PEV 1.193 cov 0.928 acc 0.571 trait3: MSE/PEV 1.249 cov 0.927 acc 0.577
+   chosen_rank_3       chosen_kh trait1: MSE/PEV 1.043 cov 0.945 acc 0.734 trait2: MSE/PEV 1.135 cov 0.935 acc 0.571 trait3: MSE/PEV 1.174 cov 0.933 acc 0.577
+   chosen_rank_3 true_parameters trait1: MSE/PEV 1.008 cov 0.949 acc 0.737 trait2: MSE/PEV 1.002 cov 0.950 acc 0.586 trait3: MSE/PEV 0.998 cov 0.950 acc 0.590
+wrote /home/user/Animal_Breeding_Program/docs/validation/rank_selection_study.json

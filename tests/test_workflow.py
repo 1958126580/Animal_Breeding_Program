@@ -184,3 +184,13 @@ def test_validate_command(tmp_path, capsys):
     assert main(["validate", str(EX01 / "analysis.toml")]) == 0
     summary = json.loads(capsys.readouterr().out)
     assert summary["status"] == "passed"
+
+
+def test_abp_error_survives_pickling():
+    """Errors raised in worker processes must reach the parent intact."""
+    import pickle
+    from abp.errors import ABPError
+    e = ABPError("REML_NOT_CONVERGED", "did not converge", iterations=5, trait="wwt")
+    r = pickle.loads(pickle.dumps(e))
+    assert isinstance(r, ABPError) and r.code == e.code and r.message == e.message
+    assert r.details == {"iterations": 5, "trait": "wwt"} and str(r) == str(e)

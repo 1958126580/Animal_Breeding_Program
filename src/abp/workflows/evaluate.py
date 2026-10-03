@@ -23,7 +23,7 @@ from typing import Any
 import numpy as np
 
 from ..core.model import GeneticStructure, SingleTraitModel, build_single_trait, pedigree_structure
-from ..core.spec import AnalysisSpec, load_spec
+from ..core.spec import AnalysisSpec, load_spec, parent_code_prefix
 from ..errors import ABPError
 from ..io.tables import read_table, write_csv
 from ..qc.pedigree import PedigreeColumns, PedigreeData, load_pedigree, mean_inbreeding_by_generation
@@ -89,6 +89,11 @@ def _heritability(vc: dict[str, float], genetic: str) -> float:
 def _structure(spec: AnalysisSpec, ped: PedigreeData | None, manifest: dict,
                records: RecordSet) -> GeneticStructure:
     rel = next(r for r in spec["model"]["random"] if r["kind"] == "additive")["relationship"]
+    if spec["metafounders"] is not None:
+        from .metafounder_inputs import metafounder_structure
+        used = records.used_mask(list(spec["model"]["traits"]))
+        with_records = {a for a, u in zip(records.animal, used) if u}
+        return metafounder_structure(spec, ped, rel, manifest, with_records)
     if rel == "pedigree" and spec["upg"] is not None:
         from ..core.upg import upg_structure
         u = spec["upg"]
@@ -216,8 +221,8 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
         pc = data["pedigree_columns"]
         ped_ids = set(ped_table.column(pc["id"])) | (
             (set(ped_table.column(pc["sire"])) | set(ped_table.column(pc["dam"]))) - unknown_parent)
-        if d["upg"] is not None:
-            ped_ids = {a for a in ped_ids if not a.startswith(d["upg"]["prefix"])}
+        if parent_code_prefix(d) is not None:
+            ped_ids = {a for a in ped_ids if not a.startswith(parent_code_prefix(d))}
     log.info("read %d phenotype rows%s", phe_table.n_rows,
              f" and {ped_table.n_rows} pedigree rows" if ped_table else "")
 
@@ -229,7 +234,7 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
         ped_data = load_pedigree(ped_table, PedigreeColumns(pc["id"], pc["sire"], pc["dam"],
                                                             pc["sex"], pc["birth_date"]),
                                  unknown_parent, missing, extra_founders=to_add,
-                                 group_prefix=d["upg"]["prefix"] if d["upg"] else None)
+                                 group_prefix=parent_code_prefix(d))
         ped_data.qc.stats["inbreeding_by_generation"] = mean_inbreeding_by_generation(
             ped_data.pedigree)
         atomic_write_json(stage.path("qc_pedigree.json"), ped_data.qc.to_dict())
@@ -245,7 +250,8 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
     log.info("phenotype QC passed: %d records used, %d excluded (listed in qc_excluded_records.csv)",
              phe_qc.stats["n_records_used"], len(excluded))
 
-    if d["variances"]["mode"] == "bayes":
+    if d["variances"]["mode"] == "bayes" and d["bayes"]["method"] not in ("threshold",
+                                                                        "multitrait"):
         return _run_bayes(spec, records, phe_qc, ped_data, stage, manifest)
 
     # -- relationship structure --------------------------------------------
@@ -276,7 +282,13 @@ def _run(spec: AnalysisSpec, stage: OutputStage, manifest: dict, resume: bool) -
         "limitations": _limitations(d, structure),
     }
     traits = d["model"]["traits"]
-    if len(traits) > 1:
+    maternal = any(r["kind"] == "maternal" for r in d["model"]["random"])
+    if maternal and d["variances"]["mode"] in ("reml", "known"):
+        from .maternal import run_maternal
+        out, state = run_maternal(spec, records, traits[0], structure, ped_data, stage,
+                                  manifest, budget)
+        results["traits"][traits[0]] = out
+    elif len(traits) > 1 or maternal:
         from .multitrait import run_multitrait
         results["traits"], state = run_multitrait(spec, records, structure, ped_data, stage,
                                                   manifest, budget)
@@ -392,9 +404,27 @@ def _limitations(d: dict, structure: GeneticStructure) -> list[str]:
                        "estimation error, and reliabilities are not defined (not reported).")
         lim.append("Unknown parents without a group code, and all groups, carry no "
                    "relationships or inbreeding among themselves (no metafounders).")
+    elif structure.kind in ("pedigree_mf", "single_step_mf"):
+        m = structure.meta
+        lim.append(f"Genetic base: {m['n_groups']} metafounder(s) {m['metafounders']} with "
+                   f"relationships Gamma = {np.round(np.array(m['gamma']), 4).tolist()} "
+                   f"({m['gamma_provenance']}). EBVs, variances and reliabilities refer to this "
+                   "base and are not directly comparable with an evaluation that treats unknown "
+                   "parents as unrelated; variance components should be estimated under the "
+                   "same model.")
+        lim.append("Gamma is treated as known: its estimation error is not propagated into "
+                   "EBVs, PEV or reliabilities.")
     else:
         lim.append("No unknown-parent groups or metafounders: all unknown parents are treated "
                    "as unrelated, non-inbred base animals.")
+    if any(t["type"] == "categorical" and t["name"] in d["model"]["traits"] for t in d["traits"]):
+        lim.append("Categorical traits: EBVs are on the liability scale of a threshold (probit) "
+                   "model with residual variance 1; PEV and reliabilities are Laplace "
+                   "approximations at the posterior mode."
+                   + (" Liability variances were estimated by Laplace-approximate REML, which "
+                      "is biased when there is little information per animal (see the "
+                      "validation report); their estimation error is not propagated."
+                      if d["variances"]["mode"] == "reml" else ""))
     if d["project"]["synthetic_data"]:
         lim.insert(0, "SYNTHETIC DATA: results illustrate the method only and carry no "
                       "information about any real population.")
@@ -410,12 +440,15 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
                       stage: OutputStage, manifest: dict, budget: int, resume: bool) -> dict:
     d = spec.data
     model = build_single_trait(records, trait, d, structure)
+    if next(t["type"] for t in d["traits"] if t["name"] == trait) == "categorical":
+        return _run_threshold_trait(spec, model, structure, ped_data, stage, manifest, budget)
     log.info("%s: %d records, %d fixed columns kept (%d constrained), random terms %s",
              trait, model.y.size, model.fixed.rank, len(model.fixed.constrained_labels),
              [t.name for t in model.terms])
     upg = _upg_check(model, structure)
     vmode = d["variances"]["mode"]
     reml_info = None
+    fit = None
     if vmode == "known":
         vc = {k: float(v) for k, v in d["variances"]["values"].items()}
     else:
@@ -442,18 +475,71 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
     model.terms = active_terms
     res = blup(model.y, model.fixed.X, active_terms, vc_active, method=sol["method"],
                compute_pev=(sol["pev"] == "exact"), tol=sol["tol"], max_iter=sol["max_iter"],
-               memory_budget_bytes=budget)
+               memory_budget_bytes=budget, factorization=sol["factorization"])
     s = res.solve
     log.info("%s: solved %d equations with %s (%s); relative residual %.2e; %.2f s", trait,
              s.solution.size, s.method, s.selection_reason, s.rel_residual, s.wall_seconds)
+    vc_extra = None
+    if (fit is not None and fit.cov is not None and gen_pev_available(res, model.genetic_term)
+            and model.genetic_term in fit.cov_names):
+        from ..solvers.vc_uncertainty import kackar_harville_delta
+        delta = kackar_harville_delta(model.y, model.fixed.X, active_terms, vc_active, fit.cov,
+                                      fit.cov_names, model.genetic_term, method=sol["method"],
+                                      memory_budget_bytes=budget,
+                                      factorization=sol["factorization"])
+        g = res.terms[model.genetic_term]
+        prior = vc_active[model.genetic_term] * np.asarray(model.terms[
+            [t.name for t in model.terms].index(model.genetic_term)].k_diag, dtype=np.float64)
+        pev_t = g.pev + delta
+        vc_extra = {"pev_incl_vc_uncertainty": pev_t,
+                    "reliability_incl_vc_uncertainty": np.clip(1.0 - pev_t / prior, 0.0, 1.0)}
+        log.info("%s: PEV including variance-estimation uncertainty (Kackar-Harville): mean "
+                 "increase %.4g (%.1f%%)", trait, float(delta.mean()),
+                 100.0 * float(delta.mean() / g.pev.mean()))
+    if sol["pev"] == "sampled":                 # matrix-free single step (spec rule)
+        from ..solvers.blup import TermResult
+        from ..solvers.pev_sampling import sampled_pev
+        smp = sampled_pev(model.y.size, model.fixed.X, active_terms, vc_active,
+                          model.genetic_term, n_samples=sol["pev_samples"], seed=sol["pev_seed"],
+                          tol=max(sol["tol"], 1e-8), max_iter=sol["max_iter"])
+        g = res.terms[model.genetic_term]
+        res.terms[model.genetic_term] = TermResult(g.name, g.labels, g.solution, smp.pev,
+                                                   smp.reliability, 0)
+        vc_extra = dict(vc_extra or {})
+        vc_extra["reliability_mc_se"] = smp.reliability_se
+        manifest["diagnostics"].setdefault(trait, {})["pev_sampling"] = {
+            "method": "simulation (Garcia-Cortes et al. 1995)",
+            "reliability_estimator": smp.estimator + " (mean h^2 / (mean h^2 + mean d^2))",
+            "n_samples": smp.n_samples, "seed": smp.seed,
+            "mean_pcg_iterations": float(np.mean(smp.pcg_iterations)),
+            "mean_reliability_mc_se": float(smp.reliability_se.mean())}
+        log.info("%s: PEV by %d simulations (seed %d); mean Monte-Carlo SE of reliability %.4f",
+                 trait, smp.n_samples, smp.seed, float(smp.reliability_se.mean()))
     groups = None
-    if upg is not None:
+    mf_info = None
+    contrast = None
+    if structure.kind in ("pedigree_mf", "single_step_mf"):
+        from .metafounder_inputs import base_contrast
+        contrast = base_contrast(res, model.genetic_term, structure,
+                                 vc_active[model.genetic_term], d["metafounders"])
+    if upg is not None or structure.kind in ("pedigree_mf", "single_step_mf"):
         res.terms[model.genetic_term], groups = _split_upg(res.terms[model.genetic_term],
                                                            structure)
-    files = _write_single_trait_outputs(stage, model, res, ped_data)
+    if vc_extra is not None and groups is not None:          # keep animal equations only
+        n_an = structure.meta["n_animals"]
+        vc_extra = {k: v[:n_an] for k, v in vc_extra.items()}
+    files = _write_single_trait_outputs(stage, model, res, ped_data, contrast, vc_extra)
     if upg is not None:
         files["upg_solutions"] = _write_upg(stage, trait, groups, structure)
         upg["file"] = files["upg_solutions"]
+    elif groups is not None:
+        files["metafounder_solutions"] = _write_metafounders(stage, trait, groups, structure)
+        m = structure.meta
+        mf_info = {"metafounders": m["metafounders"], "gamma": m["gamma"],
+                   "reference": contrast["reference"],
+                   "reliability_vs_base_summary": contrast["summary"],
+                   "gamma_source": m["gamma_source"], "gamma_provenance": m["gamma_provenance"],
+                   "file": files["metafounder_solutions"]}
     gen = res.terms[model.genetic_term]
     top_n = d["output"]["top_n"]
     order = np.argsort(-gen.solution, kind="stable")[:top_n]
@@ -481,6 +567,7 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
         "fixed_effects": fixed_rows,
         "n_fixed_constrained": len(model.fixed.constrained_labels),
         "upg": upg,
+        "metafounders": mf_info,
         "top": top,
         "reliability_summary": None if gen.reliability is None else {
             "mean": float(gen.reliability.mean()), "min": float(gen.reliability.min()),
@@ -489,18 +576,215 @@ def _run_single_trait(spec: AnalysisSpec, records: RecordSet, trait: str,
                         "min": float(gen.solution.min()), "max": float(gen.solution.max())},
         "files": files,
     }
-    manifest["diagnostics"][trait] = {"solver": out["solver"], "reml": reml_info,
-                                      "fixed_constrained": [list(x) for x in
-                                                            model.fixed.constrained_labels]}
+    # update, not replace: earlier steps (e.g. pev_sampling) have written entries already
+    manifest["diagnostics"].setdefault(trait, {}).update(
+        {"solver": out["solver"], "reml": reml_info,
+         "fixed_constrained": [list(x) for x in model.fixed.constrained_labels]})
     if upg is not None:
         manifest["diagnostics"][trait]["upg"] = upg
     from .multitrait import EvalState
     n_a = len(gen.labels)
     k_diag = np.asarray(structure.k_diag)[:n_a]
     pev_idx = None if gen.pev is None or not np.all(np.isfinite(k_diag)) else gen.pev[:, None, None]
+    if contrast is not None:          # metafounders: index on EBVs relative to the base
+        pev_c = None if contrast["pev"] is None else contrast["pev"][:, None, None]
+        state = EvalState(tuple(gen.labels), [trait], contrast["ebv"][:, None], pev_c,
+                          np.array([[vc[model.genetic_term]]]), contrast["k_factor"], False, sex)
+        return out, state
     state = EvalState(tuple(gen.labels), [trait], gen.solution[:, None], pev_idx,
                       np.array([[vc[model.genetic_term]]]), k_diag, False, sex)
     return out, state
+
+
+def _run_threshold_trait(spec: AnalysisSpec, model: SingleTraitModel,
+                         structure: GeneticStructure, ped_data: PedigreeData | None,
+                         stage: OutputStage, manifest: dict, budget: int) -> tuple[dict, Any]:
+    """Ordered categorical trait: threshold (probit) model on the liability scale."""
+    from types import SimpleNamespace
+
+    from ..solvers.threshold import threshold_blup, threshold_laplace_reml
+    from .multitrait import EvalState
+    d = spec.data
+    trait = model.trait
+    sol = d["solver"]
+    reml_info = None
+    if d["variances"]["mode"] == "reml":
+        rc = d["reml"]
+        fit = threshold_laplace_reml(model.y, model.fixed.X, model.terms,
+                                     intercept=d["model"]["intercept"], start=rc["start"],
+                                     tol=max(float(rc["tol"]), 1e-5),
+                                     max_eval=max(int(rc["max_iter"]), 200),
+                                     memory_budget_bytes=budget)
+        vc = dict(fit.variances)
+        reml_info = {"status": fit.status, "iterations": fit.evaluations, "loglik": fit.loglik,
+                     "se": None, "heritability_se": None,
+                     "method": "laplace_approximate_reml", "note": fit.note}
+        variance_source = ("reml (Laplace-approximate, liability scale; residual variance "
+                           "fixed at 1)")
+        log.info("%s: Laplace-approximate REML on the liability scale: %s (%d evaluations)",
+                 trait, {k: round(v, 5) for k, v in vc.items()}, fit.evaluations)
+    elif d["variances"]["mode"] == "bayes":
+        gibbs = _threshold_gibbs_step(spec, model, stage, manifest)
+        vc = {k: v["mean"] for k, v in gibbs.variances.items() if k != "h2_liability"}
+        vc["residual"] = 1.0
+        variance_source = ("bayes (threshold-model Gibbs sampler; posterior means, liability "
+                           "scale; residual variance fixed at 1)")
+    else:
+        vc = {k: float(v) for k, v in d["variances"]["values"].items()}
+        variance_source = "known (liability scale; residual variance fixed at 1)"
+    if d["variances"]["mode"] == "bayes":
+        res = SimpleNamespace(terms=gibbs.terms, fixed_solution=gibbs.fixed_mean,
+                              thresholds=gibbs.thresholds_mean, categories=gibbs.categories,
+                              iterations=gibbs.iterations, n_equations=gibbs.n_equations,
+                              log_posterior=None, solver="gibbs, sparse LDL' block draws")
+    else:
+        res = threshold_blup(model.y, model.fixed.X, model.terms, vc,
+                             intercept=d["model"]["intercept"],
+                             compute_pev=(sol["pev"] == "exact"), memory_budget_bytes=budget)
+        log.info("%s: threshold model, %d categories, converged in %d Newton iterations "
+                 "(largest last step %.1e); thresholds %s", trait, res.categories.size,
+                 res.iterations, res.max_step, np.round(res.thresholds, 4).tolist())
+    files = _write_single_trait_outputs(stage, model, SimpleNamespace(
+        terms=res.terms, fixed_solution=res.fixed_solution), ped_data)
+    name = f"thresholds_{trait}.csv"
+    write_csv(stage.path(name), ["threshold", "between_category", "and_category", "value", "status"],
+              [[k + 1, float(res.categories[k]), float(res.categories[k + 1]), float(tv),
+                "fixed_at_zero_for_identifiability" if (k == 0 and d["model"]["intercept"])
+                else "estimated"] for k, tv in enumerate(res.thresholds)])
+    files["thresholds"] = name
+    gen = res.terms[model.genetic_term]
+    order = np.argsort(-gen.solution, kind="stable")[:d["output"]["top_n"]]
+    sex = ped_data.sex if ped_data else {}
+    total = sum(vc.values())
+    out = {
+        "unit": "liability (residual SD = 1)",
+        "n_records": int(model.y.size),
+        "n_animals_evaluated": len(gen.labels),
+        "variance_source": variance_source,
+        "variance_components": vc,
+        "heritability": (gibbs.variances["h2_liability"]["mean"]
+                         if d["variances"]["mode"] == "bayes" else vc[model.genetic_term] / total),
+        "reml": reml_info,
+        "genetic_term": model.genetic_term,
+        "solver": ({"method": f"threshold model, Newton-Raphson ({res.solver})",
+                    "selection_reason": "categorical trait", "n_equations": res.n_equations,
+                    "relative_residual": None, "iterations": res.iterations,
+                    "wall_seconds": None,
+                    "pev": ("laplace_approximation" if sol["pev"] == "exact" else "none")}
+                   if d["variances"]["mode"] != "bayes" else
+                   {"method": f"threshold model, {res.solver}",
+                    "selection_reason": "categorical trait, variances.mode = bayes",
+                    "n_equations": res.n_equations, "relative_residual": None,
+                    "iterations": res.iterations, "wall_seconds": gibbs.wall_seconds,
+                    "pev": "posterior_variance"}),
+        "fixed_effects": _fixed_rows(model, SimpleNamespace(fixed_solution=res.fixed_solution)),
+        "n_fixed_constrained": len(model.fixed.constrained_labels),
+        "upg": None,
+        "metafounders": None,
+        "threshold_model": {"categories": res.categories.tolist(),
+                            "thresholds": res.thresholds.tolist(),
+                            "log_posterior": res.log_posterior, "file": name,
+                            "note": "EBVs, PEV and reliabilities are on the liability scale; "
+                                    "PEV is a Laplace approximation (inverse Hessian at the "
+                                    "posterior mode)"},
+        "top": [{"rank": r + 1, "animal": gen.labels[k], "sex": sex.get(gen.labels[k], "U"),
+                 "ebv": float(gen.solution[k]),
+                 "reliability": None if gen.reliability is None else float(gen.reliability[k]),
+                 "sep": None if gen.pev is None else float(np.sqrt(gen.pev[k])),
+                 "n_records": model.n_records_per_animal.get(gen.labels[k], 0)}
+                for r, k in enumerate(order)],
+        "reliability_summary": None if gen.reliability is None else {
+            "mean": float(gen.reliability.mean()), "min": float(gen.reliability.min()),
+            "max": float(gen.reliability.max()), "n_rounding_clamped": gen.n_reliability_clamped},
+        "ebv_summary": {"mean": float(gen.solution.mean()), "sd": float(gen.solution.std()),
+                        "min": float(gen.solution.min()), "max": float(gen.solution.max())},
+        "files": files,
+    }
+    manifest["diagnostics"].setdefault(trait, {}).update(
+        {"solver": out["solver"], "reml": reml_info, "threshold_model": out["threshold_model"]})
+    if d["variances"]["mode"] == "bayes":
+        bz_cfg = d["bayes"]
+        out["bayes"] = {"method": "threshold", "converged": gibbs.converged,
+                        "variance_prior": (bz_cfg["variance_prior"] if bz_cfg["variance_prior"]
+                                           == "uniform" else
+                                           f"scaled inverse chi-square (nu = {bz_cfg['nu']:g}, "
+                                           f"scales {bz_cfg['prior_variances']})"),
+                        "iterations": gibbs.iterations, "chains": d["bayes"]["chains"],
+                        "summaries": {k: {m: v[m] for m in ("mean", "sd", "q05", "q95", "rhat",
+                                                            "ess_bulk", "ess_tail", "mcse_mean")}
+                                      for k, v in gibbs.summaries.items()},
+                        "variances": gibbs.variances, "ebv_diagnostics": gibbs.ebv_diagnostics}
+        out["files"]["diagnostics"] = f"mcmc_diagnostics_{trait}.json"
+        out["files"]["trace"] = f"mcmc_trace_{trait}.csv"
+        out["threshold_model"]["note"] = (
+            "EBVs are posterior means and PEV posterior variances on the liability scale "
+            "(they include the uncertainty of the variances); reliabilities use the "
+            "posterior mean of the genetic variance")
+    k_diag = np.asarray(structure.k_diag)[:len(gen.labels)]
+    state = EvalState(tuple(gen.labels), [trait], gen.solution[:, None],
+                      None if gen.pev is None else gen.pev[:, None, None],
+                      np.array([[vc[model.genetic_term]]]), k_diag, False, sex)
+    return out, state
+
+
+def _threshold_gibbs_step(spec: AnalysisSpec, model: SingleTraitModel, stage: OutputStage,
+                          manifest: dict):
+    """Gibbs sampler for a categorical trait: diagnostics and traces are written
+    before the convergence decision (a withheld result keeps its evidence)."""
+    from ..solvers.threshold_gibbs import ThresholdGibbsConfig, threshold_gibbs
+    d = spec.data
+    trait = model.trait
+    b = d["bayes"]
+    informative = b["variance_prior"] == "scaled_inv_chi2"
+    cfg = ThresholdGibbsConfig(chains=b["chains"], iterations=b["iterations"],
+                               burn_in=b["burn_in"], thin=b["thin"], seed=b["seed"],
+                               rhat_max=b["rhat_max"], ess_min=b["ess_min"],
+                               max_iterations=b["max_iterations"],
+                               nu=float(b["nu"]) if informative else -2.0,
+                               s2=({k: float(v) for k, v in b["prior_variances"].items()}
+                                   if informative else 0.0))
+    log.info("%s: threshold-model Gibbs sampler, %d chains, %d iterations (up to %d)", trait,
+             cfg.chains, cfg.iterations, cfg.max_iterations)
+    g = threshold_gibbs(model.y, model.fixed.X, model.terms, d["model"]["intercept"], cfg,
+                        genetic_term=model.genetic_term)
+    diag = {"method": "threshold model, Gibbs sampler (Sorensen et al. 1995; Cowles 1996 "
+                      "threshold step; block draws of the location effects)",
+            "converged": g.converged, "iterations": g.iterations,
+            "draws_per_chain": g.draws_per_chain, "chains": cfg.chains, "thin": cfg.thin,
+            "burn_in": cfg.burn_in, "chain_seeds": g.seeds, "master_seed": cfg.seed,
+            "wall_seconds": g.wall_seconds,
+            "criteria": {"rhat_max": cfg.rhat_max, "ess_min": cfg.ess_min},
+            "summaries": g.summaries, "ebv_diagnostics": g.ebv_diagnostics,
+            "variances": g.variances,
+            "threshold_step": {"acceptance_after_burn_in": g.acceptance,
+                               "proposal_sd": g.proposal_sd},
+            "priors": {"variances": (f"scaled inverse chi-square, nu = {cfg.nu:g}, scales "
+                                     f"{cfg.s2}" if informative else
+                                     "uniform on (0, inf) (scaled inverse chi-square, nu = -2, "
+                                     "s2 = 0)"), "fixed_effects": "flat",
+                       "thresholds": "flat subject to ordering"},
+            "trace_file": f"mcmc_trace_{trait}.csv"}
+    atomic_write_json(stage.path(f"mcmc_diagnostics_{trait}.json"), diag)
+    names = list(g.traces)
+    write_csv(stage.path(f"mcmc_trace_{trait}.csv"), ["chain", "iteration"] + names,
+              [[c + 1, cfg.burn_in + (k + 1) * cfg.thin] + [float(g.traces[q][c, k])
+                                                            for q in names]
+               for c in range(cfg.chains) for k in range(g.draws_per_chain)])
+    manifest["diagnostics"].setdefault(trait, {})["mcmc"] = {
+        k: diag[k] for k in ("method", "converged", "iterations", "chains", "chain_seeds",
+                             "criteria")}
+    manifest["randomness"] = {"seed": cfg.seed, "generator": "numpy PCG64 via SeedSequence.spawn",
+                              "chain_seeds": g.seeds}
+    if not g.converged:
+        raise ABPError("MCMC_NOT_CONVERGED",
+                       f"{trait}: threshold-model Gibbs diagnostics not met after "
+                       f"{g.iterations} iterations (criteria R-hat < {cfg.rhat_max}, "
+                       f"ESS >= {cfg.ess_min})",
+                       summaries={k: {m: v[m] for m in ("rhat", "ess_bulk", "ess_tail")}
+                                  for k, v in g.summaries.items()}, ebv=g.ebv_diagnostics)
+    log.info("%s: Gibbs sampler converged after %d iterations; liability variances %s", trait,
+             g.iterations, {k: round(v["mean"], 4) for k, v in g.variances.items()})
+    return g
 
 
 def _upg_check(model: SingleTraitModel, structure: GeneticStructure) -> dict | None:
@@ -548,6 +832,25 @@ def _write_upg(stage: OutputStage, trait: str, groups, structure: GeneticStructu
     return name
 
 
+def _write_metafounders(stage: OutputStage, trait: str, groups,
+                        structure: GeneticStructure) -> str:
+    """Metafounder solutions (genetic level of each base population) and their PEV."""
+    Q = structure.meta["group_fractions"]
+    gamma = np.array(structure.meta["gamma"])
+    name = f"metafounder_solutions_{trait}.csv"
+    rows = []
+    for k, g in enumerate(groups.labels):
+        pev = None if groups.pev is None else float(groups.pev[k])
+        rows.append([g, float(gamma[k, k]), float(groups.solution[k]), pev,
+                     None if pev is None else float(np.sqrt(pev)),
+                     None if groups.reliability is None else float(groups.reliability[k]),
+                     int(np.count_nonzero(Q[:, k] > 0)), float(Q[:, k].sum())])
+    write_csv(stage.path(name), ["metafounder", "gamma_self", "solution", "pev", "sep",
+                                 "reliability", "n_animals_with_contribution",
+                                 "sum_gene_fraction"], rows)
+    return name
+
+
 def _fingerprint(spec: AnalysisSpec, manifest: dict, trait: str) -> str:
     return mf.sha256_array([spec.sha256, trait] + [i["sha256"] for i in manifest["inputs"]])
 
@@ -565,13 +868,20 @@ def _fixed_rows(model: SingleTraitModel, res: BLUPResult) -> list[dict]:
     return rows
 
 
+def gen_pev_available(res, term: str) -> bool:
+    return res.terms[term].pev is not None
+
+
 def _write_single_trait_outputs(stage: OutputStage, model: SingleTraitModel, res: BLUPResult,
-                                ped_data: PedigreeData | None) -> dict:
+                                ped_data: PedigreeData | None, contrast: dict | None = None,
+                                extra: dict | None = None) -> dict:
     trait = model.trait
     gen = res.terms[model.genetic_term]
     files = {}
     ped = ped_data.pedigree if ped_data else None
     F = ped.inbreeding() if ped is not None else None
+    if "inbreeding_mf_base" in model.structure.meta:      # F relative to the metafounder base
+        F = model.structure.meta["inbreeding_mf_base"]
     name = f"ebv_{trait}.csv"
     rows = []
     for k, a in enumerate(gen.labels):
@@ -588,8 +898,20 @@ def _write_single_trait_outputs(stage: OutputStage, model: SingleTraitModel, res
         rows.append([a, s, dm, sx, g_i, f_i, model.n_records_per_animal.get(a, 0),
                      float(gen.solution[k]), pev, None if pev is None else float(np.sqrt(pev)),
                      rel, None if rel is None else float(np.sqrt(rel))])
-    write_csv(stage.path(name), ["animal", "sire", "dam", "sex", "generation", "inbreeding",
-                                 "n_records", "ebv", "pev", "sep", "reliability", "accuracy"], rows)
+        if contrast is not None:
+            rows[-1] += [float(contrast["ebv"][k]),
+                         None if contrast["pev"] is None else float(contrast["pev"][k]),
+                         None if contrast["reliability"] is None
+                         else float(contrast["reliability"][k])]
+        if extra is not None:
+            rows[-1] += [float(v[k]) for v in extra.values()]
+    header = ["animal", "sire", "dam", "sex", "generation", "inbreeding",
+              "n_records", "ebv", "pev", "sep", "reliability", "accuracy"]
+    if contrast is not None:
+        header += ["ebv_vs_base", "pev_vs_base", "reliability_vs_base"]
+    if extra is not None:
+        header += list(extra)
+    write_csv(stage.path(name), header, rows)
     files["ebv"] = name
     name = f"fixed_effects_{trait}.csv"
     write_csv(stage.path(name), ["term", "level", "solution", "status"],

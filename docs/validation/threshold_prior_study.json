@@ -1,0 +1,1195 @@
+{
+  "study": "linear vs threshold model, number of lambs born",
+  "replicates": 30,
+  "seeds": "1..30",
+  "specs": {
+    "threshold_gibbs_prior005": "examples/14_sheep_nlb_threshold/analysis.toml",
+    "threshold_gibbs_prior020": "examples/14_sheep_nlb_threshold/analysis.toml"
+  },
+  "wall_seconds": 1924.763718366623,
+  "summary": {
+    "n_replicates_both_models": 0,
+    "threshold_gibbs_prior005": {
+      "n_withheld": 0,
+      "realized_accuracy": {
+        "mean": 0.4499571515676023,
+        "mc_se": 0.00984152085684958
+      },
+      "model_accuracy": {
+        "mean": 0.40318135539346384,
+        "mc_se": 0.009552042761235226
+      },
+      "ratio_model_to_realized": {
+        "mean": 0.906041570410837,
+        "mc_se": 0.025139340073560005
+      }
+    },
+    "threshold_gibbs_prior020": {
+      "n_withheld": 0,
+      "realized_accuracy": {
+        "mean": 0.4511648962536235,
+        "mc_se": 0.009892103696239832
+      },
+      "model_accuracy": {
+        "mean": 0.44977954866231573,
+        "mc_se": 0.0050958989414941515
+      },
+      "ratio_model_to_realized": {
+        "mean": 1.011545190705982,
+        "mc_se": 0.025793132360026536
+      }
+    },
+    "gibbs_prior005_estimate_animal": {
+      "mean": 0.08953433202746754,
+      "mc_se": 0.00658358016040182,
+      "true": 0.1111
+    },
+    "gibbs_prior005_median_animal": {
+      "mean": 0.08182399795753867,
+      "mc_se": 0.006731396520102154,
+      "true": 0.1111
+    },
+    "gibbs_prior005_estimate_pe": {
+      "mean": 0.10441806990497317,
+      "mc_se": 0.006974659544624013,
+      "true": 0.1111
+    },
+    "gibbs_prior005_median_pe": {
+      "mean": 0.09521761062820037,
+      "mc_se": 0.007126195460910017,
+      "true": 0.1111
+    },
+    "gibbs_prior020_estimate_animal": {
+      "mean": 0.12522075278291628,
+      "mc_se": 0.005018783824119659,
+      "true": 0.1111
+    },
+    "gibbs_prior020_median_animal": {
+      "mean": 0.11926603787422896,
+      "mc_se": 0.004847811055610186,
+      "true": 0.1111
+    },
+    "gibbs_prior020_estimate_pe": {
+      "mean": 0.13977623771338887,
+      "mc_se": 0.00548560615270018,
+      "true": 0.1111
+    },
+    "gibbs_prior020_median_pe": {
+      "mean": 0.13341741935816592,
+      "mc_se": 0.005378768866985654,
+      "true": 0.1111
+    }
+  },
+  "replicate_results": [
+    {
+      "seed": 1,
+      "threshold_gibbs_prior005": {
+        "n": 460,
+        "realized_accuracy": 0.4750216670652134,
+        "model_accuracy": 0.4121364820004304,
+        "ratio_model_to_realized": 0.8676161753772175,
+        "variance_components": {
+          "animal": 0.09665757321562865,
+          "pe": 0.14729583230043397,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.08395777501259558,
+          "pe": 0.1402412143155069,
+          "h2_liability": 0.06829923957979217
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 460,
+        "realized_accuracy": 0.4835778435162488,
+        "model_accuracy": 0.45411135435817884,
+        "ratio_model_to_realized": 0.939065675664936,
+        "variance_components": {
+          "animal": 0.1351290243397418,
+          "pe": 0.1765094275454178,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.12818945024778494,
+          "pe": 0.17087100541354616,
+          "h2_liability": 0.09834046145386238
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 2,
+      "threshold_gibbs_prior005": {
+        "n": 485,
+        "realized_accuracy": 0.4515827800588918,
+        "model_accuracy": 0.46594528385841505,
+        "ratio_model_to_realized": 1.0318048084066673,
+        "variance_components": {
+          "animal": 0.11707784549622607,
+          "pe": 0.07924974982938333,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.11136457952448195,
+          "pe": 0.0682052810669767,
+          "h2_liability": 0.09420650780540646
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 485,
+        "realized_accuracy": 0.4502511314885454,
+        "model_accuracy": 0.48512052256886457,
+        "ratio_model_to_realized": 1.0774443163863683,
+        "variance_components": {
+          "animal": 0.14210544628726068,
+          "pe": 0.12007016217635631,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.1368370040688584,
+          "pe": 0.11341624890339327,
+          "h2_liability": 0.1093274071649964
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 3,
+      "threshold_gibbs_prior005": {
+        "n": 447,
+        "realized_accuracy": 0.5091276795481637,
+        "model_accuracy": 0.40710206594541903,
+        "ratio_model_to_realized": 0.7996070186298071,
+        "variance_components": {
+          "animal": 0.08336606188217978,
+          "pe": 0.05638833440127126,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.07707402557018736,
+          "pe": 0.04871233829666621,
+          "h2_liability": 0.06806339525494154
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 447,
+        "realized_accuracy": 0.5071838108305585,
+        "model_accuracy": 0.4512082755399184,
+        "ratio_model_to_realized": 0.8896346174792621,
+        "variance_components": {
+          "animal": 0.11930898474033277,
+          "pe": 0.09915089191957967,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.113561146861243,
+          "pe": 0.09345971159680375,
+          "h2_liability": 0.09375500724862161
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 4,
+      "threshold_gibbs_prior005": {
+        "n": 456,
+        "realized_accuracy": 0.5400963947497276,
+        "model_accuracy": 0.3811100074981673,
+        "ratio_model_to_realized": 0.7056333113920671,
+        "variance_components": {
+          "animal": 0.06809597232536171,
+          "pe": 0.07085119426482499,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.06109986579854923,
+          "pe": 0.0626461242893806,
+          "h2_liability": 0.053990324900380124
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 456,
+        "realized_accuracy": 0.5398334537795898,
+        "model_accuracy": 0.43498040304170427,
+        "ratio_model_to_realized": 0.8057677789255789,
+        "variance_components": {
+          "animal": 0.10695554071878681,
+          "pe": 0.11333601887555028,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.10137557253917015,
+          "pe": 0.10651117764081738,
+          "h2_liability": 0.08336939002929566
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 5,
+      "threshold_gibbs_prior005": {
+        "n": 475,
+        "realized_accuracy": 0.5211432782296164,
+        "model_accuracy": 0.45416838464428616,
+        "ratio_model_to_realized": 0.8714846830360133,
+        "variance_components": {
+          "animal": 0.10897588892603172,
+          "pe": 0.047815293215057425,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.10560134031516792,
+          "pe": 0.041704295676951206,
+          "h2_liability": 0.09156637276599028
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 475,
+        "realized_accuracy": 0.5239388376342133,
+        "model_accuracy": 0.4725780439360342,
+        "ratio_model_to_realized": 0.901971776075824,
+        "variance_components": {
+          "animal": 0.13128594485258369,
+          "pe": 0.09071072608177472,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.126511456137542,
+          "pe": 0.08622929885841196,
+          "h2_liability": 0.10398000485129576
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 6,
+      "threshold_gibbs_prior005": {
+        "n": 429,
+        "realized_accuracy": 0.44378967416417014,
+        "model_accuracy": 0.4791169677806,
+        "ratio_model_to_realized": 1.0796036854236524,
+        "variance_components": {
+          "animal": 0.14778971757082712,
+          "pe": 0.10934776369218366,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.14055225054064868,
+          "pe": 0.09282035980725836,
+          "h2_liability": 0.11337524686256976
+        },
+        "iterations": 8000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 429,
+        "realized_accuracy": 0.4425774852971389,
+        "model_accuracy": 0.4959203394174231,
+        "ratio_model_to_realized": 1.120527717501198,
+        "variance_components": {
+          "animal": 0.1758871493745834,
+          "pe": 0.15937854130139242,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.16785717449845067,
+          "pe": 0.15076469382664623,
+          "h2_liability": 0.12706449680509668
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 7,
+      "threshold_gibbs_prior005": {
+        "n": 451,
+        "realized_accuracy": 0.5164225134155179,
+        "model_accuracy": 0.380597959547056,
+        "ratio_model_to_realized": 0.7369894798541126,
+        "variance_components": {
+          "animal": 0.0761345170178368,
+          "pe": 0.1405520814862509,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.0638824203847266,
+          "pe": 0.13553226927886247,
+          "h2_liability": 0.05283750027037295
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 451,
+        "realized_accuracy": 0.5181856068126507,
+        "model_accuracy": 0.438482829855054,
+        "ratio_model_to_realized": 0.8461887479896502,
+        "variance_components": {
+          "animal": 0.1197247936320818,
+          "pe": 0.16422394216575956,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.11376098791663534,
+          "pe": 0.1589450557188556,
+          "h2_liability": 0.08912786403801572
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 8,
+      "threshold_gibbs_prior005": {
+        "n": 488,
+        "realized_accuracy": 0.44332108753994787,
+        "model_accuracy": 0.3421130763958304,
+        "ratio_model_to_realized": 0.7717049470718047,
+        "variance_components": {
+          "animal": 0.055827280812068274,
+          "pe": 0.11977078478042247,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.04865613900734925,
+          "pe": 0.11400783824910997,
+          "h2_liability": 0.041491814457914514
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 488,
+        "realized_accuracy": 0.443487391731574,
+        "model_accuracy": 0.42008382974977504,
+        "ratio_model_to_realized": 0.9472283487239154,
+        "variance_components": {
+          "animal": 0.1010473209297764,
+          "pe": 0.14780036904452484,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09614554670076819,
+          "pe": 0.14262110619164906,
+          "h2_liability": 0.07722448369585527
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 9,
+      "threshold_gibbs_prior005": {
+        "n": 459,
+        "realized_accuracy": 0.4818543128649039,
+        "model_accuracy": 0.3929456117212742,
+        "ratio_model_to_realized": 0.8154863435484975,
+        "variance_components": {
+          "animal": 0.0797119170447564,
+          "pe": 0.09782872468373364,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.07027892226900806,
+          "pe": 0.08729564505229266,
+          "h2_liability": 0.06033307073127192
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 459,
+        "realized_accuracy": 0.4848475410568199,
+        "model_accuracy": 0.4455838172974075,
+        "ratio_model_to_realized": 0.9190184121098574,
+        "variance_components": {
+          "animal": 0.12192228980569023,
+          "pe": 0.13498215111961367,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.11486084485923864,
+          "pe": 0.12775553921305824,
+          "h2_liability": 0.09244897047685188
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 10,
+      "threshold_gibbs_prior005": {
+        "n": 510,
+        "realized_accuracy": 0.44491025614731805,
+        "model_accuracy": 0.37358931781487725,
+        "ratio_model_to_realized": 0.8396958996853848,
+        "variance_components": {
+          "animal": 0.06701606248528663,
+          "pe": 0.10418926266763046,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.059787398019110344,
+          "pe": 0.09474219291083319,
+          "h2_liability": 0.05127588299075124
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 510,
+        "realized_accuracy": 0.44955107577072084,
+        "model_accuracy": 0.4321459214456867,
+        "ratio_model_to_realized": 0.9612832550891034,
+        "variance_components": {
+          "animal": 0.10636053515050238,
+          "pe": 0.13398796975506946,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.101331611732769,
+          "pe": 0.12712240274194753,
+          "h2_liability": 0.08229080912714547
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 11,
+      "threshold_gibbs_prior005": {
+        "n": 466,
+        "realized_accuracy": 0.3774635256283487,
+        "model_accuracy": 0.3594525092172758,
+        "ratio_model_to_realized": 0.9522840878967295,
+        "variance_components": {
+          "animal": 0.05810326827149757,
+          "pe": 0.08637442341691545,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.05054017595166048,
+          "pe": 0.07907826023355917,
+          "h2_liability": 0.04445686937504129
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 466,
+        "realized_accuracy": 0.38190663674633213,
+        "model_accuracy": 0.4241176485642734,
+        "ratio_model_to_realized": 1.110527044456623,
+        "variance_components": {
+          "animal": 0.09809506882695418,
+          "pe": 0.12372694671678172,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09377646745875434,
+          "pe": 0.11809499913287498,
+          "h2_liability": 0.07689410258379237
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 12,
+      "threshold_gibbs_prior005": {
+        "n": 424,
+        "realized_accuracy": 0.5189291083719041,
+        "model_accuracy": 0.49674377838300443,
+        "ratio_model_to_realized": 0.9572478598117106,
+        "variance_components": {
+          "animal": 0.19385055524053554,
+          "pe": 0.15556406506444662,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.18738728706601632,
+          "pe": 0.13476884780863746,
+          "h2_liability": 0.14138165965770816
+        },
+        "iterations": 8000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 424,
+        "realized_accuracy": 0.5203017197329228,
+        "model_accuracy": 0.4973326424317146,
+        "ratio_model_to_realized": 0.9558543121614156,
+        "variance_components": {
+          "animal": 0.2074893048142137,
+          "pe": 0.20322407131255607,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.19808399984810504,
+          "pe": 0.19244095077324203,
+          "h2_liability": 0.14183184529315324
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 13,
+      "threshold_gibbs_prior005": {
+        "n": 503,
+        "realized_accuracy": 0.4367405886231699,
+        "model_accuracy": 0.43607498742266754,
+        "ratio_model_to_realized": 0.9984759804381803,
+        "variance_components": {
+          "animal": 0.10017352132439111,
+          "pe": 0.09773884071501975,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09317630096255917,
+          "pe": 0.08724358822801793,
+          "h2_liability": 0.07865206311770599
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 503,
+        "realized_accuracy": 0.43818875599961715,
+        "model_accuracy": 0.4632620769539716,
+        "ratio_model_to_realized": 1.0572203659063684,
+        "variance_components": {
+          "animal": 0.12851492546487867,
+          "pe": 0.1371030384457497,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.12337875757144359,
+          "pe": 0.13088019692768782,
+          "h2_liability": 0.09791214685124744
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 14,
+      "threshold_gibbs_prior005": {
+        "n": 456,
+        "realized_accuracy": 0.505451271330616,
+        "model_accuracy": 0.30983354229245874,
+        "ratio_model_to_realized": 0.6129840003702285,
+        "variance_components": {
+          "animal": 0.04999612875644067,
+          "pe": 0.18875150403951246,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.04300679010671337,
+          "pe": 0.18512264271116255,
+          "h2_liability": 0.034728631086714985
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 456,
+        "realized_accuracy": 0.5077002508442311,
+        "model_accuracy": 0.4023963773076367,
+        "ratio_model_to_realized": 0.7925865245063608,
+        "variance_components": {
+          "animal": 0.09946561510760783,
+          "pe": 0.1937775713049247,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09375647073433435,
+          "pe": 0.1883253118683611,
+          "h2_liability": 0.07294770641099285
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 15,
+      "threshold_gibbs_prior005": {
+        "n": 478,
+        "realized_accuracy": 0.441570584242183,
+        "model_accuracy": 0.38085543504387126,
+        "ratio_model_to_realized": 0.8625018256084468,
+        "variance_components": {
+          "animal": 0.06487978843854113,
+          "pe": 0.07405495463355707,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.05812781887661257,
+          "pe": 0.0661746308452009,
+          "h2_liability": 0.05130923695145056
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 478,
+        "realized_accuracy": 0.4446044248338957,
+        "model_accuracy": 0.43379154691262567,
+        "ratio_model_to_realized": 0.9756797788836454,
+        "variance_components": {
+          "animal": 0.10242941854075818,
+          "pe": 0.11146684701118063,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09832417709970254,
+          "pe": 0.10648639355855932,
+          "h2_liability": 0.08127559983105431
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 16,
+      "threshold_gibbs_prior005": {
+        "n": 467,
+        "realized_accuracy": 0.4601100626120177,
+        "model_accuracy": 0.38112018100439937,
+        "ratio_model_to_realized": 0.828323942408046,
+        "variance_components": {
+          "animal": 0.06618340470497569,
+          "pe": 0.06937509211274029,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.05944776878266613,
+          "pe": 0.06046827143017923,
+          "h2_liability": 0.05255133689496849
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 467,
+        "realized_accuracy": 0.4594655558083485,
+        "model_accuracy": 0.4349139909899103,
+        "ratio_model_to_realized": 0.9465649502817592,
+        "variance_components": {
+          "animal": 0.10441433249520475,
+          "pe": 0.1100738837805961,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09872479977841891,
+          "pe": 0.10478580508505575,
+          "h2_liability": 0.08176389289250184
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 17,
+      "threshold_gibbs_prior005": {
+        "n": 466,
+        "realized_accuracy": 0.46552510013777637,
+        "model_accuracy": 0.4944008484078096,
+        "ratio_model_to_realized": 1.0620283380240663,
+        "variance_components": {
+          "animal": 0.15326959913393337,
+          "pe": 0.10027804061254683,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.14934208192390325,
+          "pe": 0.08189467000317442,
+          "h2_liability": 0.12109752124891524
+        },
+        "iterations": 16000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 466,
+        "realized_accuracy": 0.46832974585301074,
+        "model_accuracy": 0.4967094555603172,
+        "ratio_model_to_realized": 1.0605977091111647,
+        "variance_components": {
+          "animal": 0.16950314482456677,
+          "pe": 0.14545271309967558,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.16236828483049542,
+          "pe": 0.13702116368779518,
+          "h2_liability": 0.12430779983210347
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 18,
+      "threshold_gibbs_prior005": {
+        "n": 465,
+        "realized_accuracy": 0.4033634371728115,
+        "model_accuracy": 0.3520953253837411,
+        "ratio_model_to_realized": 0.8728984655912039,
+        "variance_components": {
+          "animal": 0.05845843189977096,
+          "pe": 0.1113487142895943,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.050388721190176206,
+          "pe": 0.10465088479861101,
+          "h2_liability": 0.04327990542143125
+        },
+        "iterations": 8000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 465,
+        "realized_accuracy": 0.40522345391624903,
+        "model_accuracy": 0.42226878093520376,
+        "ratio_model_to_realized": 1.0420640188869168,
+        "variance_components": {
+          "animal": 0.10194016952845474,
+          "pe": 0.14165976424531748,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09676001059465841,
+          "pe": 0.13442102619558238,
+          "h2_liability": 0.07812632114462903
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 19,
+      "threshold_gibbs_prior005": {
+        "n": 454,
+        "realized_accuracy": 0.47713342356748145,
+        "model_accuracy": 0.37604471998132794,
+        "ratio_model_to_realized": 0.7881332587637168,
+        "variance_components": {
+          "animal": 0.08460435246861427,
+          "pe": 0.19507419879074733,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.07060309949860821,
+          "pe": 0.19094953927746955,
+          "h2_liability": 0.05558433882606956
+        },
+        "iterations": 8000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 454,
+        "realized_accuracy": 0.47856400201043636,
+        "model_accuracy": 0.4485407872129827,
+        "ratio_model_to_realized": 0.937263950754075,
+        "variance_components": {
+          "animal": 0.13687341218341909,
+          "pe": 0.20347197547403728,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.12935897488958992,
+          "pe": 0.19645214685809592,
+          "h2_liability": 0.09685165345981517
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 20,
+      "threshold_gibbs_prior005": {
+        "n": 494,
+        "realized_accuracy": 0.47397368182469396,
+        "model_accuracy": 0.3544684600047583,
+        "ratio_model_to_realized": 0.7478652794394259,
+        "variance_components": {
+          "animal": 0.06156119269099221,
+          "pe": 0.11940403383108694,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.0536984515768011,
+          "pe": 0.11240683142326716,
+          "h2_liability": 0.045766118655587315
+        },
+        "iterations": 8000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 494,
+        "realized_accuracy": 0.4727018352812593,
+        "model_accuracy": 0.42200050671120853,
+        "ratio_model_to_realized": 0.8927414179809916,
+        "variance_components": {
+          "animal": 0.10438037437749086,
+          "pe": 0.15036603681611682,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09909134610216591,
+          "pe": 0.14365551375521132,
+          "h2_liability": 0.07953670697133758
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 21,
+      "threshold_gibbs_prior005": {
+        "n": 448,
+        "realized_accuracy": 0.4434132070339211,
+        "model_accuracy": 0.4266501572377201,
+        "ratio_model_to_realized": 0.9621954205912531,
+        "variance_components": {
+          "animal": 0.09909313253692588,
+          "pe": 0.10259873267314479,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09093262472725008,
+          "pe": 0.09022254219153147,
+          "h2_liability": 0.0767718753297715
+        },
+        "iterations": 8000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 448,
+        "realized_accuracy": 0.44283456347786265,
+        "model_accuracy": 0.4620800026911836,
+        "ratio_model_to_realized": 1.0434596592058538,
+        "variance_components": {
+          "animal": 0.13573854019654433,
+          "pe": 0.14342423962552123,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.1286544739936104,
+          "pe": 0.1363624503691357,
+          "h2_liability": 0.10151246067998214
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 22,
+      "threshold_gibbs_prior005": {
+        "n": 506,
+        "realized_accuracy": 0.39409832311368853,
+        "model_accuracy": 0.3925383893676356,
+        "ratio_model_to_realized": 0.9960417650759632,
+        "variance_components": {
+          "animal": 0.07502646268238737,
+          "pe": 0.1110679004475806,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.06708293849406011,
+          "pe": 0.10430134141278868,
+          "h2_liability": 0.056772962555840994
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 506,
+        "realized_accuracy": 0.39532996172002594,
+        "model_accuracy": 0.44434094702151383,
+        "ratio_model_to_realized": 1.1239748818638686,
+        "variance_components": {
+          "animal": 0.11288657158609745,
+          "pe": 0.14322213302572398,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.10771572176528547,
+          "pe": 0.13734358431868185,
+          "h2_liability": 0.08638993551534667
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 23,
+      "threshold_gibbs_prior005": {
+        "n": 465,
+        "realized_accuracy": 0.2714864910291175,
+        "model_accuracy": 0.3493574110529806,
+        "ratio_model_to_realized": 1.286831656811651,
+        "variance_components": {
+          "animal": 0.05358336908612095,
+          "pe": 0.07594758240058035,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.0480202189680734,
+          "pe": 0.06834422315071342,
+          "h2_liability": 0.04275681920521493
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 465,
+        "realized_accuracy": 0.26678908455992056,
+        "model_accuracy": 0.41934665028633894,
+        "ratio_model_to_realized": 1.5718283638855326,
+        "variance_components": {
+          "animal": 0.09307115026555611,
+          "pe": 0.11255265827953227,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.08842445588640263,
+          "pe": 0.10701296765688423,
+          "h2_liability": 0.07361740046675216
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 24,
+      "threshold_gibbs_prior005": {
+        "n": 448,
+        "realized_accuracy": 0.3760254781697339,
+        "model_accuracy": 0.35757559381359355,
+        "ratio_model_to_realized": 0.9509344833601614,
+        "variance_components": {
+          "animal": 0.06373664177037987,
+          "pe": 0.07907102022383407,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.05659390140677639,
+          "pe": 0.069956236448709,
+          "h2_liability": 0.04968557990413979
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 448,
+        "realized_accuracy": 0.38164765050410343,
+        "model_accuracy": 0.42430372355286644,
+        "ratio_model_to_realized": 1.1117682055488098,
+        "variance_components": {
+          "animal": 0.10532007498126089,
+          "pe": 0.11842851441470455,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09950500299868621,
+          "pe": 0.11312930506396711,
+          "h2_liability": 0.08182928778395936
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 25,
+      "threshold_gibbs_prior005": {
+        "n": 472,
+        "realized_accuracy": 0.4292896108665394,
+        "model_accuracy": 0.4365744046887159,
+        "ratio_model_to_realized": 1.0169694156061029,
+        "variance_components": {
+          "animal": 0.11042711580861783,
+          "pe": 0.11935524067552813,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.10057302343890749,
+          "pe": 0.10827524234169222,
+          "h2_liability": 0.08280589000700334
+        },
+        "iterations": 8000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 472,
+        "realized_accuracy": 0.42670941607586893,
+        "model_accuracy": 0.46781655349123885,
+        "ratio_model_to_realized": 1.0963352011150864,
+        "variance_components": {
+          "animal": 0.14226271826476677,
+          "pe": 0.1534462885049184,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.13507351652668298,
+          "pe": 0.1462403260301818,
+          "h2_liability": 0.10500153760244707
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 26,
+      "threshold_gibbs_prior005": {
+        "n": 469,
+        "realized_accuracy": 0.4587825952960835,
+        "model_accuracy": 0.45395186052999165,
+        "ratio_model_to_realized": 0.9894705361196751,
+        "variance_components": {
+          "animal": 0.11546032244184659,
+          "pe": 0.057918079105404634,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.10952924781767961,
+          "pe": 0.048890160535879704,
+          "h2_liability": 0.09415917771439108
+        },
+        "iterations": 8000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 469,
+        "realized_accuracy": 0.4611752398694135,
+        "model_accuracy": 0.474913305922559,
+        "ratio_model_to_realized": 1.0297892533368347,
+        "variance_components": {
+          "animal": 0.14313426391117134,
+          "pe": 0.10601298195142748,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.1368988903942782,
+          "pe": 0.09954020762348745,
+          "h2_liability": 0.1103760093112913
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 27,
+      "threshold_gibbs_prior005": {
+        "n": 497,
+        "realized_accuracy": 0.47051682449343885,
+        "model_accuracy": 0.5170175699279312,
+        "ratio_model_to_realized": 1.0988290811589052,
+        "variance_components": {
+          "animal": 0.16364764024058986,
+          "pe": 0.07917651043354033,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.1599454917390313,
+          "pe": 0.06585867632563182,
+          "h2_liability": 0.13014440561878862
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 497,
+        "realized_accuracy": 0.4669957133353642,
+        "model_accuracy": 0.5091960491896119,
+        "ratio_model_to_realized": 1.090365574349378,
+        "variance_components": {
+          "animal": 0.17051325687220265,
+          "pe": 0.13187014095586097,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.16476241242538686,
+          "pe": 0.12479779250282641,
+          "h2_liability": 0.1273622760442764
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 28,
+      "threshold_gibbs_prior005": {
+        "n": 433,
+        "realized_accuracy": 0.4039660424225275,
+        "model_accuracy": 0.3483732072752249,
+        "ratio_model_to_realized": 0.8623824051796033,
+        "variance_components": {
+          "animal": 0.0570779090090082,
+          "pe": 0.08223608845647788,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.05024316548901768,
+          "pe": 0.0731899721076506,
+          "h2_liability": 0.04433514496296461
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 433,
+        "realized_accuracy": 0.4123882070058332,
+        "model_accuracy": 0.4136344908628535,
+        "ratio_model_to_realized": 1.003022113231775,
+        "variance_components": {
+          "animal": 0.09701575000104924,
+          "pe": 0.12459047542996216,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.09188733705716512,
+          "pe": 0.11884293735590876,
+          "h2_liability": 0.07549202022174425
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 29,
+      "threshold_gibbs_prior005": {
+        "n": 490,
+        "realized_accuracy": 0.4365732101793016,
+        "model_accuracy": 0.3810844560591542,
+        "ratio_model_to_realized": 0.8728993148769755,
+        "variance_components": {
+          "animal": 0.07903143007750195,
+          "pe": 0.1760283953900255,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.06478334155304516,
+          "pe": 0.17059050573712353,
+          "h2_liability": 0.05178722116883791
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 490,
+        "realized_accuracy": 0.43311938922659776,
+        "model_accuracy": 0.45304499823694827,
+        "ratio_model_to_realized": 1.0460048880423727,
+        "variance_components": {
+          "animal": 0.13194915731137483,
+          "pe": 0.18464064909432445,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.12417369030826844,
+          "pe": 0.17882389350881156,
+          "h2_liability": 0.0945181903163343
+        },
+        "iterations": 4000
+      }
+    },
+    {
+      "seed": 30,
+      "threshold_gibbs_prior005": {
+        "n": 464,
+        "realized_accuracy": 0.4270323371292434,
+        "model_accuracy": 0.4024026675032939,
+        "ratio_model_to_realized": 0.9423236427678422,
+        "variance_components": {
+          "animal": 0.07721285746475212,
+          "pe": 0.07788965851571933,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.0690427727147777,
+          "pe": 0.06823369289117313,
+          "h2_liability": 0.06047428876912315
+        },
+        "iterations": 4000
+      },
+      "threshold_gibbs_prior020": {
+        "n": 464,
+        "realized_accuracy": 0.4275371028893511,
+        "model_accuracy": 0.44916058782446755,
+        "ratio_model_to_realized": 1.0505768617249407,
+        "variance_components": {
+          "animal": 0.11189830410257673,
+          "pe": 0.11462600192771631,
+          "residual": 1.0
+        },
+        "posterior_median": {
+          "animal": 0.10683155040097375,
+          "pe": 0.11016936836749695,
+          "h2_liability": 0.08737545934317176
+        },
+        "iterations": 4000
+      }
+    }
+  ]
+}

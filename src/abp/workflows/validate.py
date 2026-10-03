@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..core.spec import load_spec
+from ..core.spec import load_spec, parent_code_prefix
 from ..io.tables import read_table
 from ..qc.pedigree import PedigreeColumns, load_pedigree
 from ..qc.phenotype import load_phenotypes
@@ -22,8 +22,8 @@ def validate_inputs(spec_path) -> dict:
         ped_table = read_table(spec.resolve(data["pedigree"]), data["delimiter"])
         ped_ids = set(ped_table.column(pc["id"])) | (
             (set(ped_table.column(pc["sire"])) | set(ped_table.column(pc["dam"]))) - unknown_parent)
-        if d["upg"] is not None:
-            ped_ids = {a for a in ped_ids if not a.startswith(d["upg"]["prefix"])}
+        if parent_code_prefix(d) is not None:
+            ped_ids = {a for a in ped_ids if not a.startswith(parent_code_prefix(d))}
     records, phe_qc, to_add = load_phenotypes(phe, d, ped_ids)
     summary = {"spec": str(spec.path), "spec_sha256": spec.sha256, "status": "passed",
                "phenotypes": phe_qc.to_dict()}
@@ -32,7 +32,7 @@ def validate_inputs(spec_path) -> dict:
         ped = load_pedigree(ped_table, PedigreeColumns(pc["id"], pc["sire"], pc["dam"], pc["sex"],
                                                        pc["birth_date"]),
                             unknown_parent, set(data["missing_values"]), extra_founders=to_add,
-                            group_prefix=d["upg"]["prefix"] if d["upg"] else None)
+                            group_prefix=parent_code_prefix(d))
         summary["pedigree"] = ped.qc.to_dict()
     if data["genotypes"] or data["plink"]:
         from .genomic_inputs import load_genotype_inputs

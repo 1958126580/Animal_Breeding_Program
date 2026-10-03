@@ -1,0 +1,123 @@
+{
+ "converged": 16,
+ "direct_variance": {
+  "mean": 4.163796300366941,
+  "mc_se": 0.2285932874190786,
+  "n": 20,
+  "true": 4.0
+ },
+ "maternal_variance": {
+  "mean": 2.3683029884129625,
+  "mc_se": 0.10435596196767404,
+  "n": 20,
+  "true": 2.0
+ },
+ "direct_maternal_covariance": {
+  "mean": -1.073755669095981,
+  "mc_se": 0.10260977946212035,
+  "n": 20,
+  "true": -1.0
+ },
+ "maternal_pe_variance": {
+  "mean": 1.6608446267322836,
+  "mc_se": 0.0592566533679731,
+  "n": 20,
+  "true": 1.5
+ },
+ "residual_variance": {
+  "mean": 7.724947137579136,
+  "mc_se": 0.17462106195184424,
+  "n": 20,
+  "true": 8.0
+ },
+ "posterior_median": {
+  "direct_variance": {
+   "mean": 4.10180131562233,
+   "mc_se": 0.22934391057941422,
+   "n": 20
+  },
+  "maternal_variance": {
+   "mean": 2.307188268415442,
+   "mc_se": 0.10590072708823588,
+   "n": 20
+  },
+  "direct_maternal_covariance": {
+   "mean": -1.0381772518556895,
+   "mc_se": 0.10408747016847035,
+   "n": 20
+  },
+  "maternal_pe_variance": {
+   "mean": 1.6222291007289804,
+   "mc_se": 0.060433940261568536,
+   "n": 20
+  },
+  "residual_variance": {
+   "mean": 7.72560226967977,
+   "mc_se": 0.1747314946103387,
+   "n": 20
+  }
+ },
+ "interval_coverage95": {
+  "direct_variance": {
+   "mean": 0.95,
+   "mc_se": 0.05000000000000001,
+   "n": 20
+  },
+  "maternal_variance": {
+   "mean": 1.0,
+   "mc_se": 0.0,
+   "n": 20
+  },
+  "direct_maternal_covariance": {
+   "mean": 1.0,
+   "mc_se": 0.0,
+   "n": 20
+  }
+ },
+ "max_rhat_median": 1.0066511332740566,
+ "wall_s_per_replicate": {
+  "mean": 401.7751953482628,
+  "mc_se": 6.206603412890969,
+  "n": 20
+ },
+ "direct": {
+  "pev_ratio": {
+   "mean": 1.0722611648219569,
+   "mc_se": 0.04236793392320608,
+   "n": 20
+  },
+  "coverage95": {
+   "mean": 0.9410333333333334,
+   "mc_se": 0.004980071396186112,
+   "n": 20
+  },
+  "realized_accuracy": {
+   "mean": 0.577617186155564,
+   "mc_se": 0.007643575527325492,
+   "n": 20
+  }
+ },
+ "maternal": {
+  "pev_ratio": {
+   "mean": 0.9095735661193818,
+   "mc_se": 0.03884447437143139,
+   "n": 20
+  },
+  "coverage95": {
+   "mean": 0.9585999999999999,
+   "mc_se": 0.004274472027176119,
+   "n": 20
+  },
+  "realized_accuracy": {
+   "mean": 0.3970254347237661,
+   "mc_se": 0.0093325779840822,
+   "n": 20
+  }
+ }
+}
+wrote docs/validation/maternal_study_equal_prior.json
+
+real	47m15.563s
+user	127m6.236s
+sys	4m35.269s
+# exit_code: 0

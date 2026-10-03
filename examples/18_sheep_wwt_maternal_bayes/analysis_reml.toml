@@ -1,0 +1,66 @@
+# Example 18: weaning weight with direct and maternal genetic effects and a maternal
+# permanent environment - the classical maternal animal model, fitted by Gibbs
+# sampling (Bayesian linear animal model): the 2 x 2 genetic covariance matrix of the
+# direct and maternal effects (including their covariance), the maternal permanent-
+# environment variance and the residual variance are sampled with the EBVs.
+#
+# THIS FILE (analysis_reml.toml): the same model with the (co)variances estimated by
+# AI-REML (round 13) and BLUP with exact prediction-error variances.
+# The dam of each lamb comes from the pedigree (maternal genetic effect); the "dam"
+# column groups the lambs of a ewe for the maternal permanent environment.
+# The data are SYNTHETIC and made by make_data.py (seed 20261002); true values
+# (truth/, for validation only): direct 4.0, maternal 2.0, covariance -1.0
+# (correlation -0.35), maternal permanent environment 1.5, residual 8.0 (kg^2).
+schema_version = "1"
+
+[project]
+name = "sheep_wwt_maternal_reml"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, lamb crops 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "founders born 2018-2019 (unknown parents): unrelated, non-inbred, mean 0"
+applicability = "demonstration only"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "data/lambs_maternal.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[[traits]]
+name = "wwt"
+unit = "kg"
+min = 5.0
+max = 80.0
+description = "weaning weight"
+
+[model]
+traits = ["wwt"]
+fixed = [
+  { column = "cg", type = "factor" },
+  { column = "birth_type", type = "factor" },
+]
+random = [
+  { name = "animal", kind = "additive", relationship = "pedigree" },
+  { name = "maternal", kind = "maternal" },           # dam from the pedigree
+  { name = "mpe", kind = "iid", column = "dam" },     # maternal permanent environment
+]
+
+[variances]
+mode = "reml"
+
+[reml]
+tol = 1e-8
+max_iter = 200
+
+[qc]
+out_of_range = "quarantine"
+
+[output]
+top_n = 15

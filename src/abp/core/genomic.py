@@ -42,13 +42,24 @@ from ..errors import ABPError
 from .pedigree import Pedigree
 
 
+COLUMN_BLOCK = 4096     #: markers processed at a time (bounds float64 temporaries)
+
+
 def allele_frequencies(M: np.ndarray, missing: np.ndarray | None = None) -> np.ndarray:
-    """Counted-allele frequency per marker from non-missing dosages."""
-    if missing is None:
-        return M.mean(axis=0) / 2.0
-    obs = ~missing
-    n = obs.sum(axis=0)
-    s = np.where(obs, M, 0.0).sum(axis=0)
+    """Counted-allele frequency per marker from non-missing dosages (``M`` may be float or
+    ``int8``; computed in column blocks so no full float copy is made)."""
+    m = M.shape[1]
+    s = np.zeros(m)
+    n = np.zeros(m)
+    for j0 in range(0, m, COLUMN_BLOCK):
+        Mb = M[:, j0:j0 + COLUMN_BLOCK]
+        if missing is None:
+            s[j0:j0 + Mb.shape[1]] = Mb.sum(axis=0, dtype=np.float64)
+            n[j0:j0 + Mb.shape[1]] = Mb.shape[0]
+        else:
+            obs = ~missing[:, j0:j0 + COLUMN_BLOCK]
+            s[j0:j0 + Mb.shape[1]] = np.where(obs, Mb, 0).sum(axis=0, dtype=np.float64)
+            n[j0:j0 + Mb.shape[1]] = obs.sum(axis=0)
     with np.errstate(invalid="ignore", divide="ignore"):
         p = s / (2.0 * n)
     return np.where(n > 0, p, np.nan)
@@ -81,8 +92,13 @@ def vanraden_g(M: np.ndarray, p: np.ndarray, missing: np.ndarray | None = None) 
     if np.any(~np.isfinite(p)) or np.any((p < 0) | (p > 1)):
         raise ABPError("GENOTYPE_ALLELE_MISMATCH", "allele frequencies must be finite and in [0, 1]")
     d = scaling_d(p)
-    W = centered(M, p, missing)
-    G = (W @ W.T) / d
+    n = M.shape[0]
+    G = np.zeros((n, n))
+    for j0 in range(0, M.shape[1], COLUMN_BLOCK):       # W = M - 2p, one block of markers
+        cols = slice(j0, j0 + COLUMN_BLOCK)
+        Wb = centered(M[:, cols], p[cols], None if missing is None else missing[:, cols])
+        G += Wb @ Wb.T
+    G /= d
     return 0.5 * (G + G.T), d
 
 
@@ -121,7 +137,7 @@ def tune_to_a22(G: np.ndarray, A22: np.ndarray) -> tuple[np.ndarray, float, floa
 
 
 def apply_g_policy(G: np.ndarray, policy: str, tuning: str, A22: np.ndarray | None,
-                   alpha: float, ridge: float) -> tuple[np.ndarray, GPolicyRecord]:
+                   alpha: float, ridge: float, check_pd: bool = True) -> tuple[np.ndarray, GPolicyRecord]:
     """Apply the declared tuning and singularity policy; verify positive definiteness."""
     rec = GPolicyRecord(singular_policy=policy, tuning=tuning)
     Gs = G.copy()
@@ -142,6 +158,8 @@ def apply_g_policy(G: np.ndarray, policy: str, tuning: str, A22: np.ndarray | No
     elif policy != "error":
         raise ABPError("SPEC_INVALID", f"unknown genomic.singular_policy {policy!r}")
     rec.min_eigenvalue_after = _min_eig(Gs)
+    if not check_pd:                      # APY: only G_cc and the m_i must be positive
+        return Gs, rec
     try:
         sla.cholesky(Gs, lower=True)
     except np.linalg.LinAlgError:
@@ -167,6 +185,75 @@ def spd_inverse_and_logdet(S: np.ndarray, what: str) -> tuple[np.ndarray, float]
 
 
 @dataclass
+class APYInverse:
+    """APY inverse of a genomic relationship matrix (method id ``gen.apy``)."""
+
+    g_inv: np.ndarray            # G_APY^-1 (dense n2 x n2 in this version)
+    logdet: float                # log|G_APY| = log|G_cc| + sum log m_i
+    g_apy: np.ndarray            # the implied G_APY (for diag(H) and tests)
+    core: np.ndarray             # positions (in G order) of the core animals
+    m: np.ndarray                # conditional variances of the non-core animals
+    record: dict
+
+
+def apy_inverse(G: np.ndarray, core: np.ndarray) -> APYInverse:
+    """Algorithm for proven and young (Misztal, Legarra & Aguilar 2014, J Dairy Sci 97:3943).
+
+    With core ``c`` and non-core ``n`` animals::
+
+        G_APY^{-1} = [[G_cc^{-1}, 0], [0, 0]]
+                     + [[-G_cc^{-1} G_cn], [I]] M^{-1} [[-G_nc G_cc^{-1}, I]],
+        m_i = g_ii - g_ic G_cc^{-1} g_ci   (M = diag(m)),
+
+    i.e. non-core breeding values are regressions on the core plus independent
+    residuals.  ``G_APY`` equals ``G`` on the core-core and core-noncore blocks
+    and on the non-core diagonal; non-core off-diagonals become
+    ``G_nc G_cc^{-1} G_cn``.  Cost ``O(c^3 + n c^2)`` instead of ``O((c+n)^3)``.
+    ``G_cc`` must be positive definite and every ``m_i > 0``
+    (``RELATIONSHIP_SINGULAR`` otherwise).  APY changes the model; with all
+    animals in the core it reproduces ``G^{-1}`` exactly.
+    """
+    G = np.asarray(G, dtype=np.float64)
+    n2 = G.shape[0]
+    core = np.unique(np.asarray(core, dtype=np.int64))
+    if core.size == 0 or core.size > n2 or core.min() < 0 or core.max() >= n2:
+        raise ABPError("SPEC_INVALID", "APY core must be a non-empty subset of the genotyped animals")
+    nonc = np.setdiff1d(np.arange(n2), core)
+    Gcc = G[np.ix_(core, core)]
+    try:
+        L = sla.cholesky(Gcc, lower=True)
+    except np.linalg.LinAlgError:
+        raise ABPError("RELATIONSHIP_SINGULAR", f"APY: G_cc ({core.size} core animals) is not "
+                       "positive definite; choose fewer core animals or a blend/ridge policy",
+                       n_core=int(core.size)) from None
+    Gcc_inv = sla.cho_solve((L, True), np.eye(core.size))
+    Gcc_inv = 0.5 * (Gcc_inv + Gcc_inv.T)
+    logdet_cc = 2.0 * float(np.sum(np.log(np.diag(L))))
+    Gcn = G[np.ix_(core, nonc)]
+    P = Gcc_inv @ Gcn                                   # c x n
+    m = np.diag(G)[nonc] - np.einsum("ij,ij->j", Gcn, P)
+    if nonc.size and not np.all(m > 1e-10 * np.mean(np.diag(G))):
+        k = int(np.argmin(m))
+        raise ABPError("RELATIONSHIP_SINGULAR", f"APY: conditional variance of a non-core animal "
+                       f"is {m[k]:.3e} (<= 0); it is (nearly) a linear combination of the core",
+                       min_m=float(m[k]))
+    Minv = 1.0 / m
+    Ginv = np.zeros((n2, n2))
+    Ginv[np.ix_(core, core)] = Gcc_inv + (P * Minv) @ P.T
+    Ginv[np.ix_(core, nonc)] = -P * Minv
+    Ginv[np.ix_(nonc, core)] = (-P * Minv).T
+    Ginv[nonc, nonc] = Minv
+    Gapy = G.copy()
+    Gapy[np.ix_(nonc, nonc)] = Gcn.T @ P
+    Gapy[nonc, nonc] = np.diag(G)[nonc]
+    logdet = logdet_cc + float(np.sum(np.log(m)))
+    rec = {"method": "APY (Misztal, Legarra & Aguilar 2014)", "n_core": int(core.size),
+           "n_noncore": int(nonc.size), "min_m": float(m.min()) if m.size else None,
+           "mean_m": float(m.mean()) if m.size else None}
+    return APYInverse(Ginv, logdet, Gapy, core, m, rec)
+
+
+@dataclass
 class SingleStep:
     """Single-step structure in pedigree order."""
 
@@ -179,7 +266,8 @@ class SingleStep:
 
 
 def single_step(ped: Pedigree, geno_index: np.ndarray, Gstar: np.ndarray,
-                a22: np.ndarray | None = None, max_dense_bytes: int = 2 * 2**30) -> SingleStep:
+                a22: np.ndarray | None = None, max_dense_bytes: int = 2 * 2**30,
+                g_inverse: tuple[np.ndarray, float] | None = None) -> SingleStep:
     """Build ``H^{-1}``, ``diag(H)`` and ``log|H|``.
 
     ``Gstar`` must be ordered like ``geno_index``.  ``diag(H)`` for
@@ -199,7 +287,10 @@ def single_step(ped: Pedigree, geno_index: np.ndarray, Gstar: np.ndarray,
     if a22 is None:
         a22 = 0.5 * (Acols[geno_index] + Acols[geno_index].T)
     a22_inv, logdet_a22 = spd_inverse_and_logdet(a22, "A22")
-    g_inv, logdet_g = spd_inverse_and_logdet(Gstar, "G*")
+    if g_inverse is None:
+        g_inv, logdet_g = spd_inverse_and_logdet(Gstar, "G*")
+    else:                                   # e.g. APY: Gstar is then the implied G_APY
+        g_inv, logdet_g = g_inverse
     block = g_inv - a22_inv
     rr, cc = np.meshgrid(geno_index, geno_index, indexing="ij")
     embed = sp.csr_matrix((block.ravel(), (rr.ravel(), cc.ravel())), shape=(n, n))

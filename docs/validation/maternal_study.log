@@ -1,0 +1,71 @@
+# command: python benchmarks/maternal_study.py --replicates 20 --workers 3 --animals 1500 --iterations 4000
+# date: 2026-10-02T09:42:51+00:00
+{
+ "converged": 1,
+ "direct_variance": {
+  "mean": 4.4314498512494485,
+  "mc_se": 0.2522027394671172,
+  "n": 20,
+  "true": 4.0
+ },
+ "maternal_variance": {
+  "mean": 2.537168728356238,
+  "mc_se": 0.19493209182561352,
+  "n": 20,
+  "true": 2.0
+ },
+ "direct_maternal_covariance": {
+  "mean": -1.2860530121830864,
+  "mc_se": 0.12747221099509612,
+  "n": 20,
+  "true": -1.0
+ },
+ "maternal_pe_variance": {
+  "mean": 1.4418457966854454,
+  "mc_se": 0.12854730553689916,
+  "n": 20,
+  "true": 1.5
+ },
+ "residual_variance": {
+  "mean": 7.7061018193853625,
+  "mc_se": 0.18908256241583962,
+  "n": 20,
+  "true": 8.0
+ },
+ "direct": {
+  "pev_ratio": {
+   "mean": 1.0331832092955273,
+   "mc_se": 0.04405484501889613,
+   "n": 20
+  },
+  "coverage95": {
+   "mean": 0.9457333333333333,
+   "mc_se": 0.005146826649636016,
+   "n": 20
+  },
+  "realized_accuracy": {
+   "mean": 0.5768840237645578,
+   "mc_se": 0.007822387460820795,
+   "n": 20
+  }
+ },
+ "maternal": {
+  "pev_ratio": {
+   "mean": 0.983731608829679,
+   "mc_se": 0.1041693522967756,
+   "n": 20
+  },
+  "coverage95": {
+   "mean": 0.9490333333333336,
+   "mc_se": 0.012022442464283934,
+   "n": 20
+  },
+  "realized_accuracy": {
+   "mean": 0.39123583317812055,
+   "mc_se": 0.011034184980604536,
+   "n": 20
+  }
+ }
+}
+wrote /home/user/Animal_Breeding_Program/docs/validation/maternal_study.json
+# exit_code: 0  wall_s: 8672

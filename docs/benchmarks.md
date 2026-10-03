@@ -1,13 +1,17 @@
 # Benchmarks
 
 Measured 2026-09-25 with `python benchmarks/run_benchmarks.py --full`
-(round 1) and `--only bayes ocs upg plink` (round 2). Raw results:
-`benchmarks/results/2026-09-25-linux-x86_64.json` and
-`benchmarks/results/2026-09-25-linux-x86_64-round2.json`.
+(round 1) and `--only bayes ocs upg plink` (round 2), and 2026-09-28 with
+`--only selinv metafounders` (round 3), and 2026-09-29 with `--only ldl apy`
+(round 4). Raw results:
+`benchmarks/results/2026-09-25-linux-x86_64.json`,
+`benchmarks/results/2026-09-25-linux-x86_64-round2.json` and
+`benchmarks/results/2026-09-28-linux-x86_64-round3.json` and
+`benchmarks/results/2026-09-29-linux-x86_64-round4.json`.
 
 **Machine:** cloud Linux VM, Intel Xeon @ 2.10 GHz, 4 vCPUs (1 thread per
 core), 15 GiB RAM, no GPU. **Software:** Python 3.11.15, NumPy 2.4.6,
-SciPy 1.17.1, OpenBLAS 0.3.31 (scipy-openblas), ABP 0.1.0/0.2.0, native kernel
+SciPy 1.17.1, OpenBLAS 0.3.31 (scipy-openblas), ABP 0.1.0–0.4.0, native kernel
 built with GCC 13.3 (`-O3 -std=c++20`). **Method:** synthetic inputs from
 fixed seeds; wall-clock time of one run per case (`time.perf_counter`), with
 warm imports but no warm-up run. Peak RSS of the whole benchmark process was
@@ -27,8 +31,8 @@ BGLR has been run (`not_run`).
 
 The deep-pedigree Python time (89.6 s) is the profiling evidence behind ADR
 0002. Inbreeding cost grows with the number of (animal, ancestor) pairs, so
-deep pedigrees remain the most expensive case. A faster algorithm for very
-large, deep pedigrees is a roadmap item.
+deep pedigrees remain the most expensive case. Round 9 added a depth-wise
+kernel that switches to Colleau columns where they are cheaper (see "Round 9").
 
 ## Mixed-model equations (single trait, known variances)
 
@@ -86,14 +90,99 @@ reads the whole 2 GB genotype matrix). Storing genotypes as float64 costs
 8 bytes per genotype; a compact storage type is a roadmap item for large
 marker panels. The mating LP grows with the number of sire × dam pairs.
 
+## Round 3: selected inversion and metafounders
+
+Same machine type (a new VM of the same configuration), ABP 0.3.0.
+
+| Case | Size | Time | Check |
+|---|---|---:|---|
+| BLUP with **exact PEV**, sparse direct + selected inversion (previously refused above 30,000 equations) | 100,000 animals, 80,000 records, 100,500 equations; 1,274,782 factor entries | 16.9 s end to end: SuperLU factorization 15.2 s, symbolic analysis + Takahashi recurrence 2.1 s | PEV of 300 random equations equal unit-vector solves to 6.7e-16; mean reliability 0.433 |
+| AI-REML, sparse factor + selected inversion (previously dense only) | 20,000 animals, 16,000 records, 20,050 equations | 7.3 s, 6 iterations | σ²a 2.19 (simulated 2.0), σ²e 3.91 (4.0) |
+| metafounder relationships `diag(A^Γ)` and `d`, 5 metafounders, C++ `ml_general` | 100,000 animals, 20 generations | 11.9 s (Python reference 167.6 s) | identical mean diagonal (1.04826) |
+| inverse of the extended matrix | 100,005 equations | 0.03 s | — |
+
+With selected inversion in place, the cost of exact PEV is dominated by the
+sparse factorization (SuperLU, one thread), not by the inversion. A
+supernodal Cholesky factorization is the next lever for large systems. The
+metafounder trace costs the same as the ordinary Meuwissen–Luo trace on a
+deep pedigree (8.7 s in round 1); founders and animals with a metafounder
+parent need no tracing.
+
+## Round 4: sparse LDL', APY, multi-trait REML
+
+| Case | Size | Time | Check |
+|---|---|---:|---|
+| exact PEV, ABP LDL' (minimum degree) + selected inversion | 100,000 animals, 100,500 equations, 1,276,361 factor entries | 3.2 s end to end (ordering ≈ 2 s, numeric 0.3 s, selected inversion 0.6 s) | EBV and PEV equal the SuperLU path to 1.8e-13 and 5.7e-14 |
+| same with SuperLU | 1,274,782 factor entries | 17.7 s | reference |
+| G⁻¹ exact (Cholesky) | 8,000 genotyped × 10,000 SNPs | 14.6 s | — |
+| G_APY⁻¹, 2,000 core animals | same | 2.4 s | smallest m_i 0.74 (all positive) |
+| multi-trait REML, 3 traits (example 13) | 6,390 equations, 15 iterations | 7.9 s sparse / 44.2 s dense trace path | identical log L |
+
+The first version of the minimum-degree ordering took 83 s on the
+100,500-equation system because the intercept equation (linked to all
+80,000 recorded animals) absorbed every elimination; setting rows of degree
+> 10√n aside and eliminating them last (as AMD does) reduced it to about
+2 s at the same fill.
+
+## Round 5: matrix-free single step
+
+`python benchmarks/ssmf_benchmark.py` (results `benchmarks/results/ssmf.json`,
+`.log`): 50,000 animals (10 generations), 6,000 genotyped (last generations),
+5,000 random SNPs, 45,000 records, 50,400 equations, G* = 0.95 G + 0.05 A22,
+PCG to a relative residual of 10⁻¹⁰. Each mode ran alone in its own process
+(peak resident memory of that process).
+
+| Mode | Build H⁻¹ / operator | PCG solve | Iterations | Peak memory | Check |
+|---|---:|---:|---:|---:|---|
+| explicit (dense G*⁻¹, A22, A22⁻¹, n × n₂ block) | 188.1 s | 9.6 s | 143 | 10.9 GB | reference |
+| explicit with APY (2,000 core) | 157.4 s | 7.7 s | 112 | 10.9 GB | reference for APY |
+| matrix-free, dense G*⁻¹ | 62.7 s | 2.0 s | 145 | 3.6 GB | max \|ΔEBV\| 3.4e-10 vs explicit |
+| matrix-free, APY operator (2,000 core) | 19.1 s | 1.4 s | 118 | 1.7 GB | max \|ΔEBV\| 6.4e-10 vs explicit APY |
+
+The explicit build is dominated by the dense `n × n₂` block used for
+`diag(H)` (reliabilities), which the matrix-free path does not compute. A
+first measurement in which another job shared the CPU gave the same memory
+figures (build 179 / 229 / 58 / 20 s); the table is the undisturbed rerun.
+
+## Round 6: large matrix-free single step, Gibbs sampler, sampled PEV
+
+`python benchmarks/ssmf_large.py` (`benchmarks/results/ssmf_large.json`, `.log`;
+200,000 animals in 20 generations, the last 30,000 genotyped with 20,000
+random SNPs stored as `int8`, 5,000 random core animals, 5% A22 blend,
+190,000 records, 202,000 equations):
+
+| Step | Wall time | Peak memory (process) |
+|---|---:|---:|
+| pedigree and inbreeding (native kernel) | 44.8 s | 0.13 GB |
+| int8 genotypes | 12.3 s | 0.84 GB |
+| A22 core columns (Colleau, blocks of 256) | 119.6 s | 3.7 GB |
+| APY blocks from int8 + APY operator | 76.3 s | 6.75 GB |
+| A22⁻¹ operator (sparse LDL' of A¹¹, 170,000 animals) | 48.2 s | 6.75 GB |
+| PCG solve (101 iterations, relative residual 9e-9) | 14.9 s | 6.75 GB |
+| sampled PEV, 20 simulations (99 PCG iterations each) | 187.9 s | 6.75 GB |
+
+The explicit single step would need a dense 200,000 × 30,000 block alone
+(44.7 GB). With 20 simulations the Monte-Carlo SE of a reliability averages
+0.15; it falls with the square root of the number of simulations.
+
+Other round-6 timings (build machine, see the logs): the threshold-model
+Gibbs sampler on example 14 (1,208 lambings, 2,571 location equations, 4 chains)
+converged after 8,000 iterations in about 85 s (2.6 ms per chain-iteration);
+without the parameter-expansion move it had not converged after 16,000
+iterations. The multi-trait Kackar–Harville correction on example 13 (24
+extra sparse solves of 6,390 equations) took about 25 s with sparse solves and
+262 s with dense ones. Reduced-rank REML with the analytic gradient fitted
+the boundary test data in 0.4 s (19 evaluations).
+
 ## Scale limits
 
 | Operation | Limit | Reason |
 |---|---|---|
 | dense solver (default choice) | ≤ 12,000 equations and within `resources.max_memory_gb` | memory 16–24 × N² bytes |
-| exact PEV, sparse path | ≤ 30,000 equations | one sparse solve per equation |
-| REML | dense only | needs selected elements of C⁻¹; sparse selected inversion is on the roadmap |
-| G and H | dense `n_g × n_g` | APY is on the roadmap |
+| exact PEV, sparse path | memory of the symbolic factor (24 bytes per entry) within `resources.max_memory_gb` | LDL' or SuperLU + selected inversion; checked before numeric work (`ABP-E500`) |
+| REML | dense ≤ 12,000 equations; above, sparse factor + selected inversion within the memory budget | factor fill |
+| metafounder Γ estimation | dense in genotyped animals (`A22`, n₂ × m dosages) | GLS base allele frequencies |
+| G and H (explicit) | dense `n_g × n_g` and `n × n_g` storage | APY reduces the inversion to `O(c³ + n c²)`; `single_step_mode = "matrix_free"` avoids the dense blocks (solutions only; memory `O(nnz(A⁻¹) + c² + c n_g + n_g m)` with APY) |
 | fixed-effect rank check | ≤ 20,000 columns | dense X'X scan |
 | OCS | a few thousand candidates | dense candidate A and active-set QP |
 | mating LP | ~10⁵ sire × dam pairs in seconds | LP size = number of pairs |
@@ -104,3 +193,86 @@ marker panels. The mating LP grows with the number of sire × dam pairs.
 Windows timings (the CI job records test results, not benchmarks), GPU/CUDA
 (no CUDA path exists), NUMA and multi-socket effects, energy use (no meter),
 and data sets above 100,000 animals.
+
+## Round 7: workflow-level matrix-free single step with int8 genotypes
+
+`python benchmarks/ssmf_workflow_large.py` (`benchmarks/results/ssmf_workflow_large.json`, `.log`).
+The script writes a pedigree CSV (12 discrete generations × 10,000 animals),
+a phenotype CSV (110,000 records, 400 contemporary groups) and a PLINK file
+(the last 30,000 animals, 20,000 random SNPs, 150 MB) and runs the complete
+`abp run` workflow in a child process: QC, allele frequencies, APY (5,000
+random core animals, 5% A22 blend) built from int8 dosages, matrix-free single
+step, PCG, 10 PEV simulations, outputs and manifest.
+
+| Phase (from the run log) | Wall time |
+|---|---:|
+| reading, pedigree and phenotype QC (native inbreeding kernel) | 5 s |
+| PLINK (int8), genotype QC, frequencies, A22 core columns, APY blocks, A22⁻¹ operator | 182 s |
+| PCG solve, 120,400 equations (69 iterations, relative residual 9.8e-9) | 5.5 s |
+| sampled PEV, 10 simulations (92 PCG iterations each) | 65 s |
+| **total** | **261 s**, peak resident memory **7.38 GB** |
+
+Generating the data took 38 s (not included). The mean Monte-Carlo SE of a
+reliability was 0.21 with 10 simulations; more simulations are needed for
+decisions on individual animals. The first run of this benchmark found a
+manifest defect (validation report §9); the numbers above are from the rerun
+after the fix (first run: 255 s, 7.39 GB).
+
+
+## Round 8: speed-ups and the multi-trait threshold sampler
+
+**Colleau product `A x`** (`_native.colleau_times`: the two pedigree recursions in C++
+over contiguous rows; the SuperLU triangular solves remain the reference): 120,000
+animals × 256 columns in 1.7 s instead of 8.3 s on a loaded machine (identical to
+9e-16 relative).
+
+**Workflow-level single step** (`benchmarks/ssmf_workflow_large.py`, same data as in
+round 7; `benchmarks/results/ssmf_workflow_large_r8.json`, `.log`):
+
+| Phase | Round 7 | Round 8 |
+|---|---:|---:|
+| reading, pedigree and phenotype QC | 5 s | 5 s |
+| PLINK (int8), genotype QC, frequencies, A22 core columns, APY blocks, A22⁻¹ operator | 182 s | 130 s |
+| PCG solve (120,400 equations) | 5.5 s | 5.1 s |
+| sampled PEV, 10 simulations | 65 s | 64 s |
+| **total** / peak memory | **261 s** / 7.38 GB | **206 s** / 7.37 GB |
+| mean Monte-Carlo SE of a reliability | 0.21 | 0.10 |
+
+**Library-level single step at 200,000 animals** (`benchmarks/ssmf_large.py`, same
+data as round 6; `benchmarks/results/ssmf_large_r8.json`, `.log`): A22 core columns
+(Colleau products) 30.6 s instead of 119.6 s; the other steps unchanged within
+run-to-run variation (inbreeding 44.7 s, APY blocks 84.5 s, A22⁻¹ operator 36.7 s,
+PCG 14.7 s, 20 PEV simulations 178 s); peak memory 6.73 GB (6.75). Mean Monte-Carlo
+SE of the sampled reliabilities 0.086 instead of 0.151 with the same 20 simulations.
+The inbreeding computation (Meuwissen–Luo, 44 s for 20 generations) and the dense
+`G_cn` product of APY are now the largest steps before the solve.
+
+**Multi-trait threshold sampler.** Per iteration and chain: one numeric sparse LDL′
+of the multi-trait equations; the coefficient values come from two precomputed
+sparse maps (no re-assembly). Example 15 (2,108 animals, 4,300 equations): 20,000
+iterations × 4 chains in 899 s on a machine shared with a 4-worker study before the
+coefficient maps, 454 s after them (with the test suite running alongside). Study (800 animals, 12,000 iterations × 4 chains): 391 s per
+replicate with 4 replicates in parallel.
+
+## Round 9: inbreeding by pedigree depth
+
+`python benchmarks/inbreeding_benchmark.py` (`docs/validation/inbreeding_benchmark.json`,
+`.log`; one thread, the machine shared with a 3-worker study). Round-1 kernel
+(`inbreeding_ml`, Meuwissen–Luo) against the depth kernel (`inbreeding_depth`):
+automatic choice per depth, traces forced, Colleau columns forced. All F agree with the
+round-1 kernel to 8e−14.
+
+| Pedigree | Animals | Round-1 kernel | Depth kernel (automatic) | traces forced | columns forced |
+|---|---:|---:|---:|---:|---:|
+| 20 discrete generations, 50 sires each | 200,000 | 16.4 s | 1.8 s | 18.3 s | 1.6 s |
+| 20 discrete generations, 1,000 sires each | 200,000 | 116.4 s | 17.4 s | 122.1 s | 19.5 s |
+| 10 discrete generations, 2,000 sires each | 200,000 | 3.2 s | 3.2 s | 3.4 s | 18.9 s |
+| overlapping generations, 300 sires in any window | 100,000 | 189.3 s | 22.7 s | 204.4 s | 17.9 s |
+| overlapping generations, every male a sire | 100,000 | 232.7 s | 32.9 s | 245.4 s | 20.9 s |
+
+The automatic choice is never far from the faster path and avoids the slow one
+(columns would cost 18.9 s where the traces take 3.4 s); in the overlapping-generation
+cases it is up to 1.6 times slower than forcing the columns, because the cost model
+(ancestors of the first 16 pairs of a depth) is conservative there. The pedigree of the
+200,000-animal single-step benchmark (`ssmf_large.py`: 20 generations, 200 sires):
+4.5 s instead of 45.4 s.

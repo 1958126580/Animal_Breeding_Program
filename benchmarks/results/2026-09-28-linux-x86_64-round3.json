@@ -1,0 +1,64 @@
+{
+  "created_at": "2026-09-28T15:59:41+00:00",
+  "environment": {
+    "os": "Linux-6.18.44-fc-v37-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "blas": {
+      "name": "scipy-openblas",
+      "version": "0.3.31.188.0"
+    },
+    "cpu_count": 4,
+    "gpu": null,
+    "native_kernel": true,
+    "dtype": "float64"
+  },
+  "groups": [
+    "selinv",
+    "metafounders"
+  ],
+  "cases": [
+    {
+      "case": "blup_sparse_direct_exact_pev_100000animals",
+      "n_animals": 100000,
+      "n_records": 80000,
+      "n_equations": 100500,
+      "wall_s_total": 16.868821803999708,
+      "nnz_factor": 1274782,
+      "kernel": "native_cpp/native_cpp",
+      "max_abs_diff_vs_solves_300_equations": 6.661338147750939e-16,
+      "mean_reliability": 0.4329189505913963
+    },
+    {
+      "case": "reml_ai_sparse_selinv_20000animals",
+      "n_animals": 20000,
+      "n_records": 16000,
+      "wall_s": 7.32077260799997,
+      "iterations": 6,
+      "status": "converged",
+      "estimates": {
+        "animal": 2.1936660587851575,
+        "residual": 3.908168206210488
+      },
+      "simulated": {
+        "animal": 2.0,
+        "residual": 4.0
+      }
+    },
+    {
+      "case": "metafounders_100000animals_5mf",
+      "n_animals": 100000,
+      "native_diag_s": 11.861972616000003,
+      "native_inverse_s": 0.03201738000007026,
+      "native_kernel": "native_cpp_ml_general",
+      "native_mean_diag": 1.0482594298757952,
+      "python_diag_s": 167.58522012999993,
+      "python_inverse_s": 0.04267040799959432,
+      "python_kernel": "python_ml_general",
+      "python_mean_diag": 1.0482594298757952
+    }
+  ],
+  "peak_rss_bytes": 1035739136
+}

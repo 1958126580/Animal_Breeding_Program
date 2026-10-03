@@ -1,7 +1,7 @@
 # Requirements trace
 
 Source: the project control instruction (`01_总控指令.md`) and the full
-specification (`02_完整研发指令与技术规范.md`), 2026-09-25. Status values:
+specification (`02_完整研发指令与技术规范.md`), 2026-09-25; updated 2026-09-30 (round 8). Status values:
 **passed** (implemented, and the required checks ran and passed),
 **partial** (part implemented or verified; the gap is stated), **not_run**
 (not implemented or not executed). "Linux" means the checks ran on the Linux
@@ -15,7 +15,7 @@ build machine recorded in `docs/validation_report.md`.
 | SCI-2 | Only identifiable quantities are output; additive, non-additive and total genetic values named separately; base versioned | `analysis.task` (only `additive_ebv` accepted), `genetic_base` required, fixed-effect constraints reported as non-estimable | `tests/test_blup.py::test_invariance_to_constraint_choice_and_record_order` | passed (non-additive models not implemented) |
 | SCI-3 | Training boundary: test phenotypes never enter training; transductive candidate-genotype use declared | frequency source and `candidate_genotype_use` recorded; excluded records cannot influence results; LR validation hides post-cutoff records from the partial evaluation, including its REML | `tests/test_genomic_workflow.py::test_excluded_records_cannot_influence_results`, `tests/test_validation_lr.py::test_hidden_phenotypes_cannot_leak_into_partial_evaluation`, `::test_partial_reml_ignores_hidden_records` | passed (cutoff-based design; no k-fold or across-population designs) |
 | SCI-4 | Unknown parents are not one ancestor; A/G/H order consistent; A22⁻¹ is not (A⁻¹)₂₂; tuning and blending recorded | `abp.core.pedigree`, `abp.core.genomic` | T03, T06, `test_unknown_parents_are_distinct_base_animals`, counterexample in `test_t06_single_step_identities` | passed |
-| SCI-5 | Factorizations or iterations, no explicit inverse on large production paths; Float64 reference | `abp.solvers.mme` (explicit inverse only for dense PEV/REML traces, under a memory budget) | `tests/test_blup.py` | passed |
+| SCI-5 | Factorizations or iterations, no explicit inverse on large production paths; Float64 reference | `abp.solvers.mme` (explicit inverse only for dense PEV/REML traces of small systems, under a memory budget); large systems: sparse factorization and selected inversion of only the needed entries (`abp.solvers.selinv`) | `tests/test_blup.py`, `tests/test_selinv.py` | passed |
 | SCI-6 | Correlation not equated with accuracy; report bias, slope, PEV | PEV/SEP/reliability per animal; LR bias, dispersion and `ρ_wp` with bootstrap intervals (and the statement that `ρ_wp` is not accuracy); calibration studies report slope, bias, PEV ratio and coverage | `docs/validation/calibration_study.json`, `docs/validation/upg_study.json`, `tests/test_validation_lr.py` | passed (LR population-accuracy estimator deliberately not computed) |
 | SCI-7 | Bayesian computation records priors, chains, seeds, MCSE, ESS and diagnostics | `abp.solvers.bayes`, `abp.solvers.mcmc_diagnostics`: priors and their derivation, chain seeds, R-hat, bulk/tail ESS, MCSE for every scalar and every GEBV; results withheld (`ABP-E405`) unless the criteria pass | `tests/test_bayes.py`, `tests/test_bayes_workflow.py::test_nonconvergence_withholds_results`, ArviZ cross-check | passed |
 | SCI-8 | Decisions respect inbreeding, diversity, carriers, capacity; infeasibility reported; no automatic real-world actions | selection indices; OCS with a coancestry ceiling and capacities; mating plans with pair-relationship and recessive-risk limits; infeasible ceilings and plans reported (minimum coancestry, unmatchable parents), never relaxed; outputs are proposals, ABP triggers no real-world actions | `tests/test_selection_index.py`, `tests/test_ocs_mating.py` | passed (pedigree coancestry only; no genomic OCS) |
@@ -48,14 +48,14 @@ build machine recorded in `docs/validation_report.md`.
 |---|---|---|
 | M01 data contracts and estimands | passed | TOML spec + JSON Schema, data dictionary, error codes |
 | M02 QC | passed | pedigree, phenotype and genotype rules; PLINK 1 binary input; batch and sex-chromosome checks not implemented |
-| M03 relationships and base | passed | unknown-parent groups (random or fixed, QP transformation); no metafounders |
+| M03 relationships and base | passed | unknown-parent groups (random or fixed, QP transformation); metafounders with a valid, documented Γ (file with provenance, or estimated from genotypes) for pedigree BLUP, REML and single step (single trait) |
 | M04 LMM and BLUP | passed | dense, sparse and PCG |
-| M05 REML and reliability | passed | single-trait; dense path |
+| M05 REML and reliability | passed | single- and multi-trait; dense or sparse selected-inversion traces; reduced-rank G0 at the boundary (analytic gradient) and rank selection by AIC with a conservative margin; single-trait, full-rank and reduced-rank multi-trait PEV including REML uncertainty (Kackar–Harville) |
 | M06 GBLUP | passed | VanRaden G with policies; SNP-BLUP equivalence tested |
-| M07 ssGBLUP | partial | exact H⁻¹; no APY |
-| M08 Bayesian | partial | BRR, BayesA, BayesB, BayesC, BayesCπ, BayesR with MCMC diagnostics (M20 part); single-trait genotyped-only; no Bayesian LASSO/horseshoe, single-step or multi-trait Bayes |
-| M09 multi-trait / repeatability / random regression | partial | multi-trait BLUP with known covariances; repeatability model; no random regression; no multi-trait REML |
-| M10 threshold / survival / G×E | not_run | |
+| M07 ssGBLUP | partial | exact H⁻¹, metafounders, APY; matrix-free single step with sampled reliabilities and int8 genotype storage in the workflow (no exact PEV or REML on that path) |
+| M08 Bayesian | partial | BRR, BayesA, BayesB, BayesC, BayesCπ, BayesR with MCMC diagnostics (M20 part); single-trait genotyped-only; multi-trait Bayesian animal model with sampled G0 and R0 (`bayes.method = "multitrait"`, round 9); no Bayesian LASSO/horseshoe, single-step Bayes or multi-trait marker models |
+| M09 multi-trait / repeatability / random regression | partial | multi-trait BLUP and multi-trait REML; repeatability model; multi-trait repeatability (permanent environment) in the Bayesian multi-trait models (round 10); maternal animal model (direct + maternal genetic, maternal permanent environment) in the Bayesian models (round 11) and by REML or known variances for one trait (round 13); no random regression |
+| M10 threshold / survival / G×E | partial | single-trait threshold (probit) model and a multi-trait threshold model (one or more categorical traits - each in its own residual group, round 14 - and continuous traits, Gibbs) with known, Gibbs-sampled (uniform or proper priors) or Laplace-REML liability variances (Laplace biased in sparse data; weakly identified with 2–3 records per animal, F13); no survival or G×E models |
 | M11 selection index | passed | Smith-Hazel, restricted, EBV index |
 | M12 OCS and mating | passed | pedigree-based OCS with KKT certificate; integer plans; minimum-inbreeding mating with hard constraints; no genomic OCS or multi-generation planning |
 | M13 validation, simulation, benchmarking | partial | LR forward validation; 50-replicate calibration study; 20-replicate UPG study; no comparison with other software |

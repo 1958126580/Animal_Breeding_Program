@@ -235,9 +235,9 @@ def test_auto_selection_and_pcg_fallback(monkeypatch):
     assert mme.choose_method(500, True, 2**30)[0] == "dense"
     assert mme.choose_method(50000, False, 2**30)[0] == "pcg"
     assert mme.choose_method(20000, True, 2**30)[0] == "sparse_direct"
-    with pytest.raises(ABPError) as exc:
-        mme.choose_method(50000, True, 2**30)
-    assert exc.value.code == "ABP-E303"
+    # exact PEV beyond the former 30,000-equation limit: sparse selected inversion
+    # (bounded by the memory of the factor, see tests/test_selinv.py::test_memory_guard)
+    assert mme.choose_method(50000, True, 2**30)[0] == "sparse_direct"
     ids, sires, dams, rec_animals, herd, season, age, y = _random_problem(2)
     ped = Pedigree.from_parent_ids(ids, sires, dams)
     fd = build_fixed_design({"herd": herd}, [FixedTerm("herd", "factor")], True, 90)

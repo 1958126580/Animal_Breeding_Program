@@ -1,0 +1,77 @@
+# Example 15: multi-trait threshold model - weaning weight (continuous, all lambs)
+# and number of lambs born at first lambing (nlb1: 1/2/3, ewes only), analysed
+# jointly: genetic and residual (co)variances, thresholds and EBVs sampled by Gibbs.
+# nlb1 has one record per ewe, so its liability-scale genetic variance needs a
+# proper prior (with a flat prior the posterior is improper and the chains drift);
+# the prior below is an inverse Wishart IW(nu, nu G_prior) with a weak nu = 5.
+# wwt is recorded on the lamb at weaning and nlb1 on the same animal as a ewe at
+# her first lambing, about a year later, so the two records share no temporary
+# environment: residual_groups puts them in different groups, which fixes their
+# residual covariance at 0 (one poorly determined parameter fewer).
+schema_version = "1"
+
+[project]
+name = "sheep_wwt_nlb1_threshold"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, lamb crops 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "founders born 2018-2019 (unknown parents): unrelated, non-inbred, mean 0"
+applicability = "demonstration only; nlb1 EBVs on the liability scale; prior-dependent"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "../sheep_data/data/lambs.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[[traits]]
+name = "wwt"
+unit = "kg"
+min = 5.0
+max = 80.0
+description = "weaning weight"
+
+[[traits]]
+name = "nlb1"
+unit = "lambs"
+min = 1.0
+max = 3.0
+type = "categorical"
+description = "number of lambs born at first lambing (ordered categories)"
+
+[model]
+traits = ["wwt", "nlb1"]
+fixed = [
+  { column = "cg", type = "factor", traits = ["wwt"] },
+  { column = "birth_type", type = "factor", traits = ["wwt"] },
+  { column = "dam_age", type = "factor", traits = ["wwt"] },
+  { column = "lambing1_year", type = "factor", traits = ["nlb1"] },
+]
+random = [{ name = "animal", kind = "additive", relationship = "pedigree" }]
+
+[variances]
+mode = "bayes"
+
+[bayes]
+method = "threshold"
+variance_prior = "inverse_wishart"
+nu = 5.0
+prior_covariance = { animal = [[4.0, 0.0], [0.0, 0.1]] }   # order of model.traits
+residual_groups = { wwt = 1, nlb1 = 2 }
+chains = 4
+iterations = 10000
+burn_in = 2000
+thin = 10
+max_iterations = 20000
+
+[qc]
+out_of_range = "quarantine"
+
+[output]
+top_n = 15

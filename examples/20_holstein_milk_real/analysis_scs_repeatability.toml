@@ -1,0 +1,59 @@
+# Example 20 (REAL data): somatic cell score of Holstein cows, repeatability animal model.
+# Data: the 'milk' and 'pedCowsR' data sets of the R package pedigreemm 0.3-5 (GPL >= 2;
+# USDA AIPL records; Vazquez et al. 2010, J Anim Sci 88:497) - 3,397 lactations of 1,359
+# cows in 57 herds, pedigree of 6,547 animals. NOT stored in the repository: run
+#   pip install rdata && python examples/20_holstein_milk_real/fetch_data.py
+# first (downloads from the GitHub mirror of CRAN, checks SHA-256, writes data/).
+# Model: herd and lactation number as fixed effects, additive genetic effect (pedigree)
+# and permanent environment of the cow across lactations; variances by REML.
+# The same model for the yields (milk, fat, protein) puts the additive variance at the
+# boundary (zero) and ABP refuses a ranking (ABP-E300): with these data the additive and
+# permanent-environment variances of the yields are not separated (validation report
+# section 7.19); first-lactation yields: analysis_first_lactation_multitrait.toml.
+schema_version = "1"
+
+[project]
+name = "holstein_scs_real"
+species = "cattle"
+synthetic_data = false
+
+[analysis]
+task = "additive_ebv"
+target_population = "Holstein cows in the 57 herds of the pedigreemm 'milk' data (USDA AIPL)"
+information_cutoff = "2024-10-14"           # publication of pedigreemm 0.3-5
+genetic_base = "animals of unknown parents in pedCowsR: unrelated, non-inbred, mean 0"
+applicability = "method validation on public real data; not a breeding evaluation"
+
+[data]
+pedigree = "data/pedigree.csv"
+phenotypes = "data/lactations.csv"
+
+[data.phenotype_columns]
+record_id = "record_id"
+
+[[traits]]
+name = "scs"
+unit = "score"
+min = 0.0
+max = 10.0
+description = "lactation somatic cell score"
+
+[model]
+traits = ["scs"]
+fixed = [
+  { column = "herd", type = "factor" },
+  { column = "lact", type = "factor" },
+]
+random = [
+  { name = "animal", kind = "additive", relationship = "pedigree" },
+  { name = "pe", kind = "iid" },          # permanent environment of the cow (column: id)
+]
+
+[variances]
+mode = "reml"
+
+[qc]
+out_of_range = "quarantine"
+
+[output]
+top_n = 15

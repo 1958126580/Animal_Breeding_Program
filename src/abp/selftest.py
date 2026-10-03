@@ -1,6 +1,6 @@
 """``abp selftest``: installation check against hand-derived analytical values.
 
-Every expected value below was derived by hand, is printed in the cited
+Every expected value below was derived by hand (T12, T13, T15-T18 in the comments), is printed in the cited
 source, or (T10) was computed by an independent implementation (ArviZ) -
 none is produced by ABP itself.  The checks exercise the production
 kernels on the target machine (BLAS/LAPACK, optional C++ kernel), so a pass
@@ -174,5 +174,80 @@ def run_selftest() -> tuple[bool, list[str]]:
               and bool(np.array_equal(outs[1][2], outs[0][2])))
     else:
         lines.append("  [SKIP] T11 native Bayesian sweep (native kernel not available or disabled)")
+
+    # T12 metafounders: founders 1, 2 from one metafounder (gamma = 0.4), x = offspring of 1 x 2.
+    # By hand: A = [[1.2,.4,.8,.4],[.4,1.2,.8,.4],[.8,.8,1.2,.4],[.4,.4,.4,.4]] (order 1, 2, x, MF),
+    # d = (0.8, 0.8, 0.4), inverse by Henderson's rules + 1/gamma, log|A| = log(0.4 * 0.8^2 * 0.4).
+    from .core.metafounders import MetafounderPedigree
+    from .core.upg import GroupAssignment
+    pm = Pedigree.from_parent_ids(["1", "2", "x"], [None, None, "1"], [None, None, "2"])
+    im = pm.index_of(["1", "2", "x"])
+    sg = np.full(3, -1)
+    sg[im[:2]] = 0
+    mfp = MetafounderPedigree(pm, GroupAssignment(("MF",), sg, sg.copy()), np.array([[0.4]]))
+    om = np.concatenate([im, [3]])
+    check("T12 metafounder relationships, inverse and log-determinant",
+          _close(mfp.a_ext_dense()[np.ix_(om, om)],
+                 [[1.2, .4, .8, .4], [.4, 1.2, .8, .4], [.8, .8, 1.2, .4], [.4, .4, .4, .4]])
+          and _close(mfp.ainv_ext().toarray()[np.ix_(om, om)],
+                     [[1.875, .625, -1.25, -1.25], [.625, 1.875, -1.25, -1.25],
+                      [-1.25, -1.25, 2.5, 0], [-1.25, -1.25, 0, 5.0]])
+          and _close(mfp.logdet_ext(), np.log(0.4 * 0.8 * 0.8 * 0.4)),
+          f"kernel {mfp.kernel}")
+
+    # T13 selected inversion of tridiag(-1, 2, -1): inverse = [[3,2,1],[2,4,2],[1,2,3]] / 4
+    from scipy.sparse.linalg import splu
+    from .solvers.selinv import SelectedInverse
+    T = sp.csc_matrix(np.array([[2.0, -1, 0], [-1, 2, -1], [0, -1, 2]]))
+    si = SelectedInverse(splu(T, permc_spec="NATURAL", diag_pivot_thresh=0.0,
+                              options={"SymmetricMode": True}), T)
+    check("T13 selected inversion (Takahashi) = exact inverse on the pattern",
+          _close(si.diagonal(np.arange(3)), [0.75, 1.0, 0.75])
+          and _close(si.entries(np.array([0, 1, 2]), np.array([1, 2, 1])), [0.5, 0.5, 0.5]),
+          f"kernel {si.kernel}")
+
+    # T14 sparse LDL' (minimum degree) of tridiag(-1, 2, -1): det = 4, x = (1, 1, 1) for b = (1, 0, 1)
+    from .solvers.cholesky import SparseLDL
+    fl = SparseLDL(T)
+    check("T14 sparse LDL' solve and log-determinant",
+          _close(fl.solve(np.array([1.0, 0.0, 1.0])), [1.0, 1.0, 1.0])
+          and _close(fl.logdet(), np.log(4.0)), f"kernel {fl.kernel}")
+
+    # T15 matrix-free single step: A22^-1 from sparse blocks of A^-1.  Founders 1, 2; 3 = 1 x 2;
+    # genotyped {1, 3}: A22 = [[1, .5], [.5, 1]], A22^-1 = [[4, -2], [-2, 4]] / 3
+    from .core.ssop import A22InverseOperator
+    p3 = Pedigree.from_parent_ids(["1", "2", "3"], [None, None, "1"], [None, None, "2"])
+    g3 = p3.index_of(["1", "3"])
+    op3 = A22InverseOperator(p3.ainv(), g3)
+    check("T15 A22^-1 as a Schur complement of A^-1 (matrix-free single step)",
+          _close(op3(np.array([1.0, 0.0])), [4 / 3, -2 / 3])
+          and _close(op3(np.array([0.0, 1.0])), [-2 / 3, 4 / 3]))
+
+    # T16 LDL' of tridiag(-1, 2, -1) with a 1e-17 entry stored on one side only (a matrix that
+    # is symmetric to rounding but has an asymmetric pattern): x = (1, 1, 1) for b = (1, 0, 1)
+    Ta = sp.lil_matrix(np.array([[2.0, -1, 0], [-1, 2, -1], [0, -1, 2]]))
+    Ta[0, 2] = 1e-17
+    fa = SparseLDL(Ta.tocsr())
+    check("T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix",
+          _close(fa.solve(np.array([1.0, 0.0, 1.0])), [1.0, 1.0, 1.0]))
+    # T17 PLINK SNP-major byte 0xE4 = 2-bit codes 00, 01, 10, 11 (lowest bits = first sample):
+    # A1/A1, missing, A1/A2, A2/A2 -> A1 dosages 2, missing, 1, 0; int8 storage uses -1 for missing
+    from .io.plink import decode_bed
+    raw = bytes([0x6C, 0x1B, 0x01, 0xE4])
+    d8 = decode_bed(raw, 4, 1, "int8")
+    d64 = decode_bed(raw, 4, 1)
+    check("T17 PLINK decoding to int8 and float64 (hand-derived byte)",
+          d8.dtype == np.int8 and d8[:, 0].tolist() == [2, -1, 1, 0]
+          and d64[[0, 2, 3], 0].tolist() == [2.0, 1.0, 0.0] and bool(np.isnan(d64[1, 0])))
+    # T18 Colleau product A x (native recursions or the triangular-solve reference):
+    # founders 1, 2; 3 = 1 x 2; 4 = 1 x 3.  a14 = (a11 + a13)/2 = 0.75, a24 = (a21 + a23)/2
+    # = 0.25, a34 = (a31 + a33)/2 = 0.75, a44 = 1 + a13/2 = 1.25, so A e_4 = (.75, .25, .75, 1.25)
+    p18 = Pedigree.from_parent_ids(["1", "2", "3", "4"], [None, None, "1", "1"],
+                               [None, None, "2", "3"])
+    e4 = np.zeros(4)
+    e4[p18.index_of(["4"])[0]] = 1.0
+    got = p18.a_times(e4)[p18.index_of(["1", "2", "3", "4"])]
+    check("T18 Colleau product A x on a hand-derived inbred pedigree",
+          _close(got, [0.75, 0.25, 0.75, 1.25]))
     lines.append("RESULT: " + ("PASS" if ok_all else "FAIL"))
     return ok_all, lines

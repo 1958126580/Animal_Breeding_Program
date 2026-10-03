@@ -1,0 +1,31 @@
+{
+  "design": {
+    "animals": 80,
+    "genotyped": 25,
+    "records": 50,
+    "seeds": 300,
+    "samples_per_seed": 40,
+    "mean_exact_reliability": 0.31843693002416484,
+    "exact_reliability_range": [
+      0.017613445660943805,
+      0.49790061777643013
+    ]
+  },
+  "orthogonal": {
+    "mean_error": -0.00015916461712832817,
+    "mc_se_of_mean_error": 0.00043433772503894796,
+    "max_abs_animal_bias_in_se": 2.8440128221347947,
+    "sd_across_seeds": 0.06386011932341722,
+    "mean_reported_se": 0.058920487752244
+  },
+  "ratio": {
+    "mean_error": -0.008824471008986609,
+    "mc_se_of_mean_error": 0.0007337607482249294,
+    "max_abs_animal_bias_in_se": 6.3989480275038995,
+    "sd_across_seeds": 0.1110470995821943,
+    "mean_reported_se": 0.10863393888230494
+  },
+  "sd_ratio_orthogonal_to_ratio": 0.5750723752685638,
+  "sd_ratio_predicted_sqrt_r": 0.5741130688663294,
+  "equivalent_sample_factor": 3.02381340629792
+}

@@ -1,0 +1,88 @@
+# Example 19: two ordered categorical traits and a continuous trait in one Bayesian
+# multi-trait threshold model - weaning weight (kg; missing for lambs that died), lamb
+# vigour score at birth (3 categories) and survival to weaning (binary), all on the
+# lambs of the shared flock.  The genetic covariance matrix (3 x 3, liability scale for
+# vigour and survival) is sampled with the EBVs; each categorical trait has its own
+# thresholds and a residual variance fixed at 1.
+# Each trait is in its own residual group: the residual covariances are fixed at 0.
+# ABP does not estimate residual covariances between two categorical traits (round 14);
+# use this model when the traits share no temporary environment, or accept that a
+# residual correlation would be partly absorbed by the genetic one.
+# One record per lamb and trait identifies the genetic covariances weakly (validation
+# report, finding F18): the prior is a weak inverse Wishart (nu = 5) centred on
+# heritabilities of about 0.2 and zero genetic covariances - not on the simulated values.
+# The data are SYNTHETIC and made by make_data.py (seed 20261003); true values in truth/.
+schema_version = "1"
+
+[project]
+name = "sheep_two_categorical"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, lamb crops 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "founders born 2018-2019 (unknown parents): unrelated, non-inbred, mean 0"
+applicability = "demonstration only; vigour and survival EBVs on the liability scale; prior-dependent"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "data/lambs_two_categorical.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[[traits]]
+name = "wwt"
+unit = "kg"
+min = 5.0
+max = 80.0
+description = "weaning weight (survivors)"
+
+[[traits]]
+name = "vigour"
+unit = "score"
+min = 1.0
+max = 3.0
+type = "categorical"
+description = "lamb vigour score at birth (1 weak, 2 medium, 3 vigorous)"
+
+[[traits]]
+name = "surv"
+unit = "class"
+min = 1.0
+max = 2.0
+type = "categorical"
+description = "survival to weaning (1 died, 2 survived)"
+
+[model]
+traits = ["wwt", "vigour", "surv"]
+fixed = [
+  { column = "cg", type = "factor" },
+  { column = "sex", type = "factor" },
+  { column = "birth_type", type = "factor" },
+]
+random = [{ name = "animal", kind = "additive", relationship = "pedigree" }]
+
+[variances]
+mode = "bayes"
+
+[bayes]
+method = "threshold"
+variance_prior = "inverse_wishart"
+nu = 5.0
+prior_covariance = { animal = [[3.0, 0.0, 0.0], [0.0, 0.25, 0.0], [0.0, 0.0, 0.25]] }
+residual_groups = { wwt = 1, vigour = 2, surv = 3 }
+chains = 4
+iterations = 4000
+burn_in = 1000
+thin = 5
+max_iterations = 16000
+
+[qc]
+out_of_range = "quarantine"
+
+[output]
+top_n = 15

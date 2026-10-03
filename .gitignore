@@ -12,3 +12,5 @@ dist/
 *.cancelled-*/
 /out/
 /runs/
+examples/20_holstein_milk_real/data/
+examples/21_mice_bodyweight_real/data/

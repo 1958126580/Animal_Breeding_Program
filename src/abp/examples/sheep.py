@@ -77,6 +77,13 @@ class SheepSimConfig:
     genotype_missing_rate: float = 0.005
     n_wwt_typos: int = 3
     assembly: str = "SYNTHETIC-OVINE-ASSEMBLY-0"
+    # base allele frequencies are drawn uniformly from these ranges (same random draws
+    # whatever the range, so changing them does not shift any other part of the simulation)
+    snp_freq_range: tuple[float, float] = (0.05, 0.95)
+    qtl_freq_range: tuple[float, float] = (0.02, 0.98)
+    # True: rams are chosen at random among last year's male lambs (no selection), using a
+    # separate random stream; False (default): the best on own weaning weight
+    random_ram_selection: bool = False
     extra: dict = field(default_factory=dict)
 
 
@@ -96,8 +103,8 @@ class _Genome:
             rng.shuffle(k)
             kind.append(k)
         self.kind = np.concatenate(kind)
-        self.freq = np.where(self.kind == "snp", rng.uniform(0.05, 0.95, self.n_loci),
-                             rng.uniform(0.02, 0.98, self.n_loci))
+        self.freq = np.where(self.kind == "snp", rng.uniform(*cfg.snp_freq_range, self.n_loci),
+                             rng.uniform(*cfg.qtl_freq_range, self.n_loci))
         self.starts = np.searchsorted(self.chrom, np.arange(cfg.n_chrom))
         self.ends = np.append(self.starts[1:], self.n_loci)
 
@@ -122,6 +129,7 @@ class _Genome:
 def simulate(cfg: SheepSimConfig) -> dict:
     """Run the simulation; returns in-memory tables (see :func:`write_sheep_example`)."""
     rng = np.random.default_rng(cfg.seed)
+    sel_rng = np.random.default_rng([cfg.seed, 7])   # used only with random_ram_selection
     g = _Genome(cfg, rng)
     qtl = np.flatnonzero(g.kind == "qtl")
     snp = np.flatnonzero(g.kind == "snp")
@@ -173,8 +181,12 @@ def simulate(cfg: SheepSimConfig) -> dict:
             rams = rams_prev
         else:
             cand = male_lambs_by_year.get(year - 1, [])
-            cand = sorted(cand, key=lambda t: -t[1])
-            rams = [i for i, _ in cand[:cfg.rams_per_year]]
+            if cfg.random_ram_selection:
+                pick = sel_rng.permutation(len(cand))[:cfg.rams_per_year]
+                rams = [cand[k][0] for k in sorted(pick)]
+            else:
+                cand = sorted(cand, key=lambda t: -t[1])
+                rams = [i for i, _ in cand[:cfg.rams_per_year]]
         ewes = sorted(e for e in alive_ewes
                       if year - 1 >= int(animals[e]["born"][:4])
                       and year - int(animals[e]["born"][:4]) <= cfg.ewe_max_age)
