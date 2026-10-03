@@ -1375,7 +1375,8 @@ example 05: EBVs equal to 10⁻⁸ relative), `test_apy_blocks_from_int8_dosage_
 
 Code: `abp/solvers/mt_threshold_gibbs.py`, `abp/workflows/mt_threshold.py`. Registry
 id `threshold.gibbs_multitrait`. Spec: `variances.mode = "bayes"`,
-`bayes.method = "threshold"`, exactly one categorical trait among `model.traits`.
+`bayes.method = "threshold"`, one or more categorical traits among `model.traits`
+(several since round 14: see "Several categorical traits" below).
 
 Model: the multi-trait animal model of §8 on the liability scale — each trait with
 its own fixed design, missing traits, `u ~ N(0, K ⊗ G0)`, `e_r ~ N(0, R0)` — with
@@ -1416,6 +1417,22 @@ Output: posterior means (EBVs), posterior variances and `t × t` covariance bloc
 `1 − PEV_jj/(K_ii Ḡ0_jj)`, posterior summaries of `G0`, `R0`, heritabilities and
 genetic correlations, thresholds; R-hat/ESS gating as in §27.
 
+**Several categorical traits** (round 14). Each categorical trait `c` has its own
+categories, thresholds `τ^c` (`τ^c_1 = 0`, flat on the free ones), liabilities and
+`R0[c, c] = 1`. Step 1 is done for each categorical trait in turn, given the current
+liabilities of the others (a Gibbs sweep over the blocks `(τ^c, l_c)`; each block's
+conditional is the single-trait step above with `m_r` from the record's other observed
+traits and liabilities), and the Cowles proposal scale is tuned per trait during
+burn-in. Every categorical trait must be in a different residual group
+(`bayes.residual_groups`; `R0` block diagonal), so step 5 handles at most one
+categorical trait per block: a block with one categorical trait and continuous traits
+uses the Korsgaard parameterisation, a block with only the categorical trait is the
+constant 1. **Residual covariances between two categorical traits are therefore fixed
+at 0** — an assumption of this version (a correlation-matrix step for several
+liabilities, e.g. Metropolis on the correlation, is not implemented); genetic
+covariances between all traits are estimated. Scalars `tau<c>_<k>` name the free
+thresholds when there are several categorical traits.
+
 **Improper posterior with one categorical record per animal.** With a flat prior on
 the genetic variance of the categorical trait, the likelihood tends to a positive
 constant as that variance grows (the probability that the liabilities of related
@@ -1439,7 +1456,11 @@ uncorrelated traits, the reduction to the single-trait threshold sampler and to
 BLUP; invariance of the posterior under the scale and shear moves (means within
 Monte-Carlo error, ESS of the genetic variance and correlation raised);
 the workflow outputs, withholding and spec rules; the linear coefficient maps against
-direct assembly. **Evidence**: `benchmarks/mt_threshold_study.py` (30 replicates,
+direct assembly; several categorical traits (round 14): two genetically correlated
+binary traits with fixed covariances against importance sampling of the closed-form
+posterior, uncorrelated ordinal traits against single-trait threshold models (EBVs and
+thresholds), configuration rules. **Evidence**: `benchmarks/two_categorical_study.py`
+(validation report §7.18); `benchmarks/mt_threshold_study.py` (30 replicates,
 800 animals, 360 single categorical records): categorical EBVs more accurate than
 with the single-trait threshold model (+0.039 ± 0.010), MSE/PEV 1.03, coverage
 0.945; variances close to the truth; the genetic correlation follows the prior's

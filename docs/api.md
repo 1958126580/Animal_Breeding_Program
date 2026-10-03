@@ -654,3 +654,21 @@ delta = kackar_harville_delta_maternal(data, ped.ainv(), theta, fit.cov)   # q x
 In the spec: `variances.mode = "reml"` (or `"known"` with `values = { animal = [[s_A,
 s_AM], [s_AM, s_M]], mpe = ..., residual = ... }`) and a term `{ name = "maternal",
 kind = "maternal" }`; one trait (manual §7.16).
+
+## 34. Several categorical traits in the multi-trait threshold model (round 14)
+
+```python
+res = mt_threshold_gibbs(Y, [1, 2], Xb, animal_col, ped.ainv(), MTThresholdGibbsConfig(
+    residual_groups=[[0], [1], [2]],            # every categorical trait in its own group
+    prior_nu=5.0, prior_G0=np.diag([3.0, 0.25, 0.25]), seed=1))
+res.thresholds_by_trait[1], res.categories_by_trait[2], res.traces["tau1_2"]
+```
+
+`cat` may be `None`, one index (unchanged results and names: `thresholds_mean`,
+`categories`, `tau_<k>`) or a list of indices. With several, `residual_groups` must put
+each categorical trait in a different group (`SPEC_INVALID` otherwise); the residual
+covariance between two categorical traits is 0 by construction. `thresholds_mean` and
+`categories` refer to the first categorical trait. In the spec: several
+`type = "categorical"` traits with `bayes.method = "threshold"` and
+`bayes.residual_groups` (manual §7.15).
+

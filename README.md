@@ -14,7 +14,7 @@ and mating plans. Every result can be traced back to its inputs, model and
 code. It is built to the project's research and
 development specification (`docs/` and the uploaded instruction set).
 
-> **Status: 0.13.0, research-grade.** Every method listed below has passed
+> **Status: 0.14.0, research-grade.** Every method listed below has passed
 > analytical and independent-reference tests on Linux; simulation studies
 > cover EBV calibration, genetic groups and the Bayesian samplers. It has
 > **not** been validated on real breeding data, compared with
@@ -33,11 +33,11 @@ development specification (`docs/` and the uploaded instruction set).
 
 ## What it does
 
-| Area | Capability (0.13) | Evidence |
+| Area | Capability (0.14) | Evidence |
 |---|---|---|
 | Data contracts and QC | CSV import with strict schemas; pedigree QC (cycles, duplicates, sex and birth-order conflicts, missing parents); phenotype QC (ranges, repeated records, outliers); genotype QC (allele and assembly contract, call rates, MAF, Mendelian conflicts). Excluded records are always listed. | `tests/test_qc.py`, `tests/test_workflow.py` |
 | Pedigree relationships | Ordering, inbreeding (Meuwissen-Luo; optional C++20 kernel that switches per pedigree depth to Colleau columns: 200,000 animals in 1.8 s), sparse A-inverse, `A x` products without forming A (Colleau); unknown-parent groups (random or estimable fixed) by the QP transformation; metafounders (related base populations; Γ from a documented file or estimated from genotypes) for pedigree BLUP, REML and single step | spec gold standard T03, independent tabular method; explicit-model references for groups and metafounders; 20-replicate group study; 50-replicate single-step study |
-| BLUP | Single-trait animal and repeatability models; rank-deficient fixed effects; dense, sparse-direct and PCG solvers; exact PEV, SEP and reliability at scale by ABP's sparse LDL' and selected inversion (100,500 equations in 3.2 s); threshold (probit) model for ordered categorical traits, alone or with continuous traits in a multi-trait Gibbs sampler; PEV and reliability including the uncertainty of REML variances (Kackar–Harville) | T04, Mrode (2005) Ex. 3.1, independent V-form reference, 50-replicate calibration study |
+| BLUP | Single-trait animal and repeatability models; rank-deficient fixed effects; dense, sparse-direct and PCG solvers; exact PEV, SEP and reliability at scale by ABP's sparse LDL' and selected inversion (100,500 equations in 3.2 s); threshold (probit) model for ordered categorical traits, alone or with continuous and other categorical traits in a multi-trait Gibbs sampler; PEV and reliability including the uncertainty of REML variances (Kackar–Harville) | T04, Mrode (2005) Ex. 3.1, independent V-form reference, 50-replicate calibration study |
 | REML | Average-information REML with EM fallback, boundary (zero-variance) handling, standard errors, checkpoint and resume; dense or sparse (selected-inversion) traces; multi-trait AI-REML for G0 and R0 with missing traits; reduced-rank G0 = ΛΛ′ at the boundary (analytic gradient) and rank selection by AIC with a conservative margin; PEV including REML uncertainty for full-rank and reduced-rank multi-trait models; threshold-model variances by Gibbs sampling (uniform or proper priors) or Laplace-approximate REML; maternal animal model (direct-maternal covariance, maternal permanent environment) by AI-REML with Kackar–Harville PEV | T05, independent optimizer, 40-replicate simulation, V-form references with singular G0, independent Laplace computation, 200-replicate maternal study |
 | Genomics | Dosage CSV or PLINK 1 binary input, optionally held as int8 (2 bytes per call instead of 9); VanRaden G with recorded frequency source; explicit singular-G policy; GBLUP; GBLUP/SNP-BLUP equivalence; single-step H-inverse; APY; matrix-free single step (H⁻¹ as an operator: 1.7 GB instead of 10.9 GB for 50,000 animals / 6,000 genotyped; 200,000 animals / 30,000 genotyped in 6.75 GB) with sampled reliabilities (variance-reduced estimator) | T01, T06, T15, explicit-H reference, hand-decoded PLINK bytes |
 | Bayesian marker models | BRR, BayesA, BayesB, BayesC, BayesCπ, BayesR (Gibbs, 4+ chains, optional C++ sweep); R-hat, bulk/tail ESS and MCSE for every scalar and GEBV; results withheld unless converged; traces and posterior predictive checks | exact Gaussian posterior (BRR), exact inclusion probability, simulation-based calibration of all six samplers, diagnostics equal to ArviZ to 1e-15 |
@@ -48,7 +48,7 @@ development specification (`docs/` and the uploaded instruction set).
 
 Not implemented yet (tracked as `not_run` in
 [`docs/method_registry.toml`](docs/method_registry.toml)): multi-trait maternal models
-with REML, random-regression models, threshold models with several categorical traits, survival models,
+with REML, random-regression models, residual correlations between categorical traits, survival models,
 single-step Bayesian models, genomic OCS,
 VCF/BGEN readers, CUDA.
 
@@ -93,6 +93,8 @@ abp run examples/17_sheep_ewe_repeated_bayes/analysis.toml --out runs/ex17
 # weaning weight with maternal genetic effects (about 3 minutes; REML variant: 1 second)
 abp run examples/18_sheep_wwt_maternal_bayes/analysis.toml --out runs/ex18
 abp run examples/18_sheep_wwt_maternal_bayes/analysis_reml.toml --out runs/ex18_reml
+# weaning weight, vigour score and survival: two categorical traits (about 15 minutes)
+abp run examples/19_sheep_two_categorical/analysis.toml --out runs/ex19
 abp run examples/10_sheep_fec_bayesc/analysis.toml --out runs/ex10
 abp mate examples/09_sheep_mating/mating.toml --out runs/mating
 ```
