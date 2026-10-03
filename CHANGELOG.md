@@ -4,6 +4,20 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.13.0] - 2026-10-03
+
+Thirteenth development round. Evidence and gaps: `docs/validation_report.md`.
+
+### Added
+- Maternal animal model by REML (`abp.solvers.maternal_reml`): AI-REML with EM fallback for the 2 × 2 direct-maternal genetic covariance matrix, independent terms (maternal permanent environment) and the residual; dense or sparse selected-inversion traces; zero variances of independent terms with a Kuhn–Tucker check; a singular G0 stops with `ABP-E300`; h2, m2 and the direct-maternal correlation with delta-method SE; BLUP with exact direct and maternal PEV. Tested against the marginal-likelihood form, finite differences, a generic optimizer and the V-form predictor.
+- Workflow: a `kind = "maternal"` term with `variances.mode = "reml"` or `"known"` (one trait; the additive term's known value is the 2 × 2 matrix); `ebv_<trait>.csv` with `mebv`, `mreliability`, `msep` and, after REML, PEV and reliabilities including the uncertainty of the estimates (`kackar_harville_delta_maternal`); report line for maternal effects; example 18 variant `analysis_reml.toml` (0.6 s instead of about 3 minutes).
+- `maternal_study.py --method reml` (200 replicates): estimates unbiased (maternal 2.06 for 2.0), ±1.96 SE coverage 0.94–0.97; plug-in maternal PEV optimistic when the maternal variance is underestimated (finding F20); Kackar–Harville reduces it.
+- Methods §34, API section 33, manual §7.16, validation report §7.17.
+
+### Changed
+- Finding F19 revised: REML on the same 20 data sets gives a maternal variance of 2.46, so most of the excess of the Bayesian posterior mean (2.54) was the chance of those replicates; the posterior mean is about 7% above REML on the same data with flat priors.
+- Spec: maternal terms are no longer limited to the Bayesian Gibbs models; with REML or known variances `reml.start` and UPG / metafounders / LR validation are refused.
+
 ## [0.12.0] - 2026-10-02
 
 Twelfth development round. Evidence and gaps: `docs/validation_report.md`.

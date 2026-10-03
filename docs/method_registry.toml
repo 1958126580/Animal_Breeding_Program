@@ -609,7 +609,7 @@ dependencies = ["numpy", "scipy"]
 method_id = "blup.pev_vc"
 name = "PEV and reliability including the uncertainty of REML variance estimates (Kackar-Harville)"
 estimand = "prediction error variance of empirical BLUP (variances estimated by REML)"
-scope = "single-trait REML runs (pedigree, genomic, single step), full-rank and reduced-rank multi-trait REML runs (t x t correction per animal); not at a REML boundary of a full-rank fit; not with metafounders in multi-trait runs"
+scope = "single-trait REML runs (pedigree, genomic, single step), full-rank and reduced-rank multi-trait REML runs (t x t correction per animal), maternal-model REML (2 x 2 per animal, round 13); not at a REML boundary of a full-rank fit; not with metafounders in multi-trait runs"
 math = "docs/methods.md#23-pev-including-the-uncertainty-of-reml-variances-kackarharville"
 sources = ["Kackar & Harville 1984 J Am Stat Assoc 79:853", "Harville & Jeske 1992 J Am Stat Assoc 87:724"]
 errata = []
@@ -620,7 +620,8 @@ tests = ["tests/test_vc_uncertainty.py::test_delta_equals_v_form_derivatives",
          "tests/test_vc_uncertainty.py::test_multitrait_delta_equals_v_form_derivatives",
          "tests/test_vc_uncertainty.py::test_reduced_rank_delta_equals_v_form_derivatives",
          "tests/test_vc_uncertainty.py::test_example13_reports_multitrait_pev_including_vc_uncertainty",
-         "tests/test_vc_uncertainty.py::test_workflow_reports_pev_including_vc_uncertainty"]
+         "tests/test_vc_uncertainty.py::test_workflow_reports_pev_including_vc_uncertainty",
+         "tests/test_maternal_reml.py::test_kackar_harville_delta_equals_the_marginal_form"]
 # G4: benchmarks/calibration_study.py (50 replicates, docs/validation/calibration_kh.json): pedigree REML
 # MSE/PEV 1.070 +- 0.033 (plug-in) -> 1.017 +- 0.031 (incl. VC uncertainty); coverage 0.942 -> 0.949.
 gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_50_replicates_pedigree_reml", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
@@ -851,10 +852,45 @@ tests = ["tests/test_mt_threshold_gibbs.py::test_maternal_effects_with_fixed_cov
 # maternal 0.984 +- 0.104, coverage 0.946 / 0.949; maternal variance biased upwards (2.54 vs 2.0, F19).
 # Round 12 (maternal_study_equal_prior.json): weak data-only IW priors: maternal variance 2.37 +- 0.10,
 # RMSE 1.01 -> 0.59, covariance -1.07 (true -1.0), 16/20 converged; EBV MSE/PEV 1.07 / 0.91.
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "partial_ebv_calibrated_maternal_variance_biased_F19", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+# Round 13: REML on the same 20 seeds (19 converged) gives maternal 2.46 (200 replicates: 2.06, unbiased):
+# the seeds were a high draw; the flat-prior posterior mean exceeds REML by +0.17 +- 0.05 (paired), the
+# weak prior by -0.05 (F19 revised).
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "partial_ebv_calibrated_posterior_mean_7pct_above_reml_F19", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["Gibbs models only (no REML or known-variance maternal model)", "pedigree relationships only", "direct, maternal and maternal permanent-environment variances weakly separated with one record per animal: maternal variance biased upwards under flat priors (F19; 2.54 vs 2.0) and still with weak data-only priors (2.37; round 12)", "slow on pedigrees with long-range links (round 12: about 0.025 s per chain-iteration at 1,500 animals in a random pedigree after the dense trailing block; 0.08 s before)"]
+dependencies = ["numpy", "scipy"]
+
+[[method]]
+method_id = "reml.maternal"
+name = "Maternal animal model by REML (direct and maternal genetic effects, AI with EM fallback)"
+estimand = "2 x 2 genetic covariance matrix (direct, maternal, covariance), independent-term and residual variances; h2, m2, r_am with delta-method SE; direct and maternal EBVs with exact PEV"
+scope = "one trait; pedigree relationship (dam from the pedigree; records with unknown dam have no maternal effect); any number of independent terms (e.g. maternal permanent environment); variances.mode = 'reml' or 'known'; not with UPG, metafounders, genomic relationships or LR validation"
+math = "docs/methods.md#34-maternal-animal-model-by-reml"
+sources = ["Willham 1963 Biometrics 19:18", "Willham 1972 J Anim Sci 35:1288", "Henderson 1984 Applications of Linear Models in Animal Breeding", "Gilmour, Thompson & Cullis 1995 Biometrics 51:1440", "Kackar & Harville 1984 J Am Stat Assoc 79:853"]
+errata = []
+exact_or_approximate = "exact REML (up to the convergence tolerance); SE asymptotic from the AI matrix; Kackar-Harville PEV first order"
+complexity = "per iteration: one numeric factorization on a fixed pattern + selected inversion (dense inverse up to 2,000 equations) + one multi-RHS solve"
+code = ["src/abp/solvers/maternal_reml.py", "src/abp/solvers/vc_uncertainty.py", "src/abp/workflows/maternal.py", "src/abp/core/spec.py"]
+tests = ["tests/test_maternal_reml.py::test_likelihood_score_and_ai_equal_the_marginal_form",
+         "tests/test_maternal_reml.py::test_score_equals_finite_differences_of_the_likelihood",
+         "tests/test_maternal_reml.py::test_sparse_traces_equal_dense_traces",
+         "tests/test_maternal_reml.py::test_reml_optimum_equals_a_generic_optimizer_of_the_marginal_likelihood",
+         "tests/test_maternal_reml.py::test_blup_and_pev_equal_the_marginal_form",
+         "tests/test_maternal_reml.py::test_boundary_of_the_maternal_pe_variance_satisfies_kuhn_tucker",
+         "tests/test_maternal_reml.py::test_singular_genetic_covariance_is_refused",
+         "tests/test_maternal_reml.py::test_maternal_variances_are_recovered_on_average",
+         "tests/test_maternal_reml.py::test_kackar_harville_delta_equals_the_marginal_form",
+         "tests/test_maternal_workflow.py::test_example18_reml_and_known_variances_agree",
+         "tests/test_maternal_workflow.py::test_spec_rules_for_maternal_reml_and_known_variances"]
+# G4: benchmarks/maternal_study.py --method reml, 200 replicates (1,500 animals): 192 converged, 3 with the
+# maternal pe at 0, 5 refused (singular G0). Means (true): direct 4.00 (4.0), covariance -1.045 (-1.0),
+# maternal 2.06 (2.0), pe 1.47 (1.5), residual 8.02 (8.0); +-1.96 SE coverage 0.94-0.97.
+# EBV MSE/PEV plug-in: direct 1.075, maternal 1.56 (median 1.04; F20); Kackar-Harville 1.047 / 1.35.
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_estimates_unbiased_200_replicates_maternal_pev_optimistic_F20", G5 = "not_run", G6 = "linux_measured", G7 = "not_run" }
+implementation_status = "passed"
+maturity = "experimental"
+known_limits = ["single trait only", "a singular G0 (|r_am| -> 1 or a genetic variance -> 0) stops the run (ABP-E300; 5 of 200 simulated replicates, more with small data)", "plug-in maternal PEV optimistic when the maternal variance is underestimated (F20); the Kackar-Harville columns reduce but do not remove this", "no user start values"]
 dependencies = ["numpy", "scipy"]
 
 [[method]]

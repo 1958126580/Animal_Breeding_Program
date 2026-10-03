@@ -495,7 +495,7 @@ given, values must be unique), `date` (none; record dates, required by
 | `traits` | list | **required** | one trait = single-trait model; several = multi-trait model |
 | `intercept` | bool | `true` | overall mean |
 | `fixed` | array of tables | `[]` | `{ column = "...", type = "factor" or "covariate", traits = [...] }`; `traits` restricts a term to some traits (default: all) |
-| `random` | array of tables | **required** | exactly one `kind = "additive"` term with `relationship = "pedigree" \| "genomic" \| "single_step"`; optional `kind = "iid"` terms with `column` (default: the animal id column); optional `kind = "maternal"` (maternal genetic effect of the dam from the pedigree; Bayesian multi-trait Gibbs models only, §7.16) |
+| `random` | array of tables | **required** | exactly one `kind = "additive"` term with `relationship = "pedigree" \| "genomic" \| "single_step"`; optional `kind = "iid"` terms with `column` (default: the animal id column); optional `kind = "maternal"` (maternal genetic effect of the dam from the pedigree; one trait with `variances.mode = "reml"` or `"known"`, or the Bayesian multi-trait Gibbs models, §7.16) |
 
 Example:
 
@@ -1778,8 +1778,11 @@ mean variance, so an overestimated maternal variance makes maternal reliabilitie
 look higher. More generations of records on daughters and granddaughters help.
 In a 20-replicate simulation (validation report §7.15, finding F19) the maternal EBVs
 and their reliabilities were well calibrated (squared error / PEV 0.98, coverage 0.95;
-direct 1.03, 0.95), but the posterior mean of the maternal variance was 27% too high
-on average (2.54 for a true 2.0) — read the variance components as intervals.
+direct 1.03, 0.95). The posterior mean of the maternal variance came out at 2.54 for
+a true 2.0, but REML on the same 20 data sets gives 2.46: most of that excess is the
+chance of these 20 replicates (REML over 200 replicates: 2.06). Compared with REML on
+the same data, the posterior mean is about 7% higher with flat priors (§7.17) — read
+the variance components as intervals.
 
 Weak proper priors help (validation report §7.16). Centre each prior on an equal
 share of the phenotypic variance left after the fixed effects (not on values you hope
@@ -1801,6 +1804,42 @@ In the 20-replicate study this cut the error of the maternal variance from 1.01 
 was still 18% high on average (2.37 for 2.0). In example 18 the posterior mean of the
 maternal variance fell from 3.9 to 3.1 (true 2.0). The maternal EBVs stayed
 calibrated (squared error / PEV 0.91, slightly conservative).
+
+**Maternal model by REML** (since 0.13.0, one trait). Use `variances.mode = "reml"`
+with the same random terms; ABP estimates the 2 × 2 matrix of direct and maternal
+variances and their covariance, the maternal permanent-environment and residual
+variances by AI-REML, then computes direct and maternal EBVs with exact PEV:
+
+```bash
+abp run examples/18_sheep_wwt_maternal_bayes/analysis_reml.toml --out runs/ex18_reml
+```
+
+This took 0.6 s for example 18 (Gibbs: about 3 minutes). `ebv_<trait>.csv` has `ebv`,
+`reliability`, `sep`, `mebv`, `mreliability`, `msep` and, after REML,
+`pev_incl_vc_uncertainty`, `reliability_incl_vc_uncertainty` and their maternal
+counterparts (`mpev_…`, `mreliability_…`), which add the uncertainty of the estimated
+variances (Kackar–Harville); `mpe_<trait>.csv` holds the permanent-environment
+solutions. With known variances, give the additive term the 2 × 2 matrix:
+
+```toml
+[variances]
+mode = "known"
+values = { animal = [[4.0, -1.0], [-1.0, 2.0]], mpe = 1.5, residual = 8.0 }
+```
+
+What to expect (validation report §7.17, 200 simulated data sets of 1,500 animals): the
+REML estimates were unbiased and their ±1.96 SE intervals covered the true values 94–97%
+of the time. Three times in 200 the maternal permanent-environment variance was
+estimated at zero (reported; the term is then left out of BLUP), and five times the
+run stopped with `ABP-E300` because the likelihood rose towards a direct-maternal
+correlation of ±1 — with small data sets this happens more often; then use the
+Bayesian model with weak priors. When REML underestimates the maternal variance, the
+maternal reliabilities are too optimistic (finding F20: squared error / PEV 1.56 on
+average, 5.2 when the estimate was below half the true value); the
+`…incl_vc_uncertainty` columns reduce this (1.35) but do not remove it. The Bayesian
+posterior PEVs were calibrated (0.98). Prefer the Bayesian model when maternal
+reliabilities matter and the maternal variance is poorly determined; REML is the fast
+choice for variance estimation.
 
 Run time grows with how widely the dams are spread over the pedigree; since 0.12.0 the
 nearly dense last block of the factorization is handled by LAPACK, which made a
@@ -2038,8 +2077,8 @@ The complete list is in [`error_codes.md`](error_codes.md).
 
 ## 13. Limitations and good practice
 
-What ABP does **not** do yet: maternal and social effects,
-random regression and test-day models, multi-trait threshold models,
+What ABP does **not** do yet: maternal effects in multi-trait REML, social effects,
+random regression and test-day models, threshold models with several categorical traits,
 survival models, genotype × environment models, dominance and epistasis,
 exact reliabilities or REML on the matrix-free single-step path (sampled
 reliabilities are available), multi-trait or single-step Bayesian models, Bayesian LASSO/horseshoe priors, genomic

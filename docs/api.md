@@ -628,3 +628,29 @@ over the `2t` columns and `rG_j_{t+j}` is the direct-maternal correlation of tra
 observations and animal indices that load genetic column `k`. In the spec: a random
 term `{ name = "maternal", kind = "maternal" }` (dam from the pedigree; manual §7.16).
 
+## 33. Maternal animal model by REML (round 13)
+
+```python
+from abp.solvers.maternal_reml import MaternalData, maternal_reml_fit, maternal_blup
+from abp.solvers.vc_uncertainty import kackar_harville_delta_maternal
+data = MaternalData(y, X, animal_idx, dam_idx,                 # dam_idx -1 = unknown
+                    iid=[("mpe", dam_level_idx, n_dam_levels)])  # optional independent terms
+fit = maternal_reml_fit(data, ped.ainv(), ped.logdet_a(), {"tol": 1e-8, "max_iter": 200})
+fit.G0, fit.iid, fit.residual, fit.se, fit.derived["m2"], fit.derived["m2_se"], fit.status
+beta, U, pev, iid_solutions, info = maternal_blup(data, ped.ainv(), fit.G0,
+                                                  [fit.iid["mpe"]], fit.residual)
+theta = [fit.G0[0, 0], fit.G0[0, 1], fit.G0[1, 1], fit.iid["mpe"], fit.residual]
+delta = kackar_harville_delta_maternal(data, ped.ainv(), theta, fit.cov)   # q x 2 x 2
+```
+
+| Name | Meaning |
+|---|---|
+| `MaternalData(y, X, animal, dam, iid)` | one record per row; `animal`, `dam` index the relationship matrix; `iid` = `[(name, level index, n_levels)]` |
+| `maternal_reml_fit(data, k_inv, logdet_k, cfg, memory_budget_bytes, start, dense)` | AI-REML with EM fallback; `status` `converged` or `converged_boundary` (an independent-term variance at 0, `start["boundary"]`); `ABP-E300` for a singular G0; `se`, `cov` (inverse AI, `names` order) withheld at a boundary; `derived` = h2, m2, r_AM (+ SE) |
+| `MaternalREMLEvaluator(...).evaluate(theta)` | logL, score, AI, EM update at `theta = (s_A, s_AM, s_M, s_p..., s_e)` |
+| `maternal_blup(data, k_inv, G0, iid_vars, residual)` | fixed effects, `U` (`q x 2`: direct, maternal), PEV blocks (`q x 2 x 2`), independent-term solutions, solver info (relative residual) |
+| `kackar_harville_delta_maternal(data, k_inv, theta, cov)` | first-order PEV increase from the uncertainty of the REML estimates (`q x 2 x 2`) |
+
+In the spec: `variances.mode = "reml"` (or `"known"` with `values = { animal = [[s_A,
+s_AM], [s_AM, s_M]], mpe = ..., residual = ... }`) and a term `{ name = "maternal",
+kind = "maternal" }`; one trait (manual §7.16).

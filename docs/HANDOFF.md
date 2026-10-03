@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-10-02, ABP 0.12.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-10-03, ABP 0.13.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -77,6 +77,11 @@ method in `docs/method_registry.toml`):
   maternal model 2.6–3.1 times faster per factorization); posterior medians of G0, R0,
   P0; F19 prior study (weak data-only priors) and example 18 variant
   `analysis_equal_prior.toml`;
+* **round 13**: maternal animal model by REML or known variances (one trait;
+  `abp.solvers.maternal_reml`, `workflows/maternal.py`; boundary of independent terms,
+  singular G0 refused; Kackar–Harville PEV columns); example 18 `analysis_reml.toml`;
+  200-replicate REML study: F19 revised (the 20 Bayesian seeds were a high draw;
+  posterior mean ~7% above REML), new F20 (plug-in maternal PEV optimistic);
 * single-trait BLUP (animal, repeatability), dense/sparse/PCG solvers, PEV,
   reliability; **exact PEV at any size whose factor fits in memory by sparse
   selected inversion** (round 3; Takahashi equations on the symbolic Cholesky
@@ -215,11 +220,14 @@ See `docs/validation_report.md` §8. The most important:
   Bayesian multi-trait linear model is calibrated with two traits (MSE/PEV 1.000 ±
   0.040); with three traits 1.06 / 1.14 (flat priors) and 1.03 / 1.11 with weak
   data-centred priors (round 10), at +0.025 for the best-determined trait; §7.13–7.14.
-* **F19 (round 11; reduced in round 12)**: Bayesian maternal model with one record per
-  animal: maternal EBVs calibrated (MSE/PEV 0.98), but the maternal variance posterior
-  mean is 27% too high under flat priors (2.54 vs 2.0, 20 replicates; example 18: 3.9).
-  Weak priors centred on equal shares of Vp: 2.37 (still 18% high), RMSE 1.01 → 0.59,
-  covariance unbiased, 16/20 converged (validation report §7.16).
+* **F19 (round 11; revised in round 13)**: Bayesian maternal model, posterior mean of
+  the maternal variance 2.54 vs 2.0 over 20 replicates. REML on the same seeds gives
+  2.46 and is unbiased over 200 replicates (2.06), so the seeds were a high draw; the
+  posterior mean exceeds REML by +0.17 ± 0.05 (flat) and −0.05 (weak priors, round 12)
+  on the same data (validation report §7.16–7.17).
+* **F20 (new, round 13)**: maternal REML, plug-in maternal PEV optimistic when the
+  maternal variance is underestimated (MSE/PEV 1.56, median 1.04; 5.2 for estimates
+  below 1.0); Kackar–Harville columns 1.35; Bayesian posterior PEV calibrated (0.98).
 * **Engineering (round 9)**: multi-threaded OpenBLAS under a fully loaded CPU slowed
   a 12 s REML example beyond 600 s (thread oversubscription); with one BLAS thread
   it took 20 s. Set `OPENBLAS_NUM_THREADS` when ABP shares a machine.
@@ -257,11 +265,11 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 12 did the F19 prior study and the speed-up of task 1 (round 11 list). Next:
+Round 13 did task 1 of the round-12 list (maternal REML, F19 reference). Next:
 
-1. Maternal model with REML (a frequentist reference for F19: correlated direct and
-   maternal effects in AI-REML) and a study of whether more generations of records on
-   daughters remove the remaining maternal-variance bias.
+1. Maternal models: multi-trait maternal REML; a second-order or bootstrap correction
+   for the maternal PEV under REML (F20); a singular-G0 (reduced-rank) maternal fit
+   instead of stopping with ABP-E300.
 2. Multi-trait Gibbs samplers: several categorical traits (joint liabilities with a
    correlation-matrix step); more than one iid term.
 3. Sparse LDL': general supernodes (dense updates for every front, not only the

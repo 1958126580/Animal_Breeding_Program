@@ -33,7 +33,8 @@ Contents: [1 Estimands](#1-estimands) · [2 Pedigree](#2-pedigree-relationships)
 [28 Multi-trait PEV with REML uncertainty](#28-pev-including-reml-uncertainty-for-multi-trait-models) ·
 [29 Sampled PEV](#29-sampled-pev-for-the-matrix-free-single-step) ·
 [30 Compact genotype storage](#30-compact-genotype-storage) ·
-[31 Multi-trait threshold model](#31-multi-trait-threshold-model-categorical-and-continuous-traits)
+[31 Multi-trait threshold model](#31-multi-trait-threshold-model-categorical-and-continuous-traits) ·
+[34 Maternal animal model by REML](#34-maternal-animal-model-by-reml)
 
 ---
 
@@ -1575,7 +1576,64 @@ the automatic choice, `F` equals the Python Meuwissen–Luo reference and the de
 full sibs and close inbreeding; bad ordering is rejected. **Evidence**:
 `benchmarks/run_benchmarks.py` (see the validation report, §7.13).
 
-## 34. References (additions)
+## 34. Maternal animal model by REML
+
+Code: `abp/solvers/maternal_reml.py` (`MaternalREMLEvaluator`, `maternal_reml_fit`,
+`maternal_blup`), `abp/solvers/vc_uncertainty.py::kackar_harville_delta_maternal`,
+workflow `abp/workflows/maternal.py`. Registry id `reml.maternal` (round 13).
+
+Model (one trait; Willham 1963, 1972; mixed-model equations as in Henderson 1984):
+`y = Xb + Z_a a + Z_m m + Σ_p Z_p c_p + e`, `Var([a; m]) = A ⊗ G0` in animal-major
+order (equation `2·animal + j`, `j = 0` direct, `1` maternal), `G0 = [[σ_A, σ_AM],
+[σ_AM, σ_M]]`, `Z_m` links a record to its dam (no maternal effect when the dam is
+unknown), `c_p ~ N(0, σ_p I)` independent terms (e.g. the maternal permanent
+environment on a dam column), `e ~ N(0, σ_e I)`. Parameters
+`θ = (σ_A, σ_AM, σ_M, σ_p…, σ_e)`.
+
+* **Likelihood** (Henderson form, tested against `log|V| + log|X′V⁻¹X| + y′Py`):
+  `−2 logL = n log σ_e + q log|G0| + 2 log|A| + Σ_p q_p log σ_p + log|C| + y′Py`,
+  `C = W′W/σ_e + blockdiag(0, A⁻¹ ⊗ G0⁻¹, I/σ_p…)`, `y′Py = y′y/σ_e − s′W′y/σ_e`.
+* **Scores**, with `U` the `q × 2` genetic solutions, `T_jk = Σ_ab A⁻¹_ab (C⁻¹)_{(a,j),(b,k)}`
+  and `S = U′A⁻¹U + T`: for a direction `E` of `G0`
+  `½[tr(G0⁻¹EG0⁻¹S) − q tr(EG0⁻¹)]`; for `σ_p`
+  `½[(c_p′c_p + tr C^{pp})/σ_p² − q_p/σ_p]`; for `σ_e` `½[e′e/σ_e² − tr P]` with
+  `tr P = (n − r_X − (2q − tr(G0⁻¹T)) − Σ_p(q_p − tr C^{pp}/σ_p))/σ_e`.
+* **Average information** `½F′PF` (Gilmour, Thompson & Cullis 1995) from the working
+  variates `f_E = Z_g vec(U(EG0⁻¹)′)`, `f_p = Z_p c_p/σ_p`, `f_e = e/σ_e`; **EM**
+  `G0 ← S/q`, `σ_p ← (c_p′c_p + tr C^{pp})/q_p`, `σ_e ← (e′e + tr(C⁻¹W′W))/n`.
+* **Iterations**: three EM steps, then AI steps halved while they leave the parameter
+  space (G0 not positive definite, a variance ≤ 0) or lower logL; EM otherwise;
+  convergence when the relative change and the Newton decrement are both below `tol`.
+* **Boundary**: an independent-term variance that collapses is fixed at 0 and the
+  sub-model re-fitted; zero is accepted only if the score at zero
+  `½[|Z_p′Py|² − tr(Z_p′PZ_p)]` is ≤ 0 (Kuhn–Tucker; otherwise the term is reinstated
+  once). A singular `G0` (`|r_AM| → 1` or a genetic variance → 0; detected when 15 full
+  AI steps in a row leave the positive-definite region) stops with `ABP-E300`; this
+  boundary is not estimated.
+* **Traces**: dense inverse up to 2,000 equations; above, sparse selected inversion on
+  one `SparseLDL` whose ordering and symbolic factor are built once on a pattern with
+  every `A⁻¹ ⊗ G0⁻¹` entry (so a zero `σ_AM` drops nothing) and refactorized per
+  evaluation.
+* **Derived**: `h2 = σ_A/σ_P`, `m2 = σ_M/σ_P`, `r_AM = σ_AM/√(σ_A σ_M)`,
+  `σ_P = σ_A + σ_M + σ_AM + Σσ_p + σ_e`; SE by the delta method from `AI⁻¹`.
+* **BLUP and PEV**: solutions at the estimates (or known values; the additive term's
+  value is then the 2 × 2 matrix); `PEV` blocks are the genetic `2 × 2` blocks of
+  `C⁻¹`; reliability `1 − PEV/(σ k_ii)` for each effect. With REML, the
+  Kackar–Harville correction (§23) is added as separate columns: `Δ_a = J_a Σ J_a′`,
+  `J_a = ∂(â, m̂)_a/∂θ` by central differences of the solutions (relative step 1e−4),
+  `Σ = AI⁻¹` (interior fits only).
+
+**Tests** (`tests/test_maternal_reml.py`, `tests/test_maternal_workflow.py`):
+logL, scores and AI equal the V-form computed densely (dense and sparse traces);
+scores equal central differences of logL; the optimum equals a Nelder–Mead optimum of
+the V-form likelihood; a boundary data set satisfies Kuhn–Tucker (score at zero equal
+to the V-form derivative, ≤ 0, and no better point with σ_p ≥ 0); a singular-G0 data set
+is refused; BLUP and PEV equal the V-form predictor `G Z′ P y` and `G − G Z′PZ G`; the
+Kackar–Harville `Δ` equals the one from central differences of the V-form BLUP; mean
+estimates over 12 replicates within 3 MC SE; example 18 with REML and with the REML
+estimates as known values gives identical EBVs. **Evidence**: validation report §7.17.
+
+## 35. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.

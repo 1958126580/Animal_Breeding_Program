@@ -13,7 +13,8 @@ One trait, one record per row::
 its dam (no maternal effect for a record whose dam is unknown); ``c_p ~ N(0, s_p I)``
 independent terms (e.g. the maternal permanent environment on a dam column);
 ``e ~ N(0, s_e I)``.  Willham (1963, Biometrics 19:18; 1972, J Anim Sci 35:1288);
-Henderson (1988, J Dairy Sci 71 Suppl 2:1) for the mixed-model form.
+mixed-model equations as in Henderson (1984, Applications of Linear Models in Animal
+Breeding).
 
 Parameters ``theta = (s_a, s_am, s_m, s_p..., s_e)``.  With ``W = [X Z_g Z_p...]``,
 ``C = W'W / s_e + blockdiag(0, kron(A^-1, G0^-1), I / s_p, ...)`` (the unscaled MME
