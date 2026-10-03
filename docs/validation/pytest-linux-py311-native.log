@@ -67,4 +67,6 @@ tests/test_examples.py::test_example07_index_cli PASSED                  [ 15%]
 tests/test_examples.py::test_selftest_command PASSED                     [ 16%]
 tests/test_examples.py::test_published_json_schema_is_current PASSED     [ 16%]
 tests/test_examples.py::test_errors_command_lists_all_codes PASSED       [ 16%]
-tests/test_examples.py::test_api_example_script_runs 
+tests/test_examples.py::test_api_example_script_runs PASSED              [ 16%]
+tests/test_examples.py::test_example08_lr_validation PASSED              [ 17%]
+tests/test_examples.py::test_example09_candidates_are_reproducible 
