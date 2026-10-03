@@ -1,6 +1,6 @@
 # command: abp selftest
-# date: 2026-10-03T02:22:32+00:00
-ABP 0.13.0 self-test (native kernel: True)
+# date: 2026-10-03T05:30:43+00:00
+ABP 0.14.0 self-test (native kernel: True)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel native_cpp_depth_ml_colleau
@@ -22,7 +22,7 @@ ABP 0.13.0 self-test (native kernel: True)
   [PASS] T18 Colleau product A x on a hand-derived inbred pedigree
 RESULT: PASS
 # command: ABP_DISABLE_NATIVE=1 abp selftest
-ABP 0.13.0 self-test (native kernel: False)
+ABP 0.14.0 self-test (native kernel: False)
   [PASS] T01 MAF
   [PASS] T02 index b = [3/7, 2/7], reliability 12/35
   [PASS] T03 F5 = 0.25, A row 5, exact A-inverse - kernel python_meuwissen_luo
