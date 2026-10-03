@@ -1677,8 +1677,15 @@ solves (196 s in total).
   sparse above 2,000 equations. No dense inverse of the full system is formed.
 * **Kackar–Harville** (§23): the central-difference BLUP solves use the sparse direct solver
   above 2,000 equations when the structures are sparse.
+* **Numerical tolerance of the check (defect fixed in round 15).** "Non-positive" is
+  decided as `g₀ · σ_e ≤ 10⁻⁶ |logL|`: the score is scaled by the residual variance so
+  that the decision does not depend on the unit of the trait. Before round 15 the
+  unscaled `g₀` was compared, and with variances near 10⁷ (milk in pounds) a clearly
+  positive score (7.3·10⁻⁶, i.e. +76 logL per residual-variance step) passed as zero.
+  The same rule is used by the maternal REML (§34).
 
-**Tests**: `tests/test_reml.py::test_score_at_zero_equals_v_form_derivative` (dense and
+**Tests**: `tests/test_reml.py::test_boundary_decision_is_invariant_to_the_unit` (fails
+with the old rule); `tests/test_reml.py::test_score_at_zero_equals_v_form_derivative` (dense and
 sparse `K⁻¹`) compares the score at zero with `½(y′P dV P y − tr(P dV))` from the dense
 V-form; the existing REML reference tests (dense vs sparse traces, V-form optimum) are
 unchanged. **Effect** on example 20: 196 s → 27 s, logL unchanged (−2376.862195).

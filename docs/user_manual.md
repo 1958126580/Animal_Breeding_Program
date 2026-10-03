@@ -1912,9 +1912,9 @@ abp run examples/21_mice_bodyweight_real/analysis_bw_gblup.toml --out runs/ex21
   57 herds, pedigree of 6,547 animals; yields in pounds). It has a repeatability model
   for somatic cell score and a three-trait model for first-lactation milk, fat and
   protein. The script fills in the missing pedigree sire of 607 cows from the sire code
-  on their records (README). The repeatability model for the yields puts the additive
-  variance at 0, so ABP refuses to rank animals (`ABP-E300`). An independent
-  implementation reaches the same optimum.
+  on their records (README). Comparing ABP with an independent implementation on
+  these data found a defect in the zero-variance check, fixed in 0.15.0: with yields in
+  pounds, ABP had put the additive variance of the milk repeatability model at 0.
 * **Example 21** (R package BGLR 1.1.4: 1,814 heterogeneous-stock mice, 10,346 SNPs). It
   fits GBLUP for body weight, with cage as an independent random effect. There is no
   pedigree to blend with, so `G + 0.01 I` (`singular_policy = "ridge"`) keeps G

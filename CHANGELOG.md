@@ -28,6 +28,15 @@ Fifteenth development round: first validation on real data (gate G5). Evidence a
   sparse `K⁻¹`).
 - Methods §35, manual §7.17, validation report §7.19, licence inventory rows.
 
+### Fixed
+- **[results]** REML zero-variance (Kuhn–Tucker) check: the score at zero (units
+  1/variance) was compared with `1e-6 |logL|` unscaled, so with large variances (milk in
+  pounds, variances near 10⁷) a positive score was taken as zero and a zero variance was
+  accepted below the interior optimum (real milk data: additive variance 0 instead of
+  925,611, logL 2.36 lower; in simulation with y × 3000, 10 of 40 data sets). The score
+  is now scaled by the residual variance (`kt_rejects_zero`), in single-trait and maternal
+  REML. Fits whose boundary was accepted this way change; others are unchanged.
+
 ### Changed
 - **Speed (results unchanged):** single-trait REML uses sparse selected-inversion traces
   above 2,000 equations when every structure matrix is sparse (`SPARSE_REML_ABOVE`;

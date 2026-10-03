@@ -1,6 +1,6 @@
-# Validation report: ABP 0.14.0
+# Validation report: ABP 0.15.0
 
-Date: 2026-10-03 (rounds 13–14; rounds 11–12: 2026-10-02; rounds 9–10: 2026-10-01; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
+Date: 2026-10-03 (rounds 13–15; rounds 11–12: 2026-10-02; rounds 9–10: 2026-10-01; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
 evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
 (round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
@@ -38,7 +38,7 @@ not_run.
 | G2 numerics | residuals, convergence, boundaries, exact references | passed | §4, §5; MCMC diagnostics equal ArviZ to ≤ 8·10⁻¹⁶ |
 | G3 software | ID mapping, bad inputs, recovery, interface consistency | passed (Linux; Windows CI) | §3, §5, §6 |
 | G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); threshold priors, rank selection and reduced-rank Kackar–Harville PEV (§7.11); sampled-reliability estimator, EBVs of rank-selected models, multi-trait threshold model (prior-dependent genetic correlation, F18) (§7.12); posterior PEV of the Bayesian multi-trait linear model vs REML + Kackar–Harville (F16 partly resolved) (§7.13); several categorical traits: EBVs more accurate than single-trait models, liability variance of a binary trait and genetic correlations prior-dependent (F21, §7.18); maternal animal model: Bayesian EBVs calibrated, posterior mean of the maternal variance ~7% above REML (F19 revised); REML estimates unbiased over 200 replicates, plug-in maternal PEV optimistic when the variance is underestimated (F20) (§7.15–7.17); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
-| G5 external validity | real data, time or population hold-out | **not_run** | no real data were available or authorized (the LR workflow exists and was run on synthetic data) |
+| G5 external validity | real data, time or population hold-out | **partial** (round 15) | two public real data sets (Holstein lactations, pedigreemm; genotyped mice, BGLR): REML equal to an independent V-form implementation to 10⁻⁸ logL after fixing the defect this comparison found; positive cross-validated predictive ability; GBLUP predicts across families (§7.19). No forward-in-time validation, no comparison software, not the target populations |
 | G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`), including exact PEV for 100,500 equations and the matrix-free single step (50,000 animals, 6,000 genotyped: 1.7 GB instead of 10.9 GB; 200,000 animals, 30,000 genotyped, int8 genotypes: 6.75 GB; complete `abp run` with 120,000 animals / 30,000 genotyped from PLINK as int8: 261 s, 7.38 GB; 206 s after the round-8 speed-ups); Windows functional tests in CI (round 3: 211 tests passed on Windows and Linux, §3a), no Windows timings; no CUDA path |
 | G7 decision and release | feasible plans, installation reproduction, evidence package | **partial** | mating plans satisfy every hard constraint, verified per plan (§5, §6); no binary release; project license not chosen |
 
@@ -950,6 +950,112 @@ data and prior, not the joint sampler), genetic correlations 0.35 (wwt–vigour;
 0.54 (wwt–survival; 0.3), 0.24 (vigour–survival; 0.5); realized accuracies 0.58, 0.58,
 0.53 against mean model accuracies 0.59, 0.60, 0.58.
 
+### 7.19 Round-15 studies: real data (gate G5)
+
+These are the first analyses of **real data**. Two public data sets were downloaded on
+demand from the read-only GitHub mirror of CRAN, with SHA-256 checks; neither is
+stored in the repository (licence inventory). The data were not sent anywhere. NCBI,
+CRAN, github.com and figshare were blocked by the network policy (HTTP 403), and that
+block was not worked around.
+
+**Holstein cows, REML against an independent implementation**
+(`real_milk_validation.json`, `.log`; `python benchmarks/real_milk_validation.py`).
+Data of example 20 (pedigreemm 0.3-5: 3,397 lactations of 1,359 cows, 57 herds,
+pedigree of 6,547 animals after the sire repair; yields in lb). The reference is a
+dense marginal (V-form) REML written in the benchmark from the model definition:
+`A` by the tabular method, `−2 logL = log|V| + log|X′V⁻¹X| + y′Py`, maximised by
+Nelder–Mead over square-root variances from two starts (half and twice ABP's estimates).
+Both starts reached the same optimum in every model.
+
+| model | records | ABP (sparse AI-REML) | V-form reference | logL ABP − reference |
+|---|---|---|---|---|
+| first-lactation milk; herd fixed; animal | 1,314 | animal 1,840,737, residual 11,337,848 | 1,840,736, 11,337,850 | +3.9·10⁻⁹ |
+| SCS, all lactations; herd + lactation fixed; animal + pe | 3,397 | animal 0.08526, pe 0.27639, residual 1.16220 | 0.08525, 0.27639, 1.16220 | −6.3·10⁻¹⁰ |
+| milk, all lactations; same repeatability model, **before the fix** | 3,397 | animal **0** (boundary), pe 5,498,779, residual 10,400,042 | 925,610, 4,638,961, 10,398,543 | **−2.363** |
+| the same, **after the fix** | 3,397 | animal 925,611, pe 4,638,960, residual 10,398,543 () | | −1.3·10⁻⁹ |
+
+The third row is a **defect in ABP** (§9). The boundary check compared the score at zero
+with a tolerance that did not depend on the scale of the variances. The score at zero
+was +7.3·10⁻⁶ per lb², which is +76 logL units per step of one residual variance, yet
+with variances near 10⁷ it passed as zero. Along the line from ABP's point to the
+reference optimum the logL rises monotonically. In simulation with the trait in units
+× 3,000, the old check accepted a false zero in 10 of 40 data sets. After the fix
+(`kt_rejects_zero`) ABP rejects the boundary, reinstates the term and converges to the
+reference optimum (h² = 0.058). Before this round the examples' and studies' traits
+had variances of order 1–100, where the old tolerance was tight enough. Their fits are
+unchanged by the fix (round-15 test suites, §3).
+
+The sparse-trace rule (methods §35) reduced the SCS example from 196 s to 27 s with the
+same logL to 10⁻¹⁰. The three-trait first-lactation run (example 20,
+`analysis_first_lactation_multitrait.toml`, 27 s) gives h² 0.13 (milk), 0.29 (fat),
+0.11 (protein), genetic correlations 0.62, 0.73, 0.53 and residual correlations 0.72,
+0.93, 0.78.
+
+**Holstein cows, predictive ability over cows.** The 1,359 cows were split into 5 folds
+at random (seed 2026). In each fold all records of the fold's cows are hidden, and the
+animal model (herd fixed, REML) is fitted to the first lactations of the other cows.
+The hidden cow's EBV therefore comes from relatives only. The target is her mean yield
+over all her lactations, adjusted for herd and lactation by least squares on all
+records. Bootstrap SE over cows (2,000 resamples).
+
+| trait | r(EBV, target) ± SE | regression of target on EBV ± SE | h² by fold |
+|---|---|---|---|
+| milk | 0.087 ± 0.026 | 0.76 ± 0.23 | 0.06–0.17 |
+| fat | 0.154 ± 0.026 | 0.72 ± 0.12 | 0.23–0.35 |
+| protein | 0.074 ± 0.026 | 0.82 ± 0.28 | 0.04–0.12 |
+
+The predictive abilities are small but clearly positive (3–6 SE). That is expected when
+a cow is predicted only from relatives' first lactations: most sires have few
+daughters, and the target carries her permanent-environment and residual effects. The
+regression coefficients are below 1, so the EBVs are somewhat over-dispersed. The
+difference is significant for fat (2.3 SE) and within 1–1.1 SE of 1 for milk and
+protein. Fat's fold heritabilities (0.23–0.35) are the highest, and its slope is the
+furthest below 1.
+
+**Mice: GBLUP against pedigree BLUP** (`real_mice_validation.json`, `.log`;
+`python benchmarks/real_mice_validation.py`; 327 s). Data of example 21 (1,814 mice,
+10,346 SNPs, the pedigree relationship matrix shipped with the data). Models: sex and
+test year × season fixed, cage (523 levels) independent random, additive effect with
+`G + 0.01 I` (VanRaden, frequencies of all mice; mean diag 1.037), with the pedigree
+`A`, or absent; REML.
+
+| | body weight: GBLUP | PBLUP | no additive | body length: GBLUP | PBLUP | no additive |
+|---|---|---|---|---|---|---|
+| REML logL | −2527.7 | −2572.7 | −2616.3 | 393.75 | 392.36 | 373.44 |
+| h² (cage share) | 0.27 (0.28) | 0.51 (0.18) | — (0.41) | 0.16 (0.24) | 0.28 (0.18) | — (0.31) |
+| 5-fold CV: r(EBV, target) ± SE | 0.430 ± 0.020 | 0.436 ± 0.019 | | 0.271 ± 0.022 | 0.311 ± 0.021 | |
+| regression of target on EBV | 1.08 | 1.12 | | 1.22 | 1.17 | |
+| across-family CV: r ± SE | 0.275 ± 0.022 | not defined (EBVs 0) | | 0.109 ± 0.024 | not defined | |
+| regression of target on EBV | 0.66 | | | 0.52 | | |
+
+Folds at random over mice (seed 2026); a hidden mouse's EBV comes from relatives only;
+the target is its phenotype minus the training fixed-effect solution (it still contains
+the cage effect, which is shared by relatives because littermates share cages). GBLUP −
+PBLUP: −0.006 ± 0.017 (body weight), −0.040 ± 0.020 (body length; bootstrap over mice,
+2,000 resamples). For body weight G fits the data much better than A (logL +45 with the
+same number of parameters), but the predictive ability under random folds is the same. A
+random split leaves full sibs in the training set, so the pedigree already captures most
+of the family information; the higher pedigree h² (0.51) probably absorbs common
+litter and cage environment, which the target also contains, and favours PBLUP in this
+design. The pedigree matrix of these data
+links only full sibs (169 families of up to 48 mice; no relationship between families),
+so when whole families are hidden (folds by family, seed 2028) pedigree EBVs of the
+hidden mice are exactly 0, while GBLUP still predicts body weight with r = 0.27 from
+marker similarity across families (the situation Legarra et al. 2008 studied with these data).
+Across families the regression of the target on the GBLUP EBV is 0.66 and 0.52:
+these EBVs are over-dispersed for mice without close relatives in the training data
+(G + 0.01 I and G's frequency base are a likely cause; not investigated further). With
+random folds the regression coefficients above 1 come with the cage effect in the
+target and are not a calibration test. **No claim that one model is better in general
+is made from these numbers.**
+
+**What G5 now covers, and what it does not.** On two real data sets ABP's REML equals an
+independent implementation to 10⁻⁸ logL (after the fix that this comparison prompted).
+Cross-validated predictive abilities are positive. GBLUP predicts across families where
+the pedigree cannot. These are retrospective checks on public data. They are not a
+forward-in-time validation (the data carry no dates for an LR split), not
+a comparison with other software, and not a test on the populations ABP is meant for.
+
 ### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
@@ -983,6 +1089,7 @@ for the four-trait example.
 | F19 | Bayesian maternal animal model (one record per animal, flat priors): the posterior mean of the maternal variance looked biased upwards (2.54 ± 0.19 vs 2.0 over 20 replicates; example 18: 3.9) while the EBV posterior PEVs were calibrated (direct 1.03, maternal 0.98) | revised (round 13) | REML on the same seeds gives 2.46 and is unbiased over 200 replicates (2.06 ± 0.07, §7.17): the 20 seeds were a high draw; the method-specific part is the posterior-mean excess over REML, +0.17 ± 0.05 (≈7%) with flat priors and −0.05 with weak data-only priors (§7.16). Use weak priors or REML for point estimates; report intervals |
 | F20 | Maternal animal model by REML: the plug-in maternal PEV is optimistic when the maternal variance is underestimated (MSE/PEV 1.56 ± 0.19 over 192 fits, median 1.04; 5.19 in the 24 fits with an estimate below 1.0) | open (round 13) | Kackar–Harville columns reduce it (1.35, median 1.00) but not for the low estimates (3.72); the Bayesian posterior PEV is calibrated (0.98); prefer the Bayesian model, or read maternal reliabilities from the Kackar–Harville columns, when the maternal variance is poorly determined |
 | F21 | Several categorical traits (one record per animal and trait): the binary trait's liability variance is overestimated (0.25 vs 0.16, prior centred at 0.2) and genetic correlations are pulled towards the prior's centre (0.35 vs 0.5 with a prior at zero covariance); residual covariances between categorical traits are fixed at 0 by the model | open (round 14) | joint modelling still improves the categorical EBVs (+0.05, +0.08 accuracy) with calibrated or conservative reliabilities (§7.18); take prior variances and covariances from published estimates and report them; repeated records or progeny-tested sires identify the covariances better |
+| F22 | Real data (mice, GBLUP with `G + 0.01 I`): predicting whole hidden families, the regression of the target on the EBV is 0.66 (body weight) and 0.52 (body length): EBVs of animals without close relatives in the training data are over-dispersed; with Holstein first-lactation EBVs from relatives only the regressions are 0.72–0.82 (fat 2.3 SE below 1) | open (round 15) | the targets contain non-genetic effects shared within families (cage, permanent environment), so these are not pure calibration tests; candidate causes: the G frequency base and ridge, h² estimated on related training data. A forward-in-time validation with the LR method on data with dates is the next check |
 | E1 | Engineering: with every core busy, multi-threaded OpenBLAS made the 12 s API example's multi-trait REML exceed 600 s (thread oversubscription); with `OPENBLAS_NUM_THREADS=1` it took 20 s under the same load (round 9) | open (documented) | set `OPENBLAS_NUM_THREADS` (or the BLAS thread count) when ABP shares a machine; the benchmarks and studies already set one thread per worker |
 
 ## 9. Defects found and fixed
@@ -1020,6 +1127,8 @@ for the four-trait example.
 | 9 | Under a CPU fully used by other processes, the API example's multi-trait REML (multi-threaded OpenBLAS dense inverse) exceeded its 600 s test timeout although it takes 12–20 s alone (thread oversubscription; no code change involved) | local test run during the 3-worker study | not a code defect: tests rerun without the competing load; with `OPENBLAS_NUM_THREADS=1` the script took 20 s under the same load; recorded as an engineering risk (§8) | `test_api_example_script_runs` (unchanged) |
 | 9 | The new depth-kernel test asserted the native kernel name even with `ABP_DISABLE_NATIVE=1` (the module is importable, so the test was not skipped; `Pedigree.inbreeding` correctly used the Python reference): CI run 36807935977 failed on the pure-Python job, 6 of 7 jobs green | CI (checked after the push) | the expected name follows `native_kernel_available()` (test defect; production code unaffected) | `test_native_depth_kernel_matches_reference_on_every_path` (both kernel settings) |
 | 10 | The sparsity pattern of the multi-trait Gibbs coefficient matrix came from a numerical surrogate (`R0 = G0 = I + 0.5`); with repeated records an entry of W′R⁻¹W (−0.75) cancelled the prior entry (+0.75) exactly, so the pattern lacked entries the actual C needs (`ValueError: entry outside the pattern of C`) | the new exact test with repeated records (before release) | pattern from absolute values, SPD diagonally dominant values for the initial factor | `test_permanent_environment_with_fixed_covariances_equals_dense_mme` |
+| 15 | REML Kuhn–Tucker check (single-trait and maternal): the score at zero (units 1/variance) was compared with `1e-6 |logL|` unscaled, so with variances near 10⁷ a positive score passed as zero; a zero additive variance was accepted 2.36 logL units below the interior optimum (real milk yields in lb; in simulation with y × 3,000: 10 of 40 data sets) | real-data comparison with an independent V-form REML (§7.19) | the score is scaled by the residual variance (`kt_rejects_zero`) | `test_boundary_decision_is_invariant_to_the_unit` (fails with the old rule) |
+| 15 | Single-trait REML on sparse pedigree structures used the dense inverse up to 12,000 equations, in the score at zero and in the Kackar–Harville solves (196 s for 8,000 equations) | profiling on real data | sparse traces above 2,000 equations when every structure is sparse; record columns only for the score at zero (methods §35) | `test_score_at_zero_equals_v_form_derivative` |
 
 Round-8 errors in the construction of tests and scripts: the location-draw test first
 required the pooled SD of the covariance z-scores to be at least 0.85 (the entries are
@@ -1088,7 +1197,7 @@ kept the original acceptance threshold.
 |---|---|
 | Windows performance measurements and interactive use | only CI execution (§3a); no timings or desktop testing on Windows |
 | CUDA / GPU | no CUDA implementation exists (requests are refused or fall back explicitly) |
-| Real-data validation (G5) | no authorized real data; the LR workflow is ready for it |
+| Real-data validation (G5), remaining parts | round 15 ran retrospective checks on two public data sets (§7.19); a forward-in-time (LR) validation needs data with dates, and validation on the populations ABP is meant for needs their data |
 | LR population-accuracy estimator | its published form has a 2019 erratum that could not be verified here (the source was not reachable) |
 | Posterior SBC near the target data | the prior SBC (§7.3) checks the computation over the prior; a posterior SBC is a further step |
 | Comparison with BLUPF90, MiXBLUP, ASReml, DMU, JWAS, BGLR | not installed or licensed in this environment; must be run under a pre-registered protocol |

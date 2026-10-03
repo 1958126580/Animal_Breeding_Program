@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-10-03, ABP 0.14.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-10-03, ABP 0.15.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -77,6 +77,15 @@ method in `docs/method_registry.toml`):
   maternal model 2.6–3.1 times faster per factorization); posterior medians of G0, R0,
   P0; F19 prior study (weak data-only priors) and example 18 variant
   `analysis_equal_prior.toml`;
+* **round 15**: first real-data validation (G5 partial): examples 20 (Holstein
+  lactations, pedigreemm) and 21 (genotyped mice, BGLR), data fetched on demand
+  (`fetch_data.py`, SHA-256, GPL data not stored; needs `pip install rdata`);
+  `benchmarks/real_milk_validation.py` (ABP REML vs independent V-form REML; 5-fold CV
+  over cows) and `benchmarks/real_mice_validation.py` (GBLUP vs PBLUP, random and
+  across-family CV); **defect fixed**: the REML Kuhn–Tucker check was not scale-invariant
+  and accepted a false zero variance for large-variance traits (`kt_rejects_zero`, single
+  trait and maternal; [results]); sparse REML traces above 2,000 equations for sparse
+  structures (SCS example 196 s → 27 s);
 * **round 14**: several categorical traits in the multi-trait threshold model (each in
   its own residual group; residual covariances between them 0); example 19;
   30-replicate study (EBV accuracy +0.05/+0.08 over single-trait models; F21);
@@ -205,8 +214,9 @@ on 7 jobs (run 36447242937: 211 passed on Windows and Linux).
 ## 3. Not run, and why
 
 Windows performance measurements (functional tests only, in CI), CUDA (no
-implementation), real-data validation and comparison software (no data or
-licenses), LR population accuracy (erratum not verifiable), posterior SBC,
+implementation), comparison software (no licenses), forward-in-time real-data
+validation (round-15 real data have no dates; NCBI, CRAN, github.com and figshare are
+blocked by the network policy, raw.githubusercontent.com is allowed), LR population accuracy (erratum not verifiable), posterior SBC,
 threshold models with several categorical traits or extra random terms,
 a second-order Kackar–Harville correction (F16), extra random terms or proper R0
 priors in the Bayesian multi-trait linear model, a workflow-level run at 200,000 animals (the 200,000-animal runs are
@@ -242,6 +252,14 @@ See `docs/validation_report.md` §8. The most important:
   2.46 and is unbiased over 200 replicates (2.06), so the seeds were a high draw; the
   posterior mean exceeds REML by +0.17 ± 0.05 (flat) and −0.05 (weak priors, round 12)
   on the same data (validation report §7.16–7.17).
+* **Round-15 defect (fixed)**: the REML zero-variance check accepted a false zero
+  when variances are large (milk in lb: additive 0 instead of 925,611; 10 of 40
+  simulated data sets with y × 3,000). Any earlier fit of a large-variance trait that
+  ended on the boundary should be re-run with 0.15.0.
+* **F22 (new, round 15)**: real data, EBVs of animals without close relatives in the
+  training data are over-dispersed (mice across families: regression 0.52–0.66;
+  Holstein from relatives only: 0.72–0.82); targets contain shared environment, so
+  not a pure calibration test; next: LR validation on data with dates.
 * **F21 (new, round 14)**: several categorical traits with one record per animal and
   trait: binary liability variance overestimated (0.25 vs 0.16) and genetic
   correlations pulled to the prior centre (0.35 vs 0.5); EBVs still better than
@@ -273,7 +291,8 @@ See `docs/validation_report.md` §8. The most important:
 
 1. **Real data and authorization scope.** Which species and populations,
    which files, and whether data may leave the local machine (currently
-   never). Needed for gate G5.
+   never). Round 15 used two public data sets; the target populations and a
+   data set with dates (for forward-in-time validation) are still needed.
 2. **Breeding objectives and economic weights** per species, with units and
    sources. The examples use synthetic placeholders only.
 3. **Deployment targets.** Typical data sizes (animals, genotyped animals,
@@ -286,8 +305,9 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 14 did the first part of task 2 below (several categorical traits). Round 13
-did task 1 of the round-12 list (maternal REML, F19 reference). Next:
+Round 15 did the first part of task 7 below (retrospective real-data checks on public
+data; it found and fixed a REML boundary defect). Round 14 did the first part of task 2
+(several categorical traits). Round 13 did task 1 of the round-12 list. Next:
 
 1. Maternal models: multi-trait maternal REML; a second-order or bootstrap correction
    for the maternal PEV under REML (F20); a singular-G0 (reduced-rank) maternal fit
@@ -304,8 +324,11 @@ did task 1 of the round-12 list (maternal REML, F19 reference). Next:
    documented error bound) and parallel Colleau products.
 6. Sampled PEV: combine the orthogonal estimator with control variates from an
    approximate reliability.
-7. Real-data validation (G5) and comparison software — blocked on the gaps
-   in §5.
+7. Real-data validation (G5): a forward-in-time LR validation on public data with
+   birth or test dates (search the CRAN mirror on raw.githubusercontent.com, e.g. data
+   sets of other animal-breeding packages); F22 (over-dispersion across families:
+   compare G frequency bases and the ridge); the target populations and comparison
+   software remain blocked on the gaps in §5.
 
 ## 7. Where things are
 
@@ -319,6 +342,7 @@ did task 1 of the round-12 list (maternal REML, F19 reference). Next:
 | `src/abp/solvers/threshold_gibbs.py`, `src/abp/solvers/pev_sampling.py` | threshold Gibbs sampler; sampled PEV (round 6) |
 | `src/abp/solvers/mt_threshold_gibbs.py`, `src/abp/workflows/mt_threshold.py` | multi-trait threshold model (round 8); Bayesian multi-trait linear model and residual groups (round 9); permanent environment, P0/R0 priors, scale moves for every trait (round 10) |
 | `src/abp/_native.cpp` | C++20 kernels: inbreeding (`inbreeding_ml`, depth kernel `inbreeding_depth`, round 9), Bayesian sweep, `ml_general`, `symbolic_cholesky`, `takahashi`, `mindegree_order`, `ldl_numeric`, `ldl_solve`, `colleau_times` |
+| `examples/20_holstein_milk_real/`, `examples/21_mice_bodyweight_real/`, `benchmarks/real_*_validation.py` | real-data examples (fetched on demand) and validation scripts (round 15) |
 | `tests/` | test suite; `tests/reference/` holds the independent dense references (incl. `tabular_a_metafounders`) |
 | `examples/` | runnable examples and synthetic data (`*/truth` folders are for validation only) |
 | `docs/` | manual, methods, API, validation, benchmarks, ADRs, requirements, registry, license inventory, error codes |

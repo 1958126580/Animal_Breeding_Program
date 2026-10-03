@@ -37,8 +37,11 @@ python examples/20_holstein_milk_real/fetch_data.py
   lactation fixed, additive + permanent environment, REML (about 30 s; 196 s before the round-15 sparse-trace rule, methods §35).
 * `analysis_first_lactation_multitrait.toml`: first-lactation milk, fat and protein,
   herd fixed, multi-trait REML (about 30 s; 1,314 cows have a first-lactation record).
-* The repeatability model for the yields puts the additive variance at zero and ABP
-  refuses a ranking (`ABP-E300`); an independent V-form REML agrees (validation report
-  §7.19, `benchmarks/real_milk_validation.py`).
+* The repeatability model for milk yield (all lactations) has a positive additive
+  variance (925,611 lb², h² 0.06, permanent environment 4,638,960, residual 10,398,543;
+  validation report §7.19). Before the round-15 fix ABP put it at zero: the Kuhn–Tucker
+  check did not scale the score with the variance, which mattered for variances near 10⁷
+  (validation report §9). The independent V-form REML in
+  `benchmarks/real_milk_validation.py` found the defect.
 
 Results are for method validation only (gate G5), not a breeding evaluation.
