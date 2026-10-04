@@ -12,7 +12,7 @@
           "residual": 11337848.232639538
         },
         "loglik": -11042.217883877129,
-        "seconds": 0.34343814849853516
+        "seconds": 0.35573887825012207
       },
       "vform": {
         "variances": {
@@ -40,7 +40,7 @@
             "evaluations": 171
           }
         ],
-        "seconds": 101.65786933898926
+        "seconds": 109.96499919891357
       },
       "loglik_difference_abp_minus_vform": 3.905370249412954e-09
     },
@@ -54,7 +54,7 @@
           "residual": 1.1621963551738037
         },
         "loglik": -2376.8621948648474,
-        "seconds": 3.065748453140259
+        "seconds": 3.1633124351501465
       },
       "vform": {
         "variances": {
@@ -85,54 +85,54 @@
             "evaluations": 225
           }
         ],
-        "seconds": 1499.4347999095917
+        "seconds": 1696.2426671981812
       },
       "loglik_difference_abp_minus_vform": -6.275513442233205e-10
     },
     "milk_repeatability": {
       "n_records": 3397,
       "abp": {
-        "status": "converged",
+        "status": "converged_boundary",
         "variances": {
-          "animal": 925611.498689996,
-          "pe": 4638960.122868187,
-          "residual": 10398543.148003705
+          "animal": 0.0,
+          "pe": 5498779.455800986,
+          "residual": 10400041.555694105
         },
-        "loglik": -29245.61454699471,
-        "seconds": 2.3674709796905518
+        "loglik": -29247.977670451917,
+        "seconds": 2.356588363647461
       },
       "vform": {
         "variances": {
-          "animal": 925611.4143821665,
-          "pe": 4638960.911970667,
-          "residual": 10398542.9967052
+          "animal": 925610.4409875892,
+          "pe": 4638960.945695693,
+          "residual": 10398543.154713947
         },
-        "loglik": -29245.614546989273,
+        "loglik": -29245.614546989265,
         "starts": [
           {
             "start_scale": 0.5,
-            "loglik": -29245.614546989273,
+            "loglik": -29245.61454698927,
             "variances": [
-              925611.4143821665,
-              4638960.911970667,
-              10398542.9967052
+              925609.6917405541,
+              4638961.5209583575,
+              10398543.427239805
             ],
-            "evaluations": 318
+            "evaluations": 309
           },
           {
             "start_scale": 2.0,
-            "loglik": -29245.614546989273,
+            "loglik": -29245.614546989265,
             "variances": [
-              925611.268266653,
-              4638960.785661095,
-              10398543.444162086
+              925610.4409875892,
+              4638960.945695693,
+              10398543.154713947
             ],
-            "evaluations": 282
+            "evaluations": 291
           }
         ],
-        "seconds": 2131.5800099372864
+        "seconds": 2416.5492973327637
       },
-      "loglik_difference_abp_minus_vform": -5.438778316602111e-09
+      "loglik_difference_abp_minus_vform": -2.3631234626518562
     }
   },
   "cross_validation": {
@@ -182,5 +182,5 @@
       "n_cows_with_nonzero_ebv": 1359
     }
   },
-  "wall_seconds": 3793.2528586387634
+  "wall_seconds": 4289.742301464081
 }

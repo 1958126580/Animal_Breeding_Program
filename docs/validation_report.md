@@ -62,6 +62,9 @@ AlphaMate has been run.
 
 | Command | Result | Log |
 |---|---|---|
+| `python -m pytest -v` (native C++ kernel; round 15, with the Kuhn–Tucker fix) | **365 passed**, 0 failed, 1,557 s (real-data example runs included: data fetched locally) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
+| `python benchmarks/real_milk_validation.py` (round 15, real data, after the fix) | REML equal to the independent V-form REML for 3 models (logL differences ≤ 5.4·10⁻⁹); CV over cows r = 0.087 / 0.154 / 0.074; 3,793 s; before the fix: milk repeatability at the boundary, −2.36 logL (§7.19) | `docs/validation/real_milk_validation.json`, `.log`, `real_milk_validation_before_fix.json` |
+| `python benchmarks/real_mice_validation.py` (round 15, real data) | GBLUP vs PBLUP: random folds equal for body weight; across families only GBLUP predicts (r = 0.27 / 0.11); 327 s | `docs/validation/real_mice_validation.json`, `.log` |
 | `python -m pytest -v` (native C++ kernel; round 14) | **357 passed**, 0 failed, 0 skipped, 1493.6 s (with the examples and the pure-Python suite alongside) | `docs/validation/pytest-linux-py311-native.log`, `junit-linux-py311-native.xml` |
 | `ABP_DISABLE_NATIVE=1 python -m pytest -v` (pure-Python kernels; round 14) | **351 passed**, 0 failed, 6 skipped (native-only comparisons), 6240.0 s (with the examples and the native suite alongside) | `docs/validation/pytest-linux-py311-python-kernels.log`, `junit-linux-py311-python-kernels.xml` |
 | `abp selftest` with and without the native kernel (round 14) | RESULT: PASS (both; T01–T18; T11 skipped without the kernel) | `docs/validation/selftest-linux.log` |
@@ -959,7 +962,7 @@ CRAN, github.com and figshare were blocked by the network policy (HTTP 403), and
 block was not worked around.
 
 **Holstein cows, REML against an independent implementation**
-(`real_milk_validation.json`, `.log`; `python benchmarks/real_milk_validation.py`).
+(`real_milk_validation.json`, `.log`: run on the fixed code, 3,793 s, almost all of it in the dense reference; the run before the fix: `real_milk_validation_before_fix.json`; `python benchmarks/real_milk_validation.py`).
 Data of example 20 (pedigreemm 0.3-5: 3,397 lactations of 1,359 cows, 57 herds,
 pedigree of 6,547 animals after the sire repair; yields in lb). The reference is a
 dense marginal (V-form) REML written in the benchmark from the model definition:
@@ -972,7 +975,7 @@ Both starts reached the same optimum in every model.
 | first-lactation milk; herd fixed; animal | 1,314 | animal 1,840,737, residual 11,337,848 | 1,840,736, 11,337,850 | +3.9·10⁻⁹ |
 | SCS, all lactations; herd + lactation fixed; animal + pe | 3,397 | animal 0.08526, pe 0.27639, residual 1.16220 | 0.08525, 0.27639, 1.16220 | −6.3·10⁻¹⁰ |
 | milk, all lactations; same repeatability model, **before the fix** | 3,397 | animal **0** (boundary), pe 5,498,779, residual 10,400,042 | 925,610, 4,638,961, 10,398,543 | **−2.363** |
-| the same, **after the fix** | 3,397 | animal 925,611, pe 4,638,960, residual 10,398,543 (`converged`) | as above | −1.3·10⁻⁹ |
+| the same, **after the fix** | 3,397 | animal 925,611, pe 4,638,960, residual 10,398,543 (`converged`) | as above | −5.4·10⁻⁹ |
 
 The third row is a **defect in ABP** (§9). The boundary check compared the score at zero
 with a tolerance that did not depend on the scale of the variances. The score at zero
