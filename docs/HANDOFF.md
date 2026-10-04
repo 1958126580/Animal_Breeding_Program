@@ -117,7 +117,9 @@ native-only skipped; `tests/test_reml.py` re-run on the final code with both ker
 self-test with both kernels, all 27 example runs (real-data examples with locally fetched
 data), the real-data benchmarks (milk 3,793 s after the fix; mice 327 s). CI: the commits
 before the test-data fix failed only the new unit-invariance test on some jobs
-(non-reproducible test data, fixed); see the validation report §3a for the final run.
+(non-reproducible test data, fixed in 7960af5). Final code commit c844eb0: runs
+[37214291766](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37214291766)
+and 37214287723, 7 of 7 jobs succeeded each.
 
 Round 14: full test suites (native 357 passed; pure-Python kernels 351 passed, 6
 native-only skipped), self-test T01–T18 with both kernels, all 24 example runs (example

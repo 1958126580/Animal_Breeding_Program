@@ -25,7 +25,9 @@ round 11: run
 round 13: run
 [37089590066](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37089590066);
 round 14: run
-[37100055863](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37100055863); §3a).
+[37100055863](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37100055863);
+round 15: run
+[37214291766](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37214291766); §3a).
 Raw logs: `docs/validation/`. Status vocabulary: passed, failed, blocked,
 not_run.
 
@@ -112,6 +114,15 @@ AlphaMate has been run.
 | `python benchmarks/run_benchmarks.py --full` (round 1), `benchmarks/simulation_check.py` | completed (round 1) | `benchmarks/results/2026-09-25-linux-x86_64.json`, `docs/validation/simulation_check.*` |
 
 ### 3a. Continuous integration
+
+**Round 15** (ABP 0.15.0): commit c844eb0 (final code: Kuhn–Tucker fix, deterministic
+test data), runs
+[37214291766](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37214291766)
+and 37214287723, 7 of 7 jobs succeeded in each (Windows and Ubuntu, Python 3.11–3.13,
+pure-Python kernels); the real-data example runs are skipped in CI (data not
+redistributed). Earlier round-15 commits 8f1102a, c0b3c00 and 919d4bb failed only
+`test_boundary_decision_is_invariant_to_the_unit` on 1–5 jobs: the test data changed with
+the per-process hash seed (§9, round 15); fixed in 7960af5, green since.
 
 Round 1: run 36130441504 (commit 2cd2922): all 7 jobs succeeded —
 Windows Server 2025 and Ubuntu × Python 3.11/3.12/3.13 (C++20 kernel built
