@@ -112,6 +112,13 @@ method in `docs/method_registry.toml`):
 
 ## 2. Commands that were run (Linux) and their results
 
+Round 15: full test suites (native 365 passed; pure-Python kernels 359 passed, 6
+native-only skipped; `tests/test_reml.py` re-run on the final code with both kernels),
+self-test with both kernels, all 27 example runs (real-data examples with locally fetched
+data), the real-data benchmarks (milk 3,793 s after the fix; mice 327 s). CI: the commits
+before the test-data fix failed only the new unit-invariance test on some jobs
+(non-reproducible test data, fixed); see the validation report §3a for the final run.
+
 Round 14: full test suites (native 357 passed; pure-Python kernels 351 passed, 6
 native-only skipped), self-test T01–T18 with both kernels, all 24 example runs (example
 19: 1,145 s), the 30-replicate two-categorical study (2,560 s). CI: 683fe36, dd7ed61 and
