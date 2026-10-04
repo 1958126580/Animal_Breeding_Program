@@ -253,7 +253,7 @@ See `docs/validation_report.md` §8. The most important:
   posterior mean exceeds REML by +0.17 ± 0.05 (flat) and −0.05 (weak priors, round 12)
   on the same data (validation report §7.16–7.17).
 * **Round-15 defect (fixed)**: the REML zero-variance check accepted a false zero
-  when variances are large (milk in lb: additive 0 instead of 925,611; 10 of 40
+  when variances are large (milk in lb: additive 0 instead of 925,611; 8 of 30
   simulated data sets with y × 3,000). Any earlier fit of a large-variance trait that
   ended on the boundary should be re-run with 0.15.0.
 * **F22 (new, round 15)**: real data, EBVs of animals without close relatives in the

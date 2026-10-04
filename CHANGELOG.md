@@ -33,7 +33,7 @@ Fifteenth development round: first validation on real data (gate G5). Evidence a
   1/variance) was compared with `1e-6 |logL|` unscaled, so with large variances (milk in
   pounds, variances near 10⁷) a positive score was taken as zero and a zero variance was
   accepted below the interior optimum (real milk data: additive variance 0 instead of
-  925,611, logL 2.36 lower; in simulation with y × 3000, 10 of 40 data sets). The score
+  925,611, logL 2.36 lower; in simulation with y × 3000, 8 of 30 data sets). The score
   is now scaled by the residual variance (`kt_rejects_zero`), in single-trait and maternal
   REML. Fits whose boundary was accepted this way change; others are unchanged.
 
