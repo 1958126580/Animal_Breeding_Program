@@ -87,8 +87,8 @@ def _simulate(ped_ids, sires, dams, rec, grp, va, vpe, ve, rng):
     A = tabular_a(ped_ids, sires, dams)
     u = np.linalg.cholesky(A) @ rng.standard_normal(len(ped_ids)) * np.sqrt(va)
     pos = {a: k for k, a in enumerate(ped_ids)}
-    pe_eff = {a: rng.normal(0, np.sqrt(vpe)) for a in set(rec)}
-    g_eff = {g: rng.normal(0, 3) for g in set(grp)}
+    pe_eff = {a: rng.normal(0, np.sqrt(vpe)) for a in sorted(set(rec))}
+    g_eff = {g: rng.normal(0, 3) for g in sorted(set(grp))}
     return np.array([10 + g_eff[g] + u[pos[a]] + pe_eff[a] + rng.normal(0, np.sqrt(ve))
                      for a, g in zip(rec, grp)])
 
@@ -273,9 +273,14 @@ def test_boundary_decision_is_invariant_to_the_unit():
     base = reml_fit(y, fd.X, terms, CFG)
     c = 3000.0
     big = reml_fit(c * y, fd.X, terms, CFG)
-    assert big.status == base.status == "converged"
+    # pe of this data set lies at (or numerically next to) its boundary, so the status
+    # itself may differ between BLAS builds; it must be the same at both scales, and the
+    # additive variance must be positive (the old check put it at 0 at the large scale)
+    assert big.status == base.status
+    assert base.variances["animal"] > 0.1 and big.variances["animal"] > 0.1 * c**2
     for k in ("animal", "pe", "residual"):
-        assert big.variances[k] == pytest.approx(c**2 * base.variances[k], rel=1e-5), k
+        assert big.variances[k] == pytest.approx(c**2 * base.variances[k], rel=1e-5,
+                                                 abs=1e-6 * c**2 * base.variances["residual"]), k
     # the helper itself: the same relative score gives the same decision at any scale
     for s in (1e-4, 1.0, 1e7):
         assert R.kt_rejects_zero(2e-3 / s, 3.0 * s, -500.0)
