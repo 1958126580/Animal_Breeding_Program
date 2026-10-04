@@ -1,0 +1,31 @@
+# Round 15: tests/test_reml.py re-run after the test-data fix (commit 5ef8ffa), native and pure-Python kernels
+collecting ... collected 11 items
+
+tests/test_reml.py::test_t05_score_matches_v_form_and_detects_wrong_derivative PASSED [  9%]
+tests/test_reml.py::test_repeatability_model_loglik_score_ai_match_v_form PASSED [ 18%]
+tests/test_reml.py::test_reml_optimum_matches_independent_optimizer_and_em PASSED [ 27%]
+tests/test_reml.py::test_boundary_zero_component PASSED                  [ 36%]
+tests/test_reml.py::test_forced_boundary_case_is_detected PASSED         [ 45%]
+tests/test_reml.py::test_non_convergence_is_an_error_and_checkpoint_resume PASSED [ 54%]
+tests/test_reml.py::test_reml_calibration_by_simulation PASSED           [ 63%]
+tests/test_reml.py::test_reml_with_dense_genomic_structure_matches_v_form PASSED [ 72%]
+tests/test_reml.py::test_score_at_zero_equals_v_form_derivative[False] PASSED [ 81%]
+tests/test_reml.py::test_score_at_zero_equals_v_form_derivative[True] PASSED [ 90%]
+tests/test_reml.py::test_boundary_decision_is_invariant_to_the_unit PASSED [100%]
+
+============================= 11 passed in 25.54s ==============================
+collecting ... collected 11 items
+
+tests/test_reml.py::test_t05_score_matches_v_form_and_detects_wrong_derivative PASSED [  9%]
+tests/test_reml.py::test_repeatability_model_loglik_score_ai_match_v_form PASSED [ 18%]
+tests/test_reml.py::test_reml_optimum_matches_independent_optimizer_and_em PASSED [ 27%]
+tests/test_reml.py::test_boundary_zero_component PASSED                  [ 36%]
+tests/test_reml.py::test_forced_boundary_case_is_detected PASSED         [ 45%]
+tests/test_reml.py::test_non_convergence_is_an_error_and_checkpoint_resume PASSED [ 54%]
+tests/test_reml.py::test_reml_calibration_by_simulation PASSED           [ 63%]
+tests/test_reml.py::test_reml_with_dense_genomic_structure_matches_v_form PASSED [ 72%]
+tests/test_reml.py::test_score_at_zero_equals_v_form_derivative[False] PASSED [ 81%]
+tests/test_reml.py::test_score_at_zero_equals_v_form_derivative[True] PASSED [ 90%]
+tests/test_reml.py::test_boundary_decision_is_invariant_to_the_unit PASSED [100%]
+
+============================= 11 passed in 23.55s ==============================
