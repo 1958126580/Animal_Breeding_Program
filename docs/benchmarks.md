@@ -287,3 +287,28 @@ cases it is up to 1.6 times slower than forcing the columns, because the cost mo
 (ancestors of the first 16 pairs of a depth) is conservative there. The pedigree of the
 200,000-animal single-step benchmark (`ssmf_large.py`: 20 generations, 200 sires):
 4.5 s instead of 45.4 s.
+
+## Windows and Linux timings in CI (round 16)
+
+`python benchmarks/run_benchmarks.py --preset ci` runs in the Python 3.12 CI jobs on both
+systems. The figures below are from run
+[37257252594](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/37257252594)
+(commit 4117a54), with GitHub-hosted runners: `windows-latest` (Windows Server 2025, C++20
+kernel built with MSVC) and `ubuntu-latest`. Each case is a single wall-clock run on a
+shared runner, so differences under about 30% are within run-to-run variation. The
+numerical results are identical on both systems: the REML estimates agree to the last
+printed digit, and the reliability means agree.
+
+| case | Windows (s) | Linux (s) |
+|---|---|---|
+| pedigree 100,000 × 10 generations: order / inbreeding / A⁻¹ | 0.42 / 0.11 / 0.04 | 0.46 / 0.12 / 0.03 |
+| dense BLUP with PEV, 5,500 equations | 2.89 | 1.65 |
+| AI-REML, 3,000 animals (dense), 6 iterations | 2.48 | 1.72 |
+| sparse exact PEV (selected inversion), 20,500 equations | 2.31 | 1.44 |
+| AI-REML, 20,000 animals (sparse selected inversion), 6 iterations | 5.30 | 3.41 |
+| G, 2,000 × 10,000 markers | 0.65 | 0.51 |
+| G⁻¹ 4,000 genotyped: full / APY (1,000 core) | 1.35 / 0.63 | 1.03 / 0.58 |
+
+The Windows runs are 1.0–1.8 times slower in these cases; the largest ratios are in dense
+LAPACK work (BLUP with PEV, dense REML). No desktop or interactive Windows timings were
+measured.
