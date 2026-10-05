@@ -247,6 +247,17 @@ SE of the sampled reliabilities 0.086 instead of 0.151 with the same 20 simulati
 The inbreeding computation (Meuwissen–Luo, 44 s for 20 generations) and the dense
 `G_cn` product of APY are now the largest steps before the solve.
 
+**Workflow-level run at 200,000 animals (round 16)**
+(`python benchmarks/ssmf_workflow_large.py --gens 20 --per-gen 10000 --genotyped 30000
+--markers 20000 --core 5000 --pev-samples 10`; `benchmarks/results/ssmf_workflow_200k_r16.json`,
+`.log`). This is a complete `abp run`: 200,000 animals in 20 generations, 190,000 records,
+the last 30,000 animals genotyped for 20,000 SNPs (PLINK, int8), APY with 5,000 core
+animals, matrix-free single step and 10 PEV simulations. It finished in 251.8 s with a
+peak resident memory of 7.47 GB. Pedigree QC took 5 s, and genotype loading,
+frequencies and APY blocks about 150 s. PCG solved 200,400 equations in 72 iterations
+(7.2 s) and the sampled PEV took 84 s. Memory stayed close to the 120,000-animal run
+(7.37 GB), because the APY blocks for 30,000 genotyped animals dominate it.
+
 **Multi-trait threshold sampler.** Per iteration and chain: one numeric sparse LDL′
 of the multi-trait equations; the coefficient values come from two precomputed
 sparse maps (no re-assembly). Example 15 (2,108 animals, 4,300 equations): 20,000
