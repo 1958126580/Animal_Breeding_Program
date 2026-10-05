@@ -289,8 +289,8 @@ class MaternalREMLEvaluator:
         k = len(GENETIC_DIRECTIONS)
         npar = k + self.n_iid + 1
         score = np.zeros(npar)
-        for i, (j, l) in enumerate(GENETIC_DIRECTIONS):
-            E = _direction(j, l)
+        for i, (j, k2) in enumerate(GENETIC_DIRECTIONS):
+            E = _direction(j, k2)
             score[i] = 0.5 * (np.trace(Gi @ E @ Gi @ S) - q * np.trace(E @ Gi))
         Gnew = S / q
         em = np.zeros(npar)
@@ -311,8 +311,8 @@ class MaternalREMLEvaluator:
         ai = np.zeros((npar, npar))
         if with_ai:
             F = np.empty((self.n, npar))
-            for i, (j, l) in enumerate(GENETIC_DIRECTIONS):
-                M = _direction(j, l) @ Gi
+            for i, (j, k2) in enumerate(GENETIC_DIRECTIONS):
+                M = _direction(j, k2) @ Gi
                 F[:, i] = self.Zg @ (U @ M.T).ravel()
             for i, ((a, b), v) in enumerate(zip(self.p_off, vp)):
                 F[:, k + i] = self.Zp[i] @ s[a:b] / v
