@@ -848,3 +848,125 @@ def test_several_categorical_traits_need_separate_residual_groups():
                                 MT.MTThresholdGibbsConfig(**{**cfg.__dict__,
                                                              "residual_groups": [[0, 2], [1]]}))
     assert "tau0_2" not in res.traces and res.R0["mean"][0][1] == 0.0
+
+
+def _dense_iids(Y, Xs, animal_col, cols, Kinv, R0, G0, Ps):
+    """As :func:`_dense_pe` with several independent terms (term k: levels ``cols[k]``,
+    covariance ``Ps[k]``), unknowns ordered beta, u, then term 0, term 1, ..."""
+    n, t = Y.shape
+    q = Kinv.shape[0]
+    ms = [int(c.max()) + 1 for c in cols]
+    ps = [X.shape[1] for X in Xs]
+    off = np.cumsum([0] + ps)
+    nb = int(off[-1])
+    toff = nb + q * t + np.cumsum([0] + [m * t for m in ms])
+    obs = [(r, j) for r in range(n) for j in range(t) if not np.isnan(Y[r, j])]
+    W = np.zeros((len(obs), int(toff[-1])))
+    row_in_trait = {j: {r: k for k, r in enumerate(np.flatnonzero(~np.isnan(Y[:, j])))}
+                    for j in range(t)}
+    for i, (r, j) in enumerate(obs):
+        W[i, off[j]:off[j + 1]] = Xs[j].toarray()[row_in_trait[j][r]]
+        W[i, nb + animal_col[r] * t + j] = 1.0
+        for k, c in enumerate(cols):
+            W[i, toff[k] + c[r] * t + j] = 1.0
+    Rinv = np.zeros((len(obs), len(obs)))
+    for r in range(n):
+        idx = [i for i, (rr, _) in enumerate(obs) if rr == r]
+        tr = [obs[i][1] for i in idx]
+        Rinv[np.ix_(idx, idx)] = np.linalg.inv(R0[np.ix_(tr, tr)])
+    prior = np.zeros((W.shape[1], W.shape[1]))
+    prior[nb:nb + q * t, nb:nb + q * t] = np.kron(Kinv, np.linalg.inv(G0))
+    for k, m in enumerate(ms):
+        prior[toff[k]:toff[k + 1], toff[k]:toff[k + 1]] = np.kron(np.eye(m), np.linalg.inv(Ps[k]))
+    y = np.array([Y[r, j] for r, j in obs])
+    return W.T @ Rinv @ W + prior, W.T @ Rinv @ y, nb, toff
+
+
+def test_two_iid_terms_with_fixed_covariances_equal_dense_mme():
+    """Round 16: two independent terms (permanent environment of the animal and a
+    'litter' shared by groups of animals), covariances known: the posterior is Gaussian
+    with mean C^-1 r (dense algebra from the model definition); posterior means of u and
+    of both terms' effects and the PEV blocks of u must agree within Monte-Carlo error,
+    and the single-term interface (P0, pe_mean) must describe the first term."""
+    ped, rng = _ped(40, 5, 8)
+    q = ped.n
+    animal_col = np.repeat(np.arange(q), 3)
+    n = animal_col.size
+    litter = animal_col // 4                                    # 4 animals per litter
+    Y = np.column_stack([rng.normal(10, 2, n), rng.normal(5, 1, n)])
+    Y[rng.random(n) < 0.25, 1] = np.nan
+    Xs = [sp.csr_matrix(np.column_stack([np.ones(int(mk.sum())),
+                                         (np.arange(n)[mk] % 3 == 0).astype(float)]))
+          for mk in (~np.isnan(Y)).T]
+    G0 = np.array([[1.0, 0.3], [0.3, 0.5]])
+    Ps = [np.array([[0.8, 0.2], [0.2, 0.4]]), np.array([[0.6, -0.1], [-0.1, 0.3]])]
+    R0 = np.array([[3.0, 0.5], [0.5, 1.0]])
+    C, rhs, nb, toff = _dense_iids(Y, Xs, animal_col, [animal_col, litter],
+                                   ped.ainv().toarray(), R0, G0, Ps)
+    Ci = np.linalg.inv(C)
+    mean = Ci @ rhs
+    u_ref = mean[nb:nb + 2 * q].reshape(q, 2)
+    pev_ref = np.array([Ci[nb + 2 * a:nb + 2 * a + 2, nb + 2 * a:nb + 2 * a + 2]
+                        for a in range(q)])
+    cfg = MT.MTThresholdGibbsConfig(chains=4, iterations=6000, burn_in=500, thin=1,
+                                    max_iterations=6000, seed=5, start_G0=G0, start_R0=R0,
+                                    start_P0=Ps, fix_covariances=True)
+    res = MT.mt_threshold_gibbs(Y, None, Xs, animal_col, ped.ainv(), cfg,
+                                pe_col=[animal_col, litter])
+    sd = np.sqrt(np.einsum("ijj->ij", pev_ref))
+    assert np.max(np.abs(res.ebv - u_ref) / sd) < 0.07
+    for k in range(2):
+        ref = mean[toff[k]:toff[k + 1]].reshape(-1, 2)
+        ksd = np.sqrt(np.diag(Ci)[toff[k]:toff[k + 1]]).reshape(-1, 2)
+        assert np.max(np.abs(res.iid_mean[k] - ref) / ksd) < 0.07, k
+    np.testing.assert_allclose(res.pev_blocks, pev_ref, atol=0.04 * sd.max() ** 2)
+    np.testing.assert_array_equal(res.pe_mean, res.iid_mean[0])
+    assert res.P0 == res.iid_P0[0] and len(res.iid_P0) == 2
+
+
+def test_two_iid_terms_recover_their_covariances():
+    """Round 16: data simulated with two independent terms; with flat priors the
+    posterior means of P_0 and P_1 (and G0, R0) must be close to the simulated values
+    (one data set: a coarse check of the sampling steps of the second term; tolerance
+    from the posterior SD)."""
+    ped, rng = _ped(300, 3, 10)
+    q, t = ped.n, 2
+    animal_col = np.repeat(np.arange(q), 4)                     # 4 records per animal
+    n = animal_col.size
+    litter = (animal_col // 3)                                  # 3 animals per litter
+    G0 = np.array([[1.0, 0.4], [0.4, 0.8]])
+    P_pe = np.array([[0.5, 0.1], [0.1, 0.4]])
+    P_lit = np.array([[0.8, 0.3], [0.3, 0.6]])
+    R0 = np.array([[1.5, 0.3], [0.3, 1.0]])
+    A = ped.a_dense()
+    U = np.linalg.cholesky(A) @ rng.standard_normal((q, t)) @ np.linalg.cholesky(G0).T
+    PE = rng.standard_normal((q, t)) @ np.linalg.cholesky(P_pe).T
+    L = rng.standard_normal((int(litter.max()) + 1, t)) @ np.linalg.cholesky(P_lit).T
+    E = rng.standard_normal((n, t)) @ np.linalg.cholesky(R0).T
+    Y = 5.0 + U[animal_col] + PE[animal_col] + L[litter] + E
+    Xs = [sp.csr_matrix(np.ones((n, 1))) for _ in range(t)]
+    cfg = MT.MTThresholdGibbsConfig(chains=3, iterations=3000, burn_in=600, thin=2,
+                                    max_iterations=3000, seed=11)
+    res = MT.mt_threshold_gibbs(Y, None, Xs, animal_col, ped.ainv(), cfg,
+                                pe_col=[animal_col, litter])
+    for got, want in ((res.iid_P0[0], P_pe), (res.iid_P0[1], P_lit), (res.G0, G0),
+                      (res.R0, R0)):
+        m, s = np.array(got["mean"]), np.array(got["sd"])
+        assert np.all(np.abs(m - want) < 3.5 * s + 0.05), (m, want, s)
+    assert "P1_0_1" in res.traces and "c2iid1_0" in res.derived and "c2_0" in res.derived
+
+
+def test_iid_term_lists_are_checked():
+    ped, rng = _ped(40, 2, 8)
+    n = ped.n
+    Y = np.column_stack([rng.normal(size=n), rng.normal(size=n)])
+    X = sp.csr_matrix(np.ones((n, 1)))
+    col = np.arange(n)
+    base = dict(chains=2, iterations=10, burn_in=5, max_iterations=10)
+    with pytest.raises(ABPError, match="one entry per iid term"):
+        MT.mt_threshold_gibbs(Y, None, X, col, ped.ainv(),
+                              MT.MTThresholdGibbsConfig(**base, start_P0=[np.eye(2)] * 3),
+                              pe_col=[col, col // 2])
+    with pytest.raises(ABPError, match="too few levels"):
+        MT.mt_threshold_gibbs(Y, None, X, col, ped.ainv(), MT.MTThresholdGibbsConfig(**base),
+                              pe_col=[col, col // 20])
