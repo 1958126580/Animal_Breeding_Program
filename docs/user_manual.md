@@ -637,7 +637,7 @@ set proper priors).
 | `nu`, `nu_e` | 5.0, 5.0 | degrees of freedom of the scaled inverse-χ² priors (> 2) |
 | `variance_prior` | `"uniform"` | `threshold`/`multitrait` only: `"scaled_inv_chi2"` (single-trait threshold model) gives each random-term variance a scaled inverse-χ² prior with `nu` degrees of freedom; `"inverse_wishart"` (multi-trait models, §7.14, §7.16) gives the genetic covariance matrix an inverse-Wishart prior IW(`nu`, `nu` × `prior_covariance`) |
 | `prior_variances` | – | threshold model with `variance_prior = "scaled_inv_chi2"`: **required**, the prior scale of each random term in liability units, for example `{ animal = 0.1, pe = 0.1 }` |
-| `prior_covariance` | – | multi-trait models with `variance_prior = "inverse_wishart"`: **required** for the additive term, the prior guess of the genetic covariance matrix (rows and columns in `model.traits` order; liability scale for the categorical trait), for example `{ animal = [[4.0, 0.0], [0.0, 0.1]] }`; optionally also the permanent-environment term (its name) and `residual` (R0; with a categorical trait only when that trait has its own residual group). Each listed matrix gets IW(`nu`, `nu` × guess); unlisted ones keep flat priors; `nu` must exceed traits − 1 |
+| `prior_covariance` | – | multi-trait models with `variance_prior = "inverse_wishart"`: **required** for the additive term, the prior guess of the genetic covariance matrix (rows and columns in `model.traits` order; liability scale for the categorical trait), for example `{ animal = [[4.0, 0.0], [0.0, 0.1]] }`; optionally also each iid term (its name) and `residual` (R0; with a categorical trait only when that trait has its own residual group). Each listed matrix gets IW(`nu`, `nu` × guess); unlisted ones keep flat priors; `nu` must exceed traits − 1 |
 | `residual_groups` | – | multi-trait models only: an integer group per model trait, for example `{ wwt = 1, nlb1 = 2 }`; residual covariances between traits of different groups are fixed at exactly 0 (at least two groups) |
 | `rhat_max` | 1.01 | convergence: split R-hat must be below it |
 | `ess_min` | 400 | convergence: bulk and tail ESS must reach it |
@@ -1761,6 +1761,26 @@ analyses two repeated ewe traits this way (1,208 records of 454 ewes; 6 minutes)
 abp run examples/17_sheep_ewe_repeated_bayes/analysis.toml --out runs/ex17
 ```
 
+**More than one iid term (from version 0.16).** A model may also contain a second shared
+environment, for example the litter. Littermates share an environment, and the F22 study
+on real mouse data (validation report §7.20) shows that omitting it inflates the genetic
+variance:
+
+```toml
+random = [
+  { name = "animal", kind = "additive", relationship = "pedigree" },
+  { name = "pe", kind = "iid" },                         # permanent environment
+  { name = "litter", kind = "iid", column = "litter" },  # common environment of littermates
+]
+```
+
+Each iid term gets its own covariance matrix. You may give each its own inverse-Wishart
+prior in `bayes.prior_covariance` (key: the term's name). The first term is reported as
+before (`permanent_environment`, `pe_multitrait.csv`, `c2_<j>`). Every term is listed under
+`iid_terms` in `mcmc_diagnostics_multitrait.json`. Terms after the first are written to
+`<name>_multitrait.csv`, traced as `P<k>_i_j`, and give the variance shares
+`c2iid<k>_<j>`.
+
 With 2–3 records per animal the data separate the genetic and the permanent-
 environment variance only weakly: in example 17 the 95% intervals are wide (lwt:
 G 1.9–7.9, P 0.6–6.0 kg²; true 4.0 and 3.0) and the two estimates are negatively
@@ -1920,8 +1940,24 @@ abp run examples/21_mice_bodyweight_real/analysis_bw_gblup.toml --out runs/ex21
   pedigree to blend with, so `G + 0.01 I` (`singular_policy = "ridge"`) keeps G
   invertible.
 
+`examples/21_mice_bodyweight_real/analysis_bw_lr.toml` validates forward in time (LR
+method, §7.11). The mice tested in 2004 are hidden from a partial evaluation (cutoff
+2003-12-31), and their partial EBVs are compared with the whole-data EBVs:
+
+```bash
+abp run examples/21_mice_bodyweight_real/analysis_bw_lr.toml --out runs/ex21_lr
+```
+
 These examples check the methods on real data structures: unbalanced herds,
-incomplete pedigrees, real marker data. They are not breeding evaluations. The
+incomplete pedigrees, real marker data. They are not breeding evaluations.
+
+**Comparing with other software.** `benchmarks/real_milk_pedigreemm_comparison.py` and
+`benchmarks/real_mice_software_comparison.py` fit the same models with ABP and with the R
+packages pedigreemm, rrBLUP and sommer (R scripts in `benchmarks/r/`). They then compare
+variances, log-likelihoods and EBVs. The R packages are not ABP dependencies; each
+script's docstring says how to install them. On these data all three agreed with ABP to
+10⁻⁵ or better (validation report §7.20). A note for pedigreemm 0.3-5 users: its
+`ranef()` returns `relfac %*% b`, whereas the breeding values are `t(relfac) %*% b`. The
 validation report (§7.19) gives the REML results against an independent
 implementation, and the cross-validated predictive ability.
 

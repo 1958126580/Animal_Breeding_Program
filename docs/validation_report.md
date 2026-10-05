@@ -1,6 +1,6 @@
-# Validation report: ABP 0.15.0
+# Validation report: ABP 0.16.0
 
-Date: 2026-10-03 (rounds 13–15; rounds 11–12: 2026-10-02; rounds 9–10: 2026-10-01; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
+Date: 2026-10-05 (round 16; rounds 13–15: 2026-10-03; rounds 11–12: 2026-10-02; rounds 9–10: 2026-10-01; rounds 6–8: 2026-09-30; rounds 4 and 5: 2026-09-29; round 3: 2026-09-28; rounds 1–2: 2026-09-25) · Platforms executed: **Linux x86_64** (build machine, full
 evidence below) and **Windows Server 2025 + Ubuntu** in GitHub Actions
 (round 1: run
 [36130441504](https://github.com/1958126580/Animal_Breeding_Program/actions/runs/36130441504);
@@ -40,7 +40,7 @@ not_run.
 | G2 numerics | residuals, convergence, boundaries, exact references | passed | §4, §5; MCMC diagnostics equal ArviZ to ≤ 8·10⁻¹⁶ |
 | G3 software | ID mapping, bad inputs, recovery, interface consistency | passed (Linux; Windows CI) | §3, §5, §6 |
 | G4 statistical calibration | simulation bias and coverage | **partial** | pedigree BLUP calibrated over 50 replicates; single step with `match_a22` biased (F6); single step on a metafounder base unbiased and calibrated with 10,000 SNPs (§7.4); multi-trait BLUP calibrated (§7.5); two metafounders reduce base bias (§7.6); threshold-model reliabilities calibrated (§7.7); REML 40 replicates; PEV including REML uncertainty calibrated for pedigree BLUP (§7.9); APY with 300 of 476 genotyped as core equivalent to the exact G (§7.9); Laplace-REML liability variances biased (F11, §7.9); threshold Gibbs sampler unbiased for the genetic liability variance (§7.10); multi-trait PEV including REML uncertainty calibrated (§7.10); reduced-rank REML 100 replicates (§7.10); threshold priors, rank selection and reduced-rank Kackar–Harville PEV (§7.11); sampled-reliability estimator, EBVs of rank-selected models, multi-trait threshold model (prior-dependent genetic correlation, F18) (§7.12); posterior PEV of the Bayesian multi-trait linear model vs REML + Kackar–Harville (F16 partly resolved) (§7.13); several categorical traits: EBVs more accurate than single-trait models, liability variance of a binary trait and genetic correlations prior-dependent (F21, §7.18); maternal animal model: Bayesian EBVs calibrated, posterior mean of the maternal variance ~7% above REML (F19 revised); REML estimates unbiased over 200 replicates, plug-in maternal PEV optimistic when the variance is underestimated (F20) (§7.15–7.17); genetic groups 20 replicates × 3 scenarios; SBC of all six Bayesian samplers (§7) |
-| G5 external validity | real data, time or population hold-out | **partial** (round 15) | two public real data sets (Holstein lactations, pedigreemm; genotyped mice, BGLR): REML equal to an independent V-form implementation to 10⁻⁸ logL after fixing the defect this comparison found; positive cross-validated predictive ability; GBLUP predicts across families (§7.19). No forward-in-time validation, no comparison software, not the target populations |
+| G5 external validity | real data, time or population hold-out | **partial** (rounds 15–16) | two public real data sets (Holstein lactations, pedigreemm; genotyped mice, BGLR): REML equal to an independent V-form implementation to 10⁻⁸ logL (after fixing the defect this comparison found) and to the established packages pedigreemm, rrBLUP and sommer (variances ≤ 5.5·10⁻⁵ relative, EBV correlation 1.0); forward-in-time LR validation on the mice tested in 2004 (bias −0.010 ± 0.026, dispersion 0.90 ± 0.02: over-dispersed, F22); cross-validated predictive ability (§7.19–7.20). Not the target populations; no comparison with BLUPF90/ASReml/MiXBLUP/DMU |
 | G6 scale and platform | measured resources; Windows, Linux, GPU | **partial** | Linux measured (`docs/benchmarks.md`), including exact PEV for 100,500 equations and the matrix-free single step (50,000 animals, 6,000 genotyped: 1.7 GB instead of 10.9 GB; 200,000 animals, 30,000 genotyped, int8 genotypes: 6.75 GB; complete `abp run` with 120,000 animals / 30,000 genotyped from PLINK as int8: 261 s, 7.38 GB; 206 s after the round-8 speed-ups); Windows functional tests in CI (round 3: 211 tests passed on Windows and Linux, §3a), no Windows timings; no CUDA path |
 | G7 decision and release | feasible plans, installation reproduction, evidence package | **partial** | mating plans satisfy every hard constraint, verified per plan (§5, §6); no binary release; project license not chosen |
 
@@ -1073,6 +1073,125 @@ the pedigree cannot. These are retrospective checks on public data. They are not
 forward-in-time validation (the data carry no dates for an LR split), not
 a comparison with other software, and not a test on the populations ABP is meant for.
 
+### 7.20 Round-16 studies: established software, forward-in-time validation, F22
+
+**Comparison with established software on the real data.** R 4.3.3 and lme4 1.1-35.1
+(Ubuntu packages) were installed, and pedigreemm 0.3-5, rrBLUP 4.6.3 and sommer 4.3.6
+were built from their CRAN sources. The sources came from the read-only GitHub mirror of
+CRAN; CRAN itself is blocked by the network policy. These packages are test oracles
+only: they are not ABP dependencies and are not redistributed (licence inventory).
+
+*Holstein data, pedigreemm* (`real_milk_pedigreemm.json`, `.log`;
+`benchmarks/real_milk_pedigreemm_comparison.py`, R side `benchmarks/r/pedigreemm_fit.R`).
+pedigreemm (Vazquez et al. 2010) fits animal models through lme4, using a Cholesky
+factor of A; it was published with these data. The same three models as §7.19 were
+fitted by REML:
+
+| model | relative difference of variances (ABP − pedigreemm) | logL difference¹ | EBV correlation, max \|diff\| / SD² |
+|---|---|---|---|
+| first-lactation milk (1,314 cows) | animal 1.4·10⁻⁵, residual −1.9·10⁻⁶ | 2.2·10⁻⁹ | 1.00000000, 3.8·10⁻⁵ |
+| SCS repeatability (3,397 records) | animal −4.5·10⁻⁵, pe 1.9·10⁻⁵, residual −1.1·10⁻⁶ | 4.0·10⁻⁹ | 1.00000000, 1.4·10⁻⁴ |
+| milk repeatability (3,397 records) | animal 5.5·10⁻⁵, pe −5.5·10⁻⁶, residual −8.7·10⁻⁷ | 1.1·10⁻⁸ | 1.00000000, 1.3·10⁻⁴ |
+
+¹ lme4's REML criterion includes the constant `(n − rank X) log(2π)`; after removing it
+the log-likelihoods agree. ² For the 1,314 or 1,359 cows with records. The remaining EBV
+differences follow from the 10⁻⁵ differences in the variances. ABP's EBVs also equal a
+dense V-form BLUP (`σ²_a A Z′Py`) to 1.6·10⁻⁸.
+
+pedigreemm also puts the milk repeatability model at an interior optimum (additive
+925,561). This independently confirms the round-15 fix of ABP's boundary check.
+
+**Observation about pedigreemm 0.3-5.** Its `ranef()` method returns `relfac %*% b`. The
+model is fitted with `Z* = Z relfac′` and `A = relfac′ relfac` (`getA` is
+`crossprod(relfactor)`), so the BLUP of the additive effect is `t(relfac) %*% b`. On these
+data `t(relfac) %*% b` equals ABP's EBVs and the V-form BLUP. The values returned by
+`ranef()` correlate only 0.71–0.75 with them, because `relfac` is upper triangular, not
+symmetric. The comparison above therefore uses `t(relfac) %*% b`, and both versions are
+written to the JSON. We read this as a defect in that version's `ranef()` method; it does
+not affect pedigreemm's variance estimates. It was not reported upstream from this
+environment.
+
+*Mouse data, rrBLUP and sommer* (`real_mice_software.json`, `.log`;
+`benchmarks/real_mice_software_comparison.py`, R side `benchmarks/r/mice_gblup_fit.R`).
+The genomic relationship matrix was computed by `rrBLUP::A.mat` (VanRaden method 1),
+independently of ABP's code, and equals ABP's `vanraden_g` to 1.4·10⁻¹⁴. Results:
+
+| model | package | relative difference of variances | GEBV correlation, max \|diff\| / SD |
+|---|---|---|---|
+| body weight: sex + year×season, animal (G + 0.01 I) | `rrBLUP::mixed.solve` | ≤ 9.9·10⁻⁷ | 1.0000000000, 1.6·10⁻⁶ |
+| body weight: + cage (example 21) | `sommer::mmer` | ≤ 3.2·10⁻⁶ | 1.0000000000, 4.6·10⁻⁶ |
+| body length: animal | `rrBLUP::mixed.solve` | ≤ 6.5·10⁻⁷ | 1.0000000000, 9.7·10⁻⁷ |
+| body length: + cage | `sommer::mmer` | ≤ 3.2·10⁻⁵ | 1.0000000000, 5.7·10⁻⁵ |
+
+rrBLUP's log-likelihood differs from ABP's by the same constant for both traits
+(1637.21075, equal to 10⁻⁸). The two likelihood functions are therefore identical up to a
+data-independent constant. sommer's reported log-likelihood uses its own constants and
+was not compared.
+
+These are agreement checks on four models, not a performance comparison. Run times were
+measured under different loads and are not reported as benchmarks. **No claim of
+superiority is made.**
+
+**Forward-in-time validation on real data** (`real_mice_lr_validation.json`, `.log`;
+`abp run examples/21_mice_bodyweight_real/analysis_bw_lr.toml`, 222 s). This is the LR
+method with GBLUP for body weight. The 677 mice tested in 2004 were hidden: partial
+evaluation with cutoff 2003-12-31, variances by REML on the 1,137 mice tested in 2003.
+`test_date` rests on an assumption the source does not state: a year's "winter" is its
+first quarter (example README). Results (bootstrap over mice, 1,000 replicates):
+
+| statistic | estimate ± SE (95% interval) | expected under a correct model |
+|---|---|---|
+| bias Δ̂_p | −0.010 ± 0.026 g (−0.059, 0.041) | 0 |
+| dispersion b̂_w,p | 0.899 ± 0.021 (0.858, 0.942) | 1 |
+| consistency ρ̂_w,p | 0.869 ± 0.009 | √(rel_p / rel_w) = 0.848 (model-based, focal mice) |
+
+The partial EBVs show no bias but are over-dispersed by about 10%. The dispersion differs
+from 1 by about 5 SE. The partial-data REML gave a larger additive variance (2.91 against
+2.13 on all data). This forward-in-time result agrees in direction with the cross-family
+regressions of §7.19 (F22).
+
+**F22 factor study** (`f22_dispersion_study.json`, `.log`;
+`python benchmarks/f22_dispersion_study.py`, 1,671 s). Same across-family folds as §7.19.
+Each variant changes one factor; the table gives the regression of the target on the
+EBV ± SE.
+
+| variant | body weight | body length | full-data REML (body weight) |
+|---|---|---|---|
+| baseline | 0.658 ± 0.056 | 0.518 ± 0.114 | animal 2.13, cage 2.17, residual 3.50; logL −2527.74 |
+| + full-sib family effect | 0.731 ± 0.061 | 0.560 ± 0.151 | animal 1.99, cage 1.61, family 1.02, residual 3.48; logL −2516.94 |
+| variances fixed at full-data REML | 0.690 ± 0.057 | 0.571 ± 0.116 | — |
+| allele frequencies 0.5 | 0.647 ± 0.052 | 0.490 ± 0.108 | same logL as baseline |
+| G + 0.05 I | 0.658 ± 0.056 | 0.518 ± 0.114 | same logL |
+| family effect, half of the SNPs | 0.732 ± 0.060 | 0.561 ± 0.152 | logL −2514.40 |
+| family effect, quarter of the SNPs | 0.785 ± 0.064 | 0.507 ± 0.208 | logL −2520.78 |
+
+What the study shows:
+
+* **Common family environment is part of the cause.** The family effect is strongly
+  supported: likelihood-ratio statistic 21.6 for body weight and 14.8 for body length. It
+  lowers the additive variance and raises the slope by about 0.07 and 0.04.
+* **Variance estimation per fold and the G frequency base or ridge are not the cause.**
+  Fixing the variances adds about 0.03–0.05. With frequencies of 0.5, G differs from the
+  baseline G only by a change of base, which the fixed effects absorb, so the logL is
+  identical. The ridge changes nothing.
+* **The marker-linkage hypothesis was not supported.** If linkage between markers and
+  causal loci across families were the main cause, fewer markers should have lowered the
+  slope. For body weight it rose (0.73 → 0.79), and for body length the change is within
+  its SE.
+* **F22 remains open.** It is partly explained, and the slope stays below 1 (0.73 for
+  body weight). Further candidates: dominance and epistatic variance shared by full sibs
+  (counted as additive within families, absent across families), and a sampling effect
+  of 169 families. None was tested here.
+
+**Several iid terms in the multi-trait Gibbs samplers** (methods §36; tests below). This
+is a feature, not a study. With known covariances, the posterior means of u and of both
+terms' effects, and the PEV blocks of u, equal the dense mixed-model solution from the
+model definition within Monte-Carlo error (`test_two_iid_terms_with_fixed_covariances_equal_dense_mme`).
+From one simulated data set with a permanent environment and a litter effect, both
+covariance matrices, G0 and R0 are recovered within 3.5 posterior SD
+(`test_two_iid_terms_recover_their_covariances`). A workflow test runs two terms
+end to end.
+
 ### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
@@ -1106,7 +1225,7 @@ for the four-trait example.
 | F19 | Bayesian maternal animal model (one record per animal, flat priors): the posterior mean of the maternal variance looked biased upwards (2.54 ± 0.19 vs 2.0 over 20 replicates; example 18: 3.9) while the EBV posterior PEVs were calibrated (direct 1.03, maternal 0.98) | revised (round 13) | REML on the same seeds gives 2.46 and is unbiased over 200 replicates (2.06 ± 0.07, §7.17): the 20 seeds were a high draw; the method-specific part is the posterior-mean excess over REML, +0.17 ± 0.05 (≈7%) with flat priors and −0.05 with weak data-only priors (§7.16). Use weak priors or REML for point estimates; report intervals |
 | F20 | Maternal animal model by REML: the plug-in maternal PEV is optimistic when the maternal variance is underestimated (MSE/PEV 1.56 ± 0.19 over 192 fits, median 1.04; 5.19 in the 24 fits with an estimate below 1.0) | open (round 13) | Kackar–Harville columns reduce it (1.35, median 1.00) but not for the low estimates (3.72); the Bayesian posterior PEV is calibrated (0.98); prefer the Bayesian model, or read maternal reliabilities from the Kackar–Harville columns, when the maternal variance is poorly determined |
 | F21 | Several categorical traits (one record per animal and trait): the binary trait's liability variance is overestimated (0.25 vs 0.16, prior centred at 0.2) and genetic correlations are pulled towards the prior's centre (0.35 vs 0.5 with a prior at zero covariance); residual covariances between categorical traits are fixed at 0 by the model | open (round 14) | joint modelling still improves the categorical EBVs (+0.05, +0.08 accuracy) with calibrated or conservative reliabilities (§7.18); take prior variances and covariances from published estimates and report them; repeated records or progeny-tested sires identify the covariances better |
-| F22 | Real data (mice, GBLUP with `G + 0.01 I`): predicting whole hidden families, the regression of the target on the EBV is 0.66 (body weight) and 0.52 (body length): EBVs of animals without close relatives in the training data are over-dispersed; with Holstein first-lactation EBVs from relatives only the regressions are 0.72–0.82 (fat 2.3 SE below 1) | open (round 15) | the targets contain non-genetic effects shared within families (cage, permanent environment), so these are not pure calibration tests; candidate causes: the G frequency base and ridge, h² estimated on related training data. A forward-in-time validation with the LR method on data with dates is the next check |
+| F22 | Real data (mice, GBLUP): EBVs of animals without close relatives in the training data are over-dispersed (across families: regression 0.66 body weight, 0.52 body length; forward in time, mice tested in 2004: dispersion 0.90 ± 0.02); Holstein EBVs from relatives only: 0.72–0.82 | **partly explained** (round 16) | factor study (§7.20): a full-sib family (common environment) effect is strongly supported (LR statistics 21.6, 14.8) and raises the slope to 0.73 / 0.56; fold-wise variance estimation adds 0.03–0.05; the G frequency base and ridge do not matter; fewer markers did not lower the slope (linkage hypothesis not supported). Fit a common-environment (litter/family) term where full sibs share an environment (REML: any number of iid terms; Gibbs: round 16); remaining candidates: non-additive variance shared by full sibs |
 | E1 | Engineering: with every core busy, multi-threaded OpenBLAS made the 12 s API example's multi-trait REML exceed 600 s (thread oversubscription); with `OPENBLAS_NUM_THREADS=1` it took 20 s under the same load (round 9) | open (documented) | set `OPENBLAS_NUM_THREADS` (or the BLAS thread count) when ABP shares a machine; the benchmarks and studies already set one thread per worker |
 
 ## 9. Defects found and fixed
@@ -1215,13 +1334,13 @@ kept the original acceptance threshold.
 |---|---|
 | Windows performance measurements and interactive use | only CI execution (§3a); no timings or desktop testing on Windows |
 | CUDA / GPU | no CUDA implementation exists (requests are refused or fall back explicitly) |
-| Real-data validation (G5), remaining parts | round 15 ran retrospective checks on two public data sets (§7.19); a forward-in-time (LR) validation needs data with dates, and validation on the populations ABP is meant for needs their data |
+| Real-data validation (G5), remaining parts | rounds 15–16 ran retrospective, cross-validated, forward-in-time (mice) and software-comparison checks on two public data sets (§7.19–7.20); validation on the populations ABP is meant for needs their data |
 | LR population-accuracy estimator | its published form has a 2019 erratum that could not be verified here (the source was not reachable) |
 | Posterior SBC near the target data | the prior SBC (§7.3) checks the computation over the prior; a posterior SBC is a further step |
-| Comparison with BLUPF90, MiXBLUP, ASReml, DMU, JWAS, BGLR | not installed or licensed in this environment; must be run under a pre-registered protocol |
+| Comparison with BLUPF90, MiXBLUP, ASReml, DMU, JWAS | not installed or licensed in this environment (round 16 compared with the open R packages pedigreemm, rrBLUP and sommer instead, §7.20) |
 | Independent mature simulator (AlphaSimR, QMSim, XSim) | not installed; ABP's generators are independent of its solver code but are not mature external simulators |
 | Workflow-level run at 200,000 animals | the workflow runs used 120,000 animals (30,000 genotyped); the 200,000-animal runs are library-level |
-| Multi-trait threshold model with several categorical traits or extra random terms | not implemented |
-| Maternal models with REML or known variances; a replicated calibration study of the Bayesian maternal model | not implemented / not run (example 18 only) |
+| Residual covariances between two categorical traits in the multi-trait threshold model | not implemented (several categorical traits: round 14; several iid terms: round 16) |
+| Multi-trait maternal REML; a correction of the plug-in maternal PEV under REML (F20) | not implemented (single-trait maternal REML: round 13) |
 | Second-order Kackar–Harville correction (F16) | not implemented |
 | Installation from a built wheel or installer | no binary packaging yet (source install only) |

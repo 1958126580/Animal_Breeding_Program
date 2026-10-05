@@ -93,7 +93,7 @@ tests = ["tests/test_blup.py::test_t04_hand_derived",
          "tests/test_workflow.py::test_example01_end_to_end_matches_independent_reference"]
 # G4: benchmarks/calibration_study.py, 50 replicates, pedigree BLUP with true variances:
 # slope 0.978 +- 0.018, bias 0.016 +- 0.058 kg, PEV ratio 1.027 +- 0.023, coverage 0.948 +- 0.003.
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_50_replicate_calibration_pedigree", G5 = "partial_real_data_cv_round15", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_50_replicate_calibration_pedigree", G5 = "partial_real_data_cv_lr_and_software_crosscheck_round16", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["homogeneous residual variance", "no maternal, social or random-regression terms (maternal effects: bayes.maternal_effects, Gibbs only)"]
@@ -118,7 +118,7 @@ tests = ["tests/test_reml.py::test_t05_score_matches_v_form_and_detects_wrong_de
          "tests/test_reml.py::test_reml_calibration_by_simulation",
          "tests/test_reml.py::test_reml_with_dense_genomic_structure_matches_v_form",
          "tests/test_reml.py::test_score_at_zero_equals_v_form_derivative"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_40_replicate_simulation", G5 = "partial_real_data_vform_crosscheck_round15", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "passed_40_replicate_simulation", G5 = "partial_real_data_vform_and_pedigreemm_crosscheck_round16", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["sparse factor + selected inversion above 12,000 equations (above 2,000 when every structure matrix is sparse, round 15), bounded by factor memory", "multi-trait REML is a separate method", "SE invalid at the boundary"]
@@ -142,7 +142,7 @@ tests = ["tests/test_genomic.py::test_t01_maf_is_minimum",
          "tests/test_genomic.py::test_singular_g_requires_explicit_policy",
          "tests/test_genomic_workflow.py::test_gblup_workflow_matches_independent_reference",
          "tests/test_genomic_workflow.py::test_excluded_records_cannot_influence_results"]
-gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "partial_real_data_cv_round15", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
+gates = { G0 = "passed", G1 = "passed", G2 = "passed", G3 = "passed", G4 = "not_run", G5 = "partial_real_data_cv_lr_and_software_crosscheck_round16", G6 = "linux_measured_windows_ci_passed", G7 = "not_run" }
 implementation_status = "passed"
 maturity = "experimental"
 known_limits = ["only ABP dosage-matrix text format (no PLINK/VCF/BGEN readers)", "dense G (memory n^2)", "no APY"]

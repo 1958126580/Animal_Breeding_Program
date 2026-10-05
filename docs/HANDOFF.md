@@ -1,6 +1,6 @@
 # Handoff (read this first in the next session)
 
-State as of 2026-10-03, ABP 0.15.0, branch `claude/ecstatic-archimedes-qs0idf`
+State as of 2026-10-05, ABP 0.16.0, branch `claude/ecstatic-archimedes-qs0idf`
 (round 2 lives on `claude/festive-newton-2elqfq`; round 3 continues from it).
 Trust files and tests, not this summary: re-run `python -m pytest -q` and
 `abp selftest` before continuing.
@@ -77,6 +77,14 @@ method in `docs/method_registry.toml`):
   maternal model 2.6–3.1 times faster per factorization); posterior medians of G0, R0,
   P0; F19 prior study (weak data-only priors) and example 18 variant
   `analysis_equal_prior.toml`;
+* **round 16**: comparison with established software on the real data (pedigreemm 0.3-5,
+  rrBLUP 4.6.3, sommer 4.3.6 built from CRAN sources via the GitHub mirror; R and lme4 from
+  Ubuntu): variances ≤ 5.5·10⁻⁵, logL ≤ 1.1·10⁻⁸, EBV correlation 1.0 (pedigreemm's
+  `ranef()` returns `relfac %*% b`; the BLUP is `t(relfac) %*% b`); forward-in-time LR
+  validation on the mice (dispersion 0.90 ± 0.02); F22 factor study (common family
+  environment partly explains it); several iid terms in the multi-trait Gibbs samplers;
+  CI timings on Windows and Linux and a wheel build + clean-install job; 366 tests pass
+  against the installed wheel;
 * **round 15**: first real-data validation (G5 partial): examples 20 (Holstein
   lactations, pedigreemm) and 21 (genotyped mice, BGLR), data fetched on demand
   (`fetch_data.py`, SHA-256, GPL data not stored; needs `pip install rdata`);
@@ -261,6 +269,10 @@ See `docs/validation_report.md` §8. The most important:
   2.46 and is unbiased over 200 replicates (2.06), so the seeds were a high draw; the
   posterior mean exceeds REML by +0.17 ± 0.05 (flat) and −0.05 (weak priors, round 12)
   on the same data (validation report §7.16–7.17).
+* **F22 (partly explained, round 16)**: over-dispersion of EBVs without close relatives
+  (mice across families 0.66; forward in time 0.90 ± 0.02); a full-sib family effect is
+  strongly supported and raises the slope to 0.73; frequency base, ridge and marker density
+  are not the cause; non-additive variance shared by full sibs is the next hypothesis.
 * **Round-15 defect (fixed)**: the REML zero-variance check accepted a false zero
   when variances are large (milk in lb: additive 0 instead of 925,611; 8 of 30
   simulated data sets with y × 3,000). Any earlier fit of a large-variance trait that
@@ -314,30 +326,27 @@ See `docs/validation_report.md` §8. The most important:
 
 ## 6. Next concrete tasks (in order)
 
-Round 15 did the first part of task 7 below (retrospective real-data checks on public
-data; it found and fixed a REML boundary defect). Round 14 did the first part of task 2
-(several categorical traits). Round 13 did task 1 of the round-12 list. Next:
+Round 16 did the second part of task 2 below (several iid terms) and most of the old
+task 7 (forward-in-time LR validation on real data, comparison with pedigreemm, rrBLUP and
+sommer, F22 factor study). Round 15 found and fixed a REML boundary defect. Next:
 
 1. Maternal models: multi-trait maternal REML; a second-order or bootstrap correction
    for the maternal PEV under REML (F20); a singular-G0 (reduced-rank) maternal fit
    instead of stopping with ABP-E300.
-2. Multi-trait Gibbs samplers: residual correlations between categorical traits (a
-   correlation-matrix step for the liabilities); more than one iid term.
-3. Sparse LDL': general supernodes (dense updates for every front, not only the
-   trailing block); measure the block-size rule's flop-rate ratio on other machines
-   (Windows CI timings).
-4. F16 remainder: the least informed trait of three stays 7% optimistic even with
+2. Multi-trait threshold model: residual correlations between categorical traits (a
+   correlation-matrix step for the liabilities, e.g. parameter expansion).
+3. F22 remainder: test non-additive (dominance) variance shared by full sibs as the
+   cause of the remaining over-dispersion (slope 0.73); a dominance relationship term
+   in REML would allow it.
+4. Sparse LDL': general supernodes (dense updates for every front, not only the
+   trailing block); compare the Windows and Linux CI timings (`--preset ci`).
+5. F16 remainder: the least informed trait of three stays 7% optimistic even with
    weak priors; test a second-order Kackar–Harville correction and longer chains on
    the three-trait scenario.
-5. APY construction at scale: the dense `G_cn` product (float32 option with a
+6. APY construction at scale: the dense `G_cn` product (float32 option with a
    documented error bound) and parallel Colleau products.
-6. Sampled PEV: combine the orthogonal estimator with control variates from an
-   approximate reliability.
-7. Real-data validation (G5): a forward-in-time LR validation on public data with
-   birth or test dates (search the CRAN mirror on raw.githubusercontent.com, e.g. data
-   sets of other animal-breeding packages); F22 (over-dispersion across families:
-   compare G frequency bases and the ridge); the target populations and comparison
-   software remain blocked on the gaps in §5.
+7. Comparison with BLUPF90/MiXBLUP/ASReml/DMU and validation on the target
+   populations remain blocked on the gaps in §5.
 
 ## 7. Where things are
 

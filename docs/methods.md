@@ -1690,7 +1690,44 @@ sparse `K⁻¹`) compares the score at zero with `½(y′P dV P y − tr(P dV))`
 V-form; the existing REML reference tests (dense vs sparse traces, V-form optimum) are
 unchanged. **Effect** on example 20: 196 s → 27 s, logL unchanged (−2376.862195).
 
-## 36. References (additions)
+## 36. Several independent (iid) terms in the multi-trait Gibbs samplers
+
+Code: `abp/solvers/mt_threshold_gibbs.py` (`MTProblem`, `_Chain`, `mt_threshold_gibbs`
+with `pe_col` a list), workflow `abp/workflows/mt_threshold.py` (round 16).
+
+Model: the multi-trait linear or threshold model of §31–32 with terms
+`c_k ~ N(0, I_{m_k} ⊗ P_k)`, k = 0…K−1, each with its own t × t covariance matrix.
+Examples are a permanent environment of the animal and a litter or common environment
+shared by full sibs (§7.20). Each term has its own incidence (records → levels).
+
+* **Location step.** `C = W′R⁻¹W + blockdiag(0, K⁻¹ ⊗ G0⁻¹, I_{m_0} ⊗ P_0⁻¹, …)`. The values
+  of C stay linear in each `P_k⁻¹` (one map per term), so an iteration still costs sparse
+  matrix–vector products and one numeric refactorization. The perturbation of the
+  right-hand side gets `I ⊗ chol(P_k⁻¹)` noise per term.
+* **Covariance step.** `P_k | c_k ~ IW(C_k′C_k + ν_k Ψ_k, m_k + ν_k)`. The default is a flat
+  prior (`ν_k = −(t + 1)`, `Ψ_k = 0`); with an inverse-Wishart prior from
+  `bayes.prior_covariance.<term>`, `ν_k = bayes.nu`.
+* **Scale moves.** For every term and trait, `c_kj → g c_kj` and `P_k → D P_k D` (as for the
+  permanent environment in round 10).
+* **Reporting.** Term 0 keeps the single-term names: `P0_i_j`, `c2_j`, `pe_mean`,
+  `pe_multitrait.csv`. Term k ≥ 1 is traced as `P<k>_i_j` and `c2iid<k>_j`, reported in
+  `iid_P0[k]` and `iid_mean[k]`, and written to `<term>_multitrait.csv`. The phenotypic
+  variance used in h² and c² includes every term.
+* **Configuration.** `start_P0`, `prior_P0` and `prior_nu_pe` take one value, used for every
+  term, or a list with one entry per term. A list counts as per-term only if its entries
+  are whole matrices or scalars, so a single matrix written as nested lists is not
+  misread.
+
+**Tests** (`tests/test_mt_threshold_gibbs.py`, `tests/test_mt_threshold_workflow.py`):
+
+* with known covariances, the posterior means of u and of both terms' effects, and the
+  PEV blocks of u, equal the dense MME from the model definition;
+* both covariance matrices, G0 and R0 are recovered from simulated data;
+* per-term lists are checked;
+* the workflow runs with a permanent environment and a litter term;
+* the single-term tests are unchanged.
+
+## 37. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.

@@ -4,6 +4,36 @@ All notable changes. Scientific-result changes are marked **[results]**.
 Versioning: 0.x is pre-release; any change in the algorithm or the genetic
 base that alters results is listed here, whatever the size of the version bump.
 
+## [0.16.0] - 2026-10-05
+
+Sixteenth development round: comparison with established software, forward-in-time
+validation on real data, F22 factor study, several iid terms in the Gibbs samplers.
+Evidence: `docs/validation_report.md` §7.20.
+
+### Added
+- Several independent (iid) terms in the multi-trait Gibbs samplers (linear and threshold;
+  e.g. permanent environment + litter): each term with its own covariance matrix, prior
+  (`bayes.prior_covariance.<term>`), scale moves and outputs (`iid_terms` in the
+  diagnostics, `<term>_multitrait.csv`, traces `P<k>_i_j`, `c2iid<k>_j`). The first term
+  keeps the single-term names and files. Tests against the dense MME, recovery of both
+  covariance matrices, workflow test. Methods §36.
+- Comparison scripts with established R packages (test oracles, not dependencies):
+  `benchmarks/real_milk_pedigreemm_comparison.py` (pedigreemm 0.3-5) and
+  `benchmarks/real_mice_software_comparison.py` (rrBLUP 4.6.3, sommer 4.3.6), R scripts in
+  `benchmarks/r/`. ABP agrees on variances (≤ 5.5·10⁻⁵ relative), REML log-likelihoods
+  (≤ 1.1·10⁻⁸ after constants) and EBVs (correlation 1.0). pedigreemm 0.3-5's `ranef()`
+  returns `relfac %*% b`; its BLUP is `t(relfac) %*% b` (documented in §7.20).
+- Forward-in-time LR validation on real data: `examples/21_mice_bodyweight_real/
+  analysis_bw_lr.toml`. The fetch script now writes `test_date`, with a documented
+  assumption on season order.
+- `benchmarks/f22_dispersion_study.py`: F22 partly explained (common family environment).
+- CI: Windows and Linux timings (`run_benchmarks.py --preset ci`); a wheel job builds the
+  wheel, installs it into a clean venv on Windows and Linux and runs the self-test.
+  Locally the full test suite passes against the installed wheel (366 tests).
+
+### Changed
+- Spec: the Bayesian multi-trait models accept any number of iid terms.
+
 ## [0.15.0] - 2026-10-03
 
 Fifteenth development round: first validation on real data (gate G5). Evidence and gaps:

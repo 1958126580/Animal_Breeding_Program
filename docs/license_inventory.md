@@ -64,3 +64,17 @@ each product's license terms.
 | `milk`, `pedCowsR` (Holstein lactations and pedigree; USDA AIPL) | R package pedigreemm 0.3-5 via the GitHub mirror of CRAN | GPL (>= 2) (package) | **No** — downloaded on demand by `examples/20_holstein_milk_real/fetch_data.py` (SHA-256 checked); only aggregate results are committed |
 | `rdata` (reader for `.rda` files) | PyPI | MIT | No — optional, used by the fetch script only |
 | `mice` (heterogeneous-stock mice: 1,814 animals, 10,346 SNPs, phenotypes, pedigree relationship matrix) | R package BGLR 1.1.4 via the GitHub mirror of CRAN; experiment of Valdar et al. (2006) | GPL-3 (package) | **No** — downloaded on demand by `examples/21_mice_bodyweight_real/fetch_data.py` (SHA-256 checked); only aggregate results are committed |
+
+## Established software used as test oracles (round 16; not dependencies, not redistributed)
+
+| Package | Version | Licence | Source | Use |
+|---|---|---|---|---|
+| R | 4.3.3 | GPL-2 \| GPL-3 | Ubuntu 24.04 `r-base-core` | runtime for the comparisons |
+| lme4, Matrix, Rcpp, RcppArmadillo, RcppProgress, RcppEigen, MASS, crayon | Ubuntu 24.04 packages (lme4 1.1-35.1, Matrix 1.6-5) | GPL (≥ 2) | Ubuntu `r-cran-*` | dependencies of the packages below |
+| pedigreemm | 0.3-5 | GPL (≥ 2) | built from the CRAN sources (read-only GitHub mirror `cran/pedigreemm`, tag 0.3-5) | `benchmarks/r/pedigreemm_fit.R`, comparison on the Holstein data |
+| rrBLUP | 4.6.3 | GPL-3 | CRAN sources via the GitHub mirror `cran/rrBLUP` | `benchmarks/r/mice_gblup_fit.R` (`A.mat`, `mixed.solve`) |
+| sommer | 4.3.6 | GPL (≥ 2) | CRAN sources via the GitHub mirror `cran/sommer`, tag 4.3.6 (the current version needs a newer RcppArmadillo than Ubuntu ships) | `benchmarks/r/mice_gblup_fit.R` (`mmer`) |
+
+ABP contains no code from these packages; the R scripts in `benchmarks/r/` call them and
+write their results for comparison. The R scripts are part of ABP's benchmarks (project
+licence), not derived from the packages.
