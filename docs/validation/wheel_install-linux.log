@@ -1,0 +1,27 @@
+# command: python -m pip wheel . --no-deps -w <wheel>
+  Created wheel for abp-breeding: filename=abp_breeding-0.15.0-cp311-cp311-linux_x86_64.whl size=810849 sha256=bb97802b608776a559dd968fec4fb20620b0d95545d4ff0cafa1ab3b0625dde8
+  Stored in directory: /tmp/pip-ephem-wheel-cache-uc066uy4/wheels/c1/72/52/054e7b390de5182cf49892297d9d58cb4a15f4949972f31a5f
+Successfully built abp-breeding
+abp_breeding-0.15.0-cp311-cp311-linux_x86_64.whl
+# command: python -m venv <venv> (no system site packages); <venv>/bin/pip install <wheel>
+
+[notice] A new release of pip is available: 24.0 -> 26.2.1
+[notice] To update, run: python -m pip install --upgrade pip
+abp-breeding 0.15.0
+numpy        2.4.6
+scipy        1.17.1
+# command (outside the repository): abp --version; abp selftest
+abp 0.15.0
+<scratch>/wvenv/lib/python3.11/site-packages/abp/__init__.py
+  [PASS] T16 sparse LDL' with a numerically symmetric, structurally asymmetric matrix
+  [PASS] T17 PLINK decoding to int8 and float64 (hand-derived byte)
+  [PASS] T18 Colleau product A x on a hand-derived inbred pedigree
+RESULT: PASS
+# command: <venv>/bin/python -m pytest -q (tests run against the installed wheel; abp resolves to:)
+<scratch>/wvenv/lib/python3.11/site-packages/abp/__init__.py
+........................................................................ [ 39%]
+........................................................................ [ 59%]
+........................................................................ [ 78%]
+........................................................................ [ 98%]
+......                                                                   [100%]
+366 passed in 984.39s (0:16:24)
