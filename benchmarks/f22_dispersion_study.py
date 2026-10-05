@@ -17,7 +17,13 @@ minus the training fixed-effect solution) on the EBV of the hidden mice is compu
 * ``known_variances``   variances fixed at the full-data REML estimates (removes
                         fold-to-fold estimation noise);
 * ``p_half``            G with allele frequencies 0.5 instead of the observed ones;
-* ``ridge_0.05``        G + 0.05 I instead of 0.01 I.
+* ``ridge_0.05``        G + 0.05 I instead of 0.01 I;
+* ``markers_half``, ``markers_quarter``: G from a random half / quarter of the SNPs
+                        (seed 2029; with the family effect): if the remaining
+                        over-dispersion comes from imperfect linkage between markers and
+                        causal loci across families, fewer markers should lower the slope;
+* ``family_all_markers`` the family-effect model again, as the reference for the two
+                        marker-density variants.
 
 Also reported per variant: full-data REML variances and logL (``family_effect`` vs
 ``baseline`` differ by one parameter, so twice the logL difference is a likelihood-ratio
@@ -135,11 +141,19 @@ def main():
                            ("obs_0.05", p_obs, 0.05)):
         G, _ = vanraden_g(M, p)
         Gs[name] = spd_inverse_and_logdet(G + ridge * np.eye(n), name)
+    perm = np.random.default_rng(2029).permutation(M.shape[1])
+    for name, k in (("half_markers", M.shape[1] // 2), ("quarter_markers", M.shape[1] // 4)):
+        cols = np.sort(perm[:k])
+        G, _ = vanraden_g(M[:, cols], p_obs[cols])
+        Gs[name] = spd_inverse_and_logdet(G + 0.01 * np.eye(n), name)
     variants = {"baseline": ("obs_0.01", False, False),
                 "family_effect": ("obs_0.01", True, False),
                 "known_variances": ("obs_0.01", False, True),
                 "p_half": ("half_0.01", False, False),
-                "ridge_0.05": ("obs_0.05", False, False)}
+                "ridge_0.05": ("obs_0.05", False, False),
+                "family_all_markers": ("obs_0.01", True, False),
+                "markers_half": ("half_markers", True, False),
+                "markers_quarter": ("quarter_markers", True, False)}
     doc = {"data": "BGLR 1.1.4 'mice' via examples/21_mice_bodyweight_real/fetch_data.py",
            "n_mice": n, "n_families": int(nfam), "design": "across-family 5-fold CV, seed 2028",
            "full_data": {}, "across_family": {}}

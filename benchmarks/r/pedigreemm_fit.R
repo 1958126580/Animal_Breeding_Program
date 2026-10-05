@@ -24,11 +24,18 @@ fit1 <- function(f, d) {
   m <- pedigreemm(f, pedigree = list(id = P), data = d, REML = TRUE, control = ctl)
   vc <- as.data.frame(VarCorr(m))
   v <- setNames(vc$vcov, ifelse(vc$grp == "Residual", "residual", vc$grp))
-  u <- ranef(m)$id[, 1]                    # BLUP of the additive effect (original scale)
+  # BLUP of the additive effect. pedigreemm fits Z* = Z R' with A = R'R (R = relfac, upper
+  # triangular), so u = R' b. Its ranef() method returns R b (relfac not transposed); round
+  # 16 found that R' b equals ABP's EBVs and a dense V-form BLUP while R b does not, so both
+  # are written: ebv = R' b, ebv_ranef = ranef(m) as returned by pedigreemm 0.3-5.
+  b <- ranef(as(m, "merMod"))$id[, 1]
+  u <- as.vector(t(m@relfac$id) %*% b)
+  u_ranef <- ranef(m)$id[, 1]
   list(variances = as.list(v), reml_criterion = REMLcrit(m),
        n = nrow(d), p = ncol(model.matrix(m)), rank_x = qr(model.matrix(m))$rank,
        seconds = proc.time()[["elapsed"]] - t0,
-       ebv = setNames(as.list(u), rownames(ranef(m)$id)))
+       ebv = setNames(as.list(u), rownames(ranef(m)$id)),
+       ebv_ranef = setNames(as.list(u_ranef), rownames(ranef(m)$id)))
 }
 res <- list(
   versions = list(R = R.version.string, lme4 = as.character(packageVersion("lme4")),

@@ -46,7 +46,7 @@ DATA = ROOT / "examples" / "20_holstein_milk_real" / "data"
 
 from abp.solvers.blup import blup  # noqa: E402
 from abp.solvers.reml import reml_fit  # noqa: E402
-from real_milk_validation import design, load, terms_for  # noqa: E402
+from real_milk_validation import design, load, tabular_a, terms_for  # noqa: E402
 
 CFG = {"algorithm": "ai", "max_iter": 200, "tol": 1e-10, "start": None}
 CASES = {"milk_first_lactation": ("milk", True, ["herd"], False),
@@ -96,6 +96,7 @@ def main():
         ids = sorted(Rm["ebv"])
         e_r = np.array([float(Rm["ebv"][i]) for i in ids])
         e_a = np.array([ebv[i] for i in ids])
+        e_rf = np.array([float(Rm["ebv_ranef"][i]) for i in ids])
         doc["models"][name] = {
             "n_records": n, "rank_x_abp": int(X.shape[1]), "rank_x_r": rank,
             "abp": {"status": fit.status, "variances": fit.variances, "loglik": fit.loglik,
@@ -109,7 +110,23 @@ def main():
                     "max_abs_difference": float(np.max(np.abs(e_a - e_r))),
                     "sd_ebv_pedigreemm": float(np.std(e_r)),
                     "max_abs_difference_over_sd": float(np.max(np.abs(e_a - e_r))
-                                                         / np.std(e_r))}}
+                                                         / np.std(e_r)),
+                    "pedigreemm_ranef_as_returned": {
+                        "note": "pedigreemm 0.3-5 ranef() = relfac %*% b; the additive BLUP "
+                                "is t(relfac) %*% b (compared above)",
+                        "correlation_with_abp": float(np.corrcoef(e_a, e_rf)[0, 1])}}}
+        if first_only:      # dense V-form BLUP at ABP's variances (third implementation)
+            A = tabular_a(prow)
+            pos = {r["id"]: k for k, r in enumerate(prow)}
+            idx = np.array([pos[r["id"]] for r in rr])
+            Aj = A[np.ix_(idx, idx)]
+            va, ve = fit.variances["animal"], fit.variances["residual"]
+            Xd = X.toarray()
+            Vi = np.linalg.inv(va * Aj + ve * np.eye(n))
+            beta = np.linalg.solve(Xd.T @ Vi @ Xd, Xd.T @ Vi @ y)
+            u_v = va * Aj @ Vi @ (y - Xd @ beta)
+            e_v = np.array([ebv[r["id"]] for r in rr]) - u_v
+            doc["models"][name]["ebv"]["abp_minus_vform_max_abs"] = float(np.max(np.abs(e_v)))
         print(name, json.dumps(doc["models"][name], default=float), flush=True)
     Path(a.out).write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
     print(f"wrote {a.out}")
