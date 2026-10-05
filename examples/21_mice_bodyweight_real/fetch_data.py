@@ -79,13 +79,17 @@ def main():
     cols = ["SUBJECT.NAME", "GENDER", "Obesity.Date.Year", "Obesity.Date.Season", "Litter",
             "cage", "Obesity.EndNormalBW", "Obesity.BodyLength", "Obesity.BMI"]
     out = ["id", "sex", "year", "season", "litter", "cage", "bw", "body_length", "bmi"]
+    # test_date (round 16, for forward-in-time validation): the last day of the test
+    # season. ASSUMPTION (not stated by the source): a year's "winter" is its first
+    # quarter, so the order is winter < spring < summer < autumn within a year.
+    season_end = {"winter": "03-31", "spring": "06-30", "summer": "09-30", "autumn": "12-31"}
     with open(HERE / "data" / "phenotypes.csv", "w", encoding="utf-8", newline="") as fh:
         w = csv.writer(fh, lineterminator="\n")
-        w.writerow(out + ["year_season"])
+        w.writerow(out + ["year_season", "test_date"])
         for r in pheno[cols].itertuples(index=False):
             vals = ["NA" if (v is None or (isinstance(v, float) and np.isnan(v))) else str(v)
                     for v in r]
-            w.writerow(vals + [f"{vals[2]}-{vals[3]}"])
+            w.writerow(vals + [f"{vals[2]}-{vals[3]}", f"{vals[2]}-{season_end[vals[3]]}"])
     A = np.asarray(x["mice.A"], dtype=float)          # pedigree relationship (BGLR)
     np.save(HERE / "data" / "pedigree_A.npy", A)
     print(f"wrote data/genotypes.csv ({len(ids)} mice x {len(snps)} SNPs), data/markers.csv, "

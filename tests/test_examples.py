@@ -129,7 +129,8 @@ def test_error_code_reference_is_current():
 
 REAL = [("20_holstein_milk_real", "analysis_scs_repeatability.toml"),
         ("20_holstein_milk_real", "analysis_first_lactation_multitrait.toml"),
-        ("21_mice_bodyweight_real", "analysis_bw_gblup.toml")]
+        ("21_mice_bodyweight_real", "analysis_bw_gblup.toml"),
+        ("21_mice_bodyweight_real", "analysis_bw_lr.toml")]
 
 
 @pytest.mark.parametrize("ex,fname", REAL)
