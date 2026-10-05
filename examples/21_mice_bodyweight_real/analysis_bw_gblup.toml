@@ -1,0 +1,60 @@
+# Example 21 (REAL data): body weight of heterogeneous-stock mice, GBLUP.
+# Data: the 'mice' data of the R package BGLR 1.1.4 (GPL-3; Valdar et al. 2006, Nat Genet
+# 38:879; Legarra et al. 2008, Genetics 180:611): 1,814 mice, 10,346 SNPs.
+# NOT stored in the repository: run
+#   pip install rdata && python examples/21_mice_bodyweight_real/fetch_data.py
+# first. Model: sex and test year x season fixed, cage as an independent random effect
+# (mice of a cage share an environment), genomic additive effect (VanRaden G from the
+# SNPs, allele frequencies from the genotyped mice, G + 0.01 I); variances by REML.
+schema_version = "1"
+
+[project]
+name = "mice_bodyweight_real"
+species = "mouse"
+synthetic_data = false
+
+[analysis]
+task = "additive_ebv"
+target_population = "heterogeneous-stock mice of the Valdar et al. (2006) experiment"
+information_cutoff = "2004-12-31"
+genetic_base = "genomic: VanRaden G centred on the observed allele frequencies"
+applicability = "method validation on public real data; not a breeding evaluation"
+
+[data]
+phenotypes = "data/phenotypes.csv"
+genotypes = "data/genotypes.csv"
+marker_map = "data/markers.csv"
+
+[[traits]]
+name = "bw"
+unit = "g"
+min = 5.0
+max = 60.0
+description = "body weight at the end of the obesity test"
+
+[model]
+traits = ["bw"]
+fixed = [
+  { column = "sex", type = "factor" },
+  { column = "year_season", type = "factor" },
+]
+random = [
+  { name = "animal", kind = "additive", relationship = "genomic" },
+  { name = "cage", kind = "iid", column = "cage" },
+]
+
+[variances]
+mode = "reml"
+
+[genomic]
+frequency_source = "genotyped_all"
+singular_policy = "ridge"       # G + 0.01 I (no pedigree for blending with A22)
+ridge = 0.01
+min_call_rate_marker = 0.90
+min_call_rate_animal = 0.90
+
+[qc]
+out_of_range = "quarantine"
+
+[output]
+top_n = 15

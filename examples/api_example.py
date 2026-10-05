@@ -134,6 +134,8 @@ with tempfile.TemporaryDirectory() as tmp:
     gd = load_plink(Path(tmp) / "demo", "DEMO-ASSEMBLY")
     print("PLINK:", gd.ids, gd.markers, "counted allele (A1):", gd.counted_allele,
           "dosages", np.where(gd.missing, np.nan, gd.dosage).tolist())
+    gd8 = load_plink(Path(tmp) / "demo", "DEMO-ASSEMBLY", storage="int8")
+    print("PLINK int8 storage:", gd8.dosage.dtype, gd8.dosage.tolist(), "(-1 = missing)")
 
 # --- 10. Bayesian marker regression and MCMC diagnostics ------------------------
 from abp.solvers.bayes import BayesConfig, run_bayes
@@ -158,6 +160,168 @@ print("BayesC: converged after", bres.iterations, "iterations | h2",
 chains = rng.normal(size=(4, 1000))                         # any (chains, draws) array
 print("diagnostics of iid draws:", {k: round(v, 3) for k, v in summarize(chains).items()
                                     if k in ("rhat", "ess_bulk", "ess_tail")})
+
+# --- 12. Metafounders: a related base population -----------------------------
+from abp.core.metafounders import MetafounderPedigree
+# founders s and d come from base population MF:A (parents coded as metafounder 0);
+# x has sire s and an unknown dam from the same base population
+mf_groups = GroupAssignment(labels=("MF:A",), sire_group=np.array([0, 0, -1]),
+                            dam_group=np.array([0, 0, 0]))
+mfp = MetafounderPedigree(ped3, mf_groups, gamma=np.array([[0.4]]))
+print("metafounder base: diag A =", mfp.diag_ext().round(3),          # 1 + gamma/2 for founders
+      "| A[s, d] =", round(float(mfp.a_ext_dense()[0, 1]), 3))        # = gamma
+mf_term = RandomTerm("animal", sp.csr_matrix((np.ones(3), (np.arange(3), [0, 1, 2])), shape=(3, 4)),
+                     mfp.ainv_ext(), list(mfp.labels), genetic=True,
+                     k_diag=mfp.diag_ext(), logdet_k=mfp.logdet_ext())
+mf_res = blup(np.array([10.0, 12.0, 11.5]), sp.csr_matrix(np.ones((3, 1))), [mf_term],
+              {"animal": 2.0, "residual": 4.0})
+print("EBVs incl. metafounder:", mf_res.terms["animal"].solution.round(4))
+
+# --- 13. Exact PEV from the sparse factor (selected inversion) -------------------
+res_sparse = blup(y, fixed.X, [animal], {"animal": 20.0, "residual": 40.0},
+                  method="sparse_direct")
+si = res_sparse.solve.factor.selected_inverse()          # Takahashi equations
+print("sparse PEV equals dense PEV:",
+      np.allclose(res_sparse.terms["animal"].pev, t.pev, atol=1e-10),
+      "| factor entries:", si.nnz_factor, "| kernel:", si.kernel)
+
+# --- 14. Multi-trait REML ----------------------------------------------------------
+from abp.solvers.multitrait_reml import mt_reml_fit
+# two records per animal simulated from the model u ~ N(0, A (x) G0), e ~ N(0, R0)
+L_u = np.linalg.cholesky(np.kron(ped2.a_dense(), G0))
+U_sim = (L_u @ rng.standard_normal(2 * ped2.n)).reshape(ped2.n, 2)
+rec_an = np.repeat(np.arange(ped2.n), 2)
+Y_sim = 10 + U_sim[rec_an] + rng.standard_normal((rec_an.size, 2)) @ np.linalg.cholesky(R0).T
+Xs = [build_fixed_design({}, [], True, rec_an.size).X for _ in range(2)]
+fit_mt = mt_reml_fit(MTData(Y_sim, Xs, rec_an), ped2.ainv(), ped2.logdet_a(),
+                     {"tol": 1e-8, "max_iter": 200})
+print("multi-trait REML:", fit_mt.status, "after", fit_mt.iterations, "iterations; G0",
+      fit_mt.G0.round(2).tolist())
+
+# --- 15. Threshold model for a categorical trait (liability scale) -----------------
+from abp.solvers.threshold import threshold_blup
+cat = 1.0 + (y2 > np.median(y2)) + (y2 > np.quantile(y2, 0.85))   # categories 1, 2, 3
+Xc = build_fixed_design({}, [], True, ped2.n).X
+Zc = sp.identity(ped2.n, format="csr")
+thr = threshold_blup(cat, Xc, [RandomTerm("animal", Zc, ped2.ainv(), ped2.ids, True,
+                                          k_diag=1 + ped2.inbreeding())],
+                     {"animal": 0.3, "residual": 1.0}, intercept=True)
+print("threshold model: thresholds", thr.thresholds.round(3), "| iterations", thr.iterations)
+
+# --- 16. Sparse LDL' factorization (minimum degree) --------------------------------
+from abp.solvers.cholesky import SparseLDL
+C_small = res_sparse.system.C
+fac_ldl = SparseLDL(C_small)
+print("LDL' solve equals the MME solution:",
+      np.allclose(fac_ldl.solve(res_sparse.system.rhs), res_sparse.solve.solution, atol=1e-10),
+      "| log|C| =", round(fac_ldl.logdet(), 6))
+
+# --- 17. APY inverse of G ------------------------------------------------------------
+from abp.core.genomic import apy_inverse
+G_apy_demo = 0.95 * G + 0.05 * np.eye(G.shape[0])
+apy = apy_inverse(G_apy_demo, np.arange(0, G.shape[0], 2))       # every second animal in the core
+print("APY:", apy.record["n_core"], "core animals; inverse matches the implied G_APY:",
+      np.allclose(apy.g_inv @ apy.g_apy, np.eye(G.shape[0]), atol=1e-8))
+
+# --- 18. PEV including the uncertainty of the REML variances (Kackar-Harville) -------
+from abp.solvers.vc_uncertainty import kackar_harville_delta
+res2 = blup(y2, X2, [term2], fit.variances)
+delta = kackar_harville_delta(y2, X2, [term2], fit.variances, fit.cov, fit.cov_names, "animal")
+pev_total = res2.terms["animal"].pev + delta
+print("PEV incl. REML uncertainty: mean increase",
+      f"{100 * np.mean(delta / res2.terms['animal'].pev):.2f}%")
+
+# --- 19. Laplace-approximate REML for the threshold model ----------------------------
+from abp.solvers.threshold import threshold_laplace_reml
+tfit = threshold_laplace_reml(cat, Xc, [RandomTerm("animal", Zc, ped2.ainv(), ped2.ids, True,
+                                                   k_diag=1 + ped2.inbreeding(),
+                                                   logdet_k=ped2.logdet_a())], intercept=True)
+print("threshold Laplace REML: liability variance", round(tfit.variances["animal"], 3),
+      "after", tfit.evaluations, "evaluations")
+
+# --- 20. Reduced-rank genetic covariance matrix (multi-trait REML at the boundary) ---
+from abp.solvers.multitrait_reml import mt_reml_fit_reduced_rank
+rr = mt_reml_fit_reduced_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), ped2.logdet_a(),
+                              1, {"tol": 1e-8, "max_iter": 200})
+res_rr = build_and_solve(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), 1 + ped2.inbreeding(),
+                         None, rr.R0, loadings=rr.loadings)
+print("rank-1 G0:", rr.G0.round(3).tolist(), "| logL", round(rr.loglik, 4),
+      "| EBV trait 2 of animal 0:", round(float(res_rr.ebv[0, 1]), 4))
+
+# --- 21. Matrix-free single step (H^-1 as an operator in PCG) -------------------------
+from abp.core.genomic import spd_inverse_and_logdet
+from abp.core.ssop import A22InverseOperator, DenseInverseOperator, SingleStepHInverse
+g_idx = ped2.index_of(geno_ids)
+h_op = SingleStepHInverse(ped2.ainv().tocsr(), g_idx,
+                          DenseInverseOperator(spd_inverse_and_logdet(Gstar, "G*")[0]),
+                          A22InverseOperator(ped2.ainv(), g_idx))
+ss_mf = blup(y2, X2, [RandomTerm("animal", Z2, h_op, ped2.ids, True)],
+             {"animal": 2.0, "residual": 4.0}, method="pcg", compute_pev=False)
+ss_ex = blup(y2, X2, [RandomTerm("animal", Z2, ss.h_inv, ped2.ids, True)],
+             {"animal": 2.0, "residual": 4.0}, method="pcg", compute_pev=False)
+print("matrix-free single step equals explicit H^-1:",
+      np.allclose(ss_mf.terms["animal"].solution, ss_ex.terms["animal"].solution, atol=1e-7))
+
+# --- 22. Gibbs sampler for the threshold model (liability variances unknown) ---------
+from abp.solvers.threshold_gibbs import ThresholdGibbsConfig, threshold_gibbs
+tg = threshold_gibbs(cat, Xc, [RandomTerm("animal", Zc, ped2.ainv(), ped2.ids, True,
+                                          k_diag=1 + ped2.inbreeding())], True,
+                     ThresholdGibbsConfig(chains=2, iterations=600, burn_in=200, thin=1,
+                                          max_iterations=600, seed=1))
+print("threshold Gibbs: posterior mean liability variance",
+      round(tg.variances["animal"]["mean"], 3), "| converged:", tg.converged,
+      "(short demonstration chain)")
+
+# --- 23. Multi-trait PEV including the uncertainty of G0 and R0 -----------------------
+from abp.solvers.vc_uncertainty import kackar_harville_delta_multitrait
+mt_d = MTData(Y_sim, Xs, rec_an)
+mt_res = build_and_solve(mt_d, ped2.ainv(), 1 + ped2.inbreeding(), fit_mt.G0, fit_mt.R0)
+d_mt = kackar_harville_delta_multitrait(mt_d, ped2.ainv(), 1 + ped2.inbreeding(), fit_mt.G0,
+                                        fit_mt.R0, fit_mt.cov)
+print("multi-trait PEV increase from REML uncertainty (mean, per trait):",
+      np.round(np.einsum("ijj->j", d_mt) / np.einsum("ijj->j", mt_res.pev_blocks), 4).tolist())
+
+# --- 24. Sampled reliabilities on the matrix-free single-step path -------------------
+import scipy.linalg as sla
+from abp.solvers.pev_sampling import sampled_pev
+h_smp = SingleStepHInverse(ped2.ainv().tocsr(), g_idx,
+                           DenseInverseOperator(spd_inverse_and_logdet(Gstar, "G*")[0],
+                                                sla.cholesky(Gstar, lower=True)),
+                           A22InverseOperator(ped2.ainv(), g_idx), ped=ped2)
+smp = sampled_pev(ped2.n, X2, [RandomTerm("animal", Z2, h_smp, ped2.ids, True)],
+                  {"animal": 2.0, "residual": 4.0}, "animal", n_samples=50, seed=3)
+print("sampled reliabilities: mean", round(float(smp.reliability.mean()), 3),
+      "| mean Monte-Carlo SE", round(float(smp.reliability_se.mean()), 3))
+
+# --- 25. Reduced-rank REML: likelihood and analytic gradient -------------------------
+from abp.solvers import multitrait_reml as MR
+ev_rr = MR.ReducedRankEvaluator(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), ped2.logdet_a(), 1)
+m2ll, grad = ev_rr.value_and_gradient(MR._rr_pack(rr.loadings, rr.R0))
+print("-2 logL at the rank-1 optimum", round(m2ll, 4), "| largest gradient element",
+      f"{np.max(np.abs(grad)):.1e}")
+
+# --- 26. Rank selection by AIC and Kackar-Harville PEV for reduced-rank fits -----------
+from abp.solvers.vc_uncertainty import kackar_harville_delta_reduced_rank
+sel = MR.select_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(), ped2.logdet_a(),
+                     {"tol": 1e-8, "max_iter": 200})
+print("rank selection (lower rank only if AIC smaller by >= 2): rank", sel["chosen_rank"],
+      "| per rank:", [round(r_["delta_aic"], 2) if "aic" in r_ else r_["error"]["code"]
+                      for r_ in sel["table"]])
+d_rr = kackar_harville_delta_reduced_rank(MTData(Y, Xb, np.arange(ped2.n)), ped2.ainv(),
+                                          1 + ped2.inbreeding(), rr.x, 2, 1, rr.cov_x)
+print("reduced-rank PEV increase from REML uncertainty (mean, per trait):",
+      np.round(np.einsum("ijj->j", d_rr) / np.einsum("ijj->j", res_rr.pev_blocks), 4).tolist())
+
+# --- 27. Multi-trait threshold model (one categorical + one continuous trait) --------
+from abp.solvers.mt_threshold_gibbs import MTThresholdGibbsConfig, mt_threshold_gibbs
+Ymt = np.column_stack([Y[:, 1], np.digitize(y2, np.quantile(y2, [0.4, 0.8])) + 1.0])
+Xmt = [build_fixed_design({}, [], True, int((~np.isnan(Ymt[:, j])).sum())).X for j in range(2)]
+mtt = mt_threshold_gibbs(Ymt, 1, Xmt, np.arange(ped2.n), ped2.ainv(), MTThresholdGibbsConfig(
+    chains=2, iterations=300, burn_in=100, thin=1, max_iterations=300, seed=1, prior_nu=5.0,
+    prior_G0=np.array([[1.0, 0.0], [0.0, 0.3]])))
+print("multi-trait threshold: posterior mean G0", np.round(mtt.G0["mean"], 3).tolist(),
+      "| thresholds", np.round(mtt.thresholds_mean, 3).tolist(),
+      "| converged:", mtt.converged, "(short demonstration chain)")
 
 # --- 11. Whole workflow from an analysis spec ----------------------------------
 root = Path(__file__).resolve().parent

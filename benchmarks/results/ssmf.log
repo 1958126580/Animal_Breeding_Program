@@ -1,0 +1,9 @@
+{"mode": "explicit", "n_animals": 50000, "n_genotyped": 6000, "n_markers": 5000, "n_core": null, "n_records": 45000, "n_equations": 50400, "build_s": 188.06641783299983, "solve_s": 9.606819056999939, "pcg_iterations": 143, "relative_residual": 9.276729146867633e-11, "peak_rss_bytes": 10892779520}
+{"mode": "explicit_apy", "n_animals": 50000, "n_genotyped": 6000, "n_markers": 5000, "n_core": 2000, "n_records": 45000, "n_equations": 50400, "build_s": 157.3750074149998, "solve_s": 7.743862089999766, "pcg_iterations": 112, "relative_residual": 7.276399152158398e-11, "peak_rss_bytes": 10893479936}
+{"mode": "matrix_free", "n_animals": 50000, "n_genotyped": 6000, "n_markers": 5000, "n_core": null, "n_records": 45000, "n_equations": 50400, "build_s": 62.72103264599991, "solve_s": 1.9942340790003072, "pcg_iterations": 145, "relative_residual": 7.888054274085066e-11, "peak_rss_bytes": 3576176640}
+{"mode": "matrix_free_apy", "n_animals": 50000, "n_genotyped": 6000, "n_markers": 5000, "n_core": 2000, "n_records": 45000, "n_equations": 50400, "build_s": 19.054039134999584, "solve_s": 1.371448035999947, "pcg_iterations": 118, "relative_residual": 6.999491535751269e-11, "peak_rss_bytes": 1666539520}
+explicit {'build_s': 188.06641783299983, 'solve_s': 9.606819056999939, 'pcg_iterations': 143, 'peak_rss_bytes': 10892779520} {}
+explicit_apy {'build_s': 157.3750074149998, 'solve_s': 7.743862089999766, 'pcg_iterations': 112, 'peak_rss_bytes': 10893479936} {}
+matrix_free {'build_s': 62.72103264599991, 'solve_s': 1.9942340790003072, 'pcg_iterations': 145, 'peak_rss_bytes': 3576176640} {'max_abs_diff_vs_explicit': 3.388610503307632e-10}
+matrix_free_apy {'build_s': 19.054039134999584, 'solve_s': 1.371448035999947, 'pcg_iterations': 118, 'peak_rss_bytes': 1666539520} {'max_abs_diff_vs_explicit_apy': 6.446012612570939e-10}
+wrote /home/user/Animal_Breeding_Program/benchmarks/results/ssmf.json

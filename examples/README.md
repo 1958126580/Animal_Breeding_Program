@@ -3,7 +3,9 @@
 All data here are **synthetic** or taken from a textbook teaching example.
 Each example is run end to end by the test suite (`tests/test_examples.py`,
 `tests/test_workflow.py`, `tests/test_ocs_mating.py`,
-`tests/test_bayes_workflow.py`, `tests/test_upg_workflow.py`), so the
+`tests/test_bayes_workflow.py`, `tests/test_upg_workflow.py`,
+`tests/test_metafounder_workflow.py`, `tests/test_multitrait_reml.py`,
+`tests/test_threshold.py`), so the
 commands below are known to work.
 
 | # | Folder | Analysis | Command |
@@ -19,7 +21,34 @@ commands below are known to work.
 | 09 | `09_sheep_mating` | optimal contributions and a mating plan for 150 ewes from the index of example 06 (ΔF 1%, no half-sib matings, recessive-risk limit); `make_candidates.py` rebuilds the candidate file | `abp mate examples/09_sheep_mating/mating.toml --out runs/mating` |
 | 10 | `10_sheep_fec_bayesc` | faecal egg count, BayesC (π₀ = 0.95), 4 chains, convergence-gated | `abp run examples/10_sheep_fec_bayesc/analysis.toml --out runs/ex10` |
 | 11 | `11_sheep_upg` | a flock buying rams from two breeders without ancestry: random (`analysis.toml`, REML) and fixed (`analysis_fixed.toml`) genetic groups; `make_data.py` regenerates the data, `compare.py` compares with and without groups against the truth | `abp run examples/11_sheep_upg/analysis.toml --out runs/ex11` |
+| 12 | `12_sheep_wwt_single_step_metafounder` | weaning weight, single step on a metafounder base: all unknown parents from base population `MF:BASE`, γ estimated from the genotypes, `G05` without rescaling, REML; EBVs also against the base (`ebv_vs_base`) | `abp run examples/12_sheep_wwt_single_step_metafounder/analysis.toml --out runs/ex12` |
+| 13 | `13_sheep_multitrait_reml` | weaning weight, fat depth and faecal egg count: genetic and residual covariance matrices by multi-trait REML, then multi-trait BLUP | `abp run examples/13_sheep_multitrait_reml/analysis.toml --out runs/ex13` |
+| 14 | `14_sheep_nlb_threshold` | litter size (1/2/3 lambs) with a threshold (probit) repeatability model on the liability scale | `abp run examples/14_sheep_nlb_threshold/analysis.toml --out runs/ex14` |
+| 15 | `15_sheep_wwt_nlb1_threshold` | weaning weight (continuous) and litter size at first lambing (1/2/3, ewes only) in one multi-trait threshold model: (co)variances, thresholds and EBVs by Gibbs sampling, inverse-Wishart prior (about 8-15 minutes) | `abp run examples/15_sheep_wwt_nlb1_threshold/analysis.toml --out runs/ex15` |
 | - | `api_example.py` | the Python API, step by step | `python examples/api_example.py` |
+
+### Round-5 variants (edit one line of an existing example)
+
+* **Example 05, matrix-free single step:** set `[variances] mode = "known"`
+  with `values = { animal = 4.0, residual = 12.25 }`, `[genomic] tuning = "none"`,
+  `single_step_mode = "matrix_free"` (optionally `apy_core_size = 150`) and
+  `[solver] pev = "none"`. The EBVs equal those of the explicit single step
+  with the same settings (`tests/test_single_step_matrix_free.py`).
+* **Example 13, reduced rank:** add `boundary = "reduced_rank"` to `[reml]`;
+  it only acts when the full-rank fit stops at the boundary (`ABP-E300`).
+* **Example 14, estimated liability variances:** replace the `[variances]`
+  block by `mode = "reml"` (Laplace approximation; biased when animals have few
+  records, see the manual §7.14).
+* **Example 14, Gibbs sampler (round 6):** replace the `[variances]` block by
+  `mode = "bayes"` and add `[bayes]` with `method = "threshold"`,
+  `iterations = 4000`, `burn_in = 1000`, `thin = 2`, `max_iterations = 32000`
+  (about 1.5 minutes; see the manual §7.14).
+* **Example 05, sampled reliabilities (round 6):** in the matrix-free variant
+  above use `pev = "sampled"` and e.g. `pev_samples = 300`.
+* **Example 13 (round 6):** its REML run writes
+  `pev_incl_vc_uncertainty_<trait>` and `reliability_incl_vc_uncertainty_<trait>`.
+* **Example 02:** its REML run already writes `pev_incl_vc_uncertainty` and
+  `reliability_incl_vc_uncertainty` to `ebv_wwt.csv`.
 
 ## The synthetic sheep flock (`sheep_data/`)
 

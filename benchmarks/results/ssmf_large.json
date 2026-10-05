@@ -1,0 +1,73 @@
+{
+  "created_at": "2026-09-30T00:40:39+00:00",
+  "environment": {
+    "os": "Linux-6.18.44-fc-v50-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "blas": {
+      "name": "scipy-openblas",
+      "version": "0.3.31.188.0"
+    },
+    "cpu_count": 4,
+    "gpu": null,
+    "native_kernel": true,
+    "dtype": "float64"
+  },
+  "size": {
+    "animals": 200000,
+    "genotyped": 30000,
+    "markers": 20000,
+    "core": 5000,
+    "records": 190000,
+    "equations": 202000
+  },
+  "pcg": {
+    "iterations": 101,
+    "relative_residual": 9.002016826916272e-09
+  },
+  "sampled_pev": {
+    "n_samples": 20,
+    "mean_pcg_iterations": 99.45,
+    "mean_reliability_genotyped": 0.18284015708794593,
+    "mean_reliability_all": 0.3784968702117339,
+    "mean_mc_se": 0.1508547955828134
+  },
+  "steps": {
+    "pedigree": {
+      "wall_s": 1.0852063669999552,
+      "peak_rss_gb": 0.13115310668945312
+    },
+    "inbreeding": {
+      "wall_s": 43.73501896000016,
+      "peak_rss_gb": 0.13115310668945312
+    },
+    "genotypes_int8": {
+      "wall_s": 12.289650815000186,
+      "peak_rss_gb": 0.8375778198242188
+    },
+    "a22_core_columns": {
+      "wall_s": 119.58437932900006,
+      "peak_rss_gb": 3.7257461547851562
+    },
+    "apy_blocks_from_int8_and_operator": {
+      "wall_s": 76.33589763600003,
+      "peak_rss_gb": 6.754936218261719
+    },
+    "a22_inverse_operator": {
+      "wall_s": 48.18288940599996,
+      "peak_rss_gb": 6.754936218261719
+    },
+    "pcg_solve": {
+      "wall_s": 14.850566942999649,
+      "peak_rss_gb": 6.754936218261719
+    },
+    "sampled_pev": {
+      "wall_s": 187.86552459199993,
+      "peak_rss_gb": 6.754936218261719
+    }
+  },
+  "peak_rss_gb": 6.754936218261719,
+  "explicit_single_step_n_x_n2_block_gb": 44.70348358154297
+}

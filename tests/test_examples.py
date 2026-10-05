@@ -125,3 +125,30 @@ def test_error_code_reference_is_current():
     from abp.errors import markdown_table
     on_disk = (ROOT / "docs" / "error_codes.md").read_text(encoding="utf-8")
     assert on_disk == markdown_table(), "regenerate with: python -m abp.errors docs/error_codes.md"
+
+
+REAL = [("20_holstein_milk_real", "analysis_scs_repeatability.toml"),
+        ("20_holstein_milk_real", "analysis_first_lactation_multitrait.toml"),
+        ("21_mice_bodyweight_real", "analysis_bw_gblup.toml"),
+        ("21_mice_bodyweight_real", "analysis_bw_lr.toml")]
+
+
+@pytest.mark.parametrize("ex,fname", REAL)
+def test_real_data_example_specs_validate(ex, fname):
+    """The real-data example specs are valid even when their data are not fetched."""
+    import tomllib
+
+    from abp.core.spec import validate_spec_dict
+    with open(EX / ex / fname, "rb") as fh:
+        validate_spec_dict(tomllib.load(fh))
+
+
+@pytest.mark.parametrize("ex,fname", [REAL[0], REAL[2]])
+def test_real_data_example_runs_when_fetched(ex, fname, tmp_path):
+    """End-to-end run on the real data; skipped unless ``fetch_data.py`` was run."""
+    if not (EX / ex / "data").is_dir():
+        pytest.skip(f"run examples/{ex}/fetch_data.py first (data are not redistributed)")
+    out = run_evaluation(EX / ex / fname, tmp_path / "o", console=False)
+    for t in out.results["traits"].values():
+        assert t["reml"]["status"] in ("converged", "converged_boundary")
+        assert 0.0 < t["heritability"] < 1.0

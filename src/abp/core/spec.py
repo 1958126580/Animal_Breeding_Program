@@ -139,6 +139,9 @@ SCHEMA = Section({
         "min": Field("float", doc="Smallest valid value (inclusive)."),
         "max": Field("float", doc="Largest valid value (inclusive)."),
         "description": Field("str", default=""),
+        "type": Field("str", default="continuous", choices=("continuous", "categorical"),
+                      doc="'categorical': ordered categories (integer codes) analysed with a "
+                          "threshold (probit) model on the liability scale."),
     }), required=True, min_items=1),
     "model": Section({
         "traits": Field("str_list", required=True, doc="Traits analysed jointly (1 = single-trait)."),
@@ -150,7 +153,12 @@ SCHEMA = Section({
         })),
         "random": TableArray(Section({
             "name": Field("str", required=True, check=_name),
-            "kind": Field("str", required=True, choices=("additive", "iid")),
+            "kind": Field("str", required=True, choices=("additive", "iid", "maternal"),
+                          doc="'maternal': maternal genetic effect of the record's dam (dam "
+                              "from the pedigree; same relationship as the additive term; "
+                              "one trait with REML or known variances - the additive "
+                              "term's value is then the 2 x 2 matrix (direct, maternal) - "
+                              "or the Bayesian multi-trait Gibbs models)."),
             "relationship": Field("str", choices=("pedigree", "genomic", "single_step"),
                                   doc="Covariance structure of an additive term."),
             "column": Field("str", doc="Grouping column of an iid term (default: animal id)."),
@@ -167,12 +175,33 @@ SCHEMA = Section({
         "max_iter": Field("int", default=200, check=_positive),
         "tol": Field("float", default=1e-8, check=_positive),
         "start": Field("float_map", doc="Starting variances (default: data-based heuristic)."),
+        "boundary": Field("str", default="stop", choices=("stop", "reduced_rank"),
+                          doc="Multi-trait REML whose optimum has a singular genetic covariance "
+                              "matrix: 'stop' (ABP-E300, default) or 'reduced_rank' (refit with "
+                              "G0 = Lambda Lambda' of rank reml.rank)."),
+        "rank_selection": Field("str", default="none", choices=("none", "aic"),
+                                doc="Multi-trait REML: 'aic' fits the full-rank model and every "
+                                    "reduced rank and moves to a lower rank only if its AIC "
+                                    "is smaller by at least 2 (conservative rule)."),
+        "rank": Field("int", check=_positive,
+                      doc="Multi-trait REML: estimate G0 = Lambda Lambda' with this rank "
+                          "directly (an assumption stated by the user; below the number of "
+                          "traits). Not combined with boundary = 'reduced_rank', whose "
+                          "fallback uses rank traits - 1."),
     }),
     "solver": Section({
         "method": Field("str", default="auto", choices=("auto", "dense", "sparse_direct", "pcg")),
         "tol": Field("float", default=1e-10, check=_positive),
         "max_iter": Field("int", default=10000, check=_positive),
-        "pev": Field("str", default="exact", choices=("exact", "none")),
+        "pev": Field("str", default="exact", choices=("exact", "none", "sampled"),
+                     doc="'sampled': PEV and reliabilities estimated by simulation "
+                         "(matrix-free single step only; Monte-Carlo SE reported)."),
+        "pev_samples": Field("int", default=200, check=lambda x: None if x >= 10
+                             else "must be >= 10"),
+        "pev_seed": Field("int", default=20260925),
+        "factorization": Field("str", default="auto", choices=("auto", "ldl", "superlu"),
+                               doc="Sparse direct factor: ABP's LDL' with minimum-degree ordering "
+                                   "('auto' when the compiled kernel is present) or SuperLU."),
     }),
     "qc": Section({
         "unknown_animals": Field("str", default="error", choices=("error", "add_as_founder")),
@@ -194,6 +223,21 @@ SCHEMA = Section({
         "blend_alpha": Field("float", default=0.05, check=_unit_interval),
         "ridge": Field("float", default=0.01, check=_positive),
         "tuning": Field("str", default="none", choices=("none", "match_a22")),
+        "apy_core_size": Field("int", default=0, check=_nonneg,
+                               doc="APY: number of core animals (0 = off, the exact G inverse). "
+                                   "Core animals are drawn at random among the genotyped with "
+                                   "apy_seed; the list is written to apy_core.csv."),
+        "apy_seed": Field("int", default=20260925),
+        "genotype_storage": Field("str", default="float64", choices=("float64", "int8"),
+                                  doc="'int8': dosages held as 1-byte integers (-1 = missing) "
+                                      "instead of 8-byte floats; integer dosages only (PLINK "
+                                      "input, or dosage files without imputed values)."),
+        "single_step_mode": Field("str", default="explicit", choices=("explicit", "matrix_free"),
+                                  doc="'matrix_free': H^-1 is applied as an operator inside PCG "
+                                      "(A22^-1 from sparse blocks of A^-1, G^-1 dense or APY); "
+                                      "memory no longer grows with n x n_genotyped. Solutions "
+                                      "only: needs known variances, solver.pev = 'none', a "
+                                      "single-trait model and tuning = 'none'."),
     }),
     "index": Section({
         "weights": Field("float_map", required=True, doc="Economic weight per unit of each trait."),
@@ -211,10 +255,35 @@ SCHEMA = Section({
         "variance_ratio": Field("float", check=_positive,
                                 doc="sigma_g^2 / sigma_a^2 for random groups (required)."),
     }),
+    "metafounders": Section({
+        "prefix": Field("str", required=True,
+                        check=lambda x: None if x.strip() == x and x else "non-empty, no spaces",
+                        doc="Parent codes starting with this prefix name metafounders "
+                            "(e.g. 'MF:' -> 'MF:TEXEL')."),
+        "default": Field("str", doc="Metafounder for unknown parents without a code (must "
+                                    "start with the prefix). Without it such parents are refused."),
+        "reference": Field("str", doc="Metafounder whose level defines the reported base "
+                                      "(ebv_vs_base). Defaults to 'default', or to the only "
+                                      "metafounder."),
+        "gamma_source": Field("str", required=True, choices=("file", "genotypes_gls"),
+                              doc="'file': Gamma from gamma_file with stated provenance; "
+                                  "'genotypes_gls': estimated from genotypes (GLS base "
+                                  "allele frequencies, needs genotypes)."),
+        "gamma_file": Field("str", doc="CSV with metafounder_1, metafounder_2, gamma."),
+        "gamma_provenance": Field("str", doc="Where the Gamma values in gamma_file come from "
+                                             "(required with gamma_source = 'file')."),
+        "sampling_correction": Field("bool", default=True,
+                                     doc="Subtract the expected sampling inflation of the "
+                                         "GLS Gamma estimate."),
+    }),
     "bayes": Section({
         "method": Field("str", required=True,
-                        choices=("BRR", "BayesA", "BayesB", "BayesC", "BayesCpi", "BayesR"),
-                        doc="Marker prior; pi0 = probability of a zero effect."),
+                        choices=("BRR", "BayesA", "BayesB", "BayesC", "BayesCpi", "BayesR",
+                                 "threshold", "multitrait"),
+                        doc="Marker prior (pi0 = probability of a zero effect), or 'threshold': "
+                            "Gibbs sampler of the threshold model for a categorical trait "
+                            "(random terms from [model]; uniform priors on the liability "
+                            "variances; prior_r2, pi0, nu and nu_e are not used)."),
         "chains": Field("int", default=4, check=lambda x: None if x >= 2 else "must be >= 2"),
         "iterations": Field("int", default=6000, check=_positive),
         "burn_in": Field("int", default=1000, check=_nonneg),
@@ -227,6 +296,31 @@ SCHEMA = Section({
         "rhat_max": Field("float", default=1.01, check=_positive),
         "ess_min": Field("float", default=400.0, check=_positive),
         "max_iterations": Field("int", default=30000, check=_positive),
+        "variance_prior": Field("str", default="uniform",
+                                choices=("uniform", "scaled_inv_chi2", "inverse_wishart"),
+                                doc="method = 'threshold' only: prior of each liability "
+                                    "variance; 'scaled_inv_chi2' (single trait) uses bayes.nu "
+                                    "degrees of freedom and the scale from "
+                                    "bayes.prior_variances; 'inverse_wishart' (multi-trait "
+                                    "threshold model) uses IW(nu, nu G_prior) with G_prior "
+                                    "from bayes.prior_covariance."),
+        "prior_variances": Field("float_map",
+                                 doc="method = 'threshold' with variance_prior = "
+                                     "'scaled_inv_chi2': prior scale (a guess of the liability "
+                                     "variance) for every random term."),
+        "prior_covariance": Field("number_or_matrix_map",
+                                  doc="multi-trait Gibbs models with variance_prior = "
+                                      "'inverse_wishart': prior guess of the genetic "
+                                      "covariance matrix (key: the additive term; required), "
+                                      "of the covariance matrix of each iid term (key: the "
+                                      "term's name) and of R0 (key 'residual'); IW(nu, nu * guess); "
+                                      "traits in model.traits order, liability scale for the "
+                                      "categorical trait."),
+        "residual_groups": Field("float_map",
+                                 doc="multi-trait threshold or 'multitrait' model: a group "
+                                     "number per trait; residual covariances between traits "
+                                     "of different groups are fixed at 0 (e.g. a lamb trait "
+                                     "and a later ewe trait). Default: one group."),
     }),
     "validation": Section({
         "method": Field("str", required=True, choices=("lr",),
@@ -417,14 +511,42 @@ def validate_spec_dict(raw: dict) -> dict:
             if r["column"] is not None:
                 raise _err(f"model.random.{r['name']}",
                            "additive terms use the animal id column; remove 'column'")
+        elif r["kind"] == "maternal":
+            if r["relationship"] is not None or r["column"] is not None:
+                raise _err(f"model.random.{r['name']}", "a maternal term takes the dam from the "
+                           "pedigree and the relationship of the additive term; remove "
+                           "'relationship' and 'column'")
         else:
             if r["relationship"] is not None:
                 raise _err(f"model.random.{r['name']}", "'relationship' applies to additive terms only")
             if r["column"] is None:
                 r["column"] = d["data"]["phenotype_columns"]["id"]
-    if len(m["traits"]) > 1 and len(m["random"]) > 1:
+    mt_gibbs = (raw.get("variances") or {}).get("mode") == "bayes" and \
+        (raw.get("bayes") or {}).get("method") in ("threshold", "multitrait")
+    maternal = [r for r in m["random"] if r["kind"] == "maternal"]
+    if maternal:
+        mode = (raw.get("variances") or {}).get("mode")
+        if not mt_gibbs and not (mode in ("known", "reml") and len(m["traits"]) == 1):
+            raise ABPError("UNSUPPORTED_COMBINATION", "maternal genetic effects need one trait "
+                           "with variances.mode = 'reml' or 'known', or variances.mode = "
+                           "'bayes' with bayes.method = 'multitrait' (or 'threshold')")
+        if not mt_gibbs:
+            for sec in ("upg", "metafounders", "validation"):
+                if raw.get(sec) is not None:
+                    raise ABPError("UNSUPPORTED_COMBINATION", "the maternal animal model with "
+                                   f"REML or known variances cannot be combined with {sec} in "
+                                   "this version")
+        if len(maternal) > 1:
+            raise _err("model.random", "at most one maternal term")
+        if additive[0]["relationship"] != "pedigree":
+            raise _err(f"model.random.{maternal[0]['name']}", "maternal effects need the "
+                       "additive term with relationship = 'pedigree' (dams from the pedigree)")
+    if len(m["traits"]) > 1 and len(m["random"]) > 1 and not mt_gibbs:
         raise ABPError("UNSUPPORTED_COMBINATION",
-                       "multi-trait models support only the additive genetic term in this version")
+                       "multi-trait models with known or REML variances support only the "
+                       "additive genetic term in this version (a permanent-environment term "
+                       "needs variances.mode = 'bayes', bayes.method = 'multitrait' or "
+                       "'threshold')")
     rel = additive[0]["relationship"]
     if rel in ("pedigree", "single_step") and d["data"]["pedigree"] is None:
         raise _err("data.pedigree", f"relationship {rel!r} needs a pedigree file")
@@ -441,31 +563,85 @@ def validate_spec_dict(raw: dict) -> dict:
         if dd["plink"] is None and (dd["genotypes"] is None or dd["marker_map"] is None):
             raise _err("data.genotypes", f"relationship {rel!r} needs genotypes and marker_map "
                                          "(or data.plink)")
+    if d["genomic"]["single_step_mode"] == "matrix_free":
+        g = d["genomic"]
+        why = None
+        if rel != "single_step":
+            why = "relationship = 'single_step'"
+        elif d["variances"]["mode"] != "known":
+            why = "variances.mode = 'known' (REML needs log|H| and traces)"
+        elif d["solver"]["pev"] == "exact":
+            why = "solver.pev = 'none' or 'sampled' (exact PEV needs diag(C^-1))"
+        elif d["solver"]["method"] not in ("auto", "pcg"):
+            why = "solver.method = 'auto' or 'pcg'"
+        elif len(d["model"]["traits"]) != 1:
+            why = "a single-trait model"
+        elif g["tuning"] != "none":
+            why = "genomic.tuning = 'none'"
+        elif raw.get("metafounders") is not None or raw.get("upg") is not None \
+                or raw.get("validation") is not None:
+            why = "no [metafounders], [upg] or [validation] section"
+        if why:
+            raise _err("genomic.single_step_mode", f"'matrix_free' needs {why}")
+    if d["solver"]["pev"] == "sampled" and d["genomic"]["single_step_mode"] != "matrix_free":
+        raise _err("solver.pev", "'sampled' is available with genomic.single_step_mode = "
+                                 "'matrix_free' (other paths compute exact PEV)")
     if d["genomic"]["frequency_source"] == "file" and d["data"]["allele_frequencies"] is None:
         raise _err("data.allele_frequencies", "required when genomic.frequency_source = 'file'")
     v = d["variances"]
-    expected = set(names) | {"residual"}
+    mat_names = {r["name"] for r in m["random"] if r["kind"] == "maternal"}
+    add_names = {r["name"] for r in m["random"] if r["kind"] == "additive"}
+    # with a maternal term the additive term carries the 2 x 2 matrix (direct, maternal)
+    expected = (set(names) - mat_names) | {"residual"}
     t = len(m["traits"])
     if v["mode"] == "known":
         if v["values"] is None:
             raise _err("variances.values", "required when mode = 'known'")
         if set(v["values"]) != expected:
             raise _err("variances.values",
-                       f"must give exactly {sorted(expected)}, got {sorted(v['values'])}")
+                       f"must give exactly {sorted(expected)}, got {sorted(v['values'])}"
+                       + (" (the maternal variance and the direct-maternal covariance are "
+                          "entries of the additive term's 2 x 2 matrix)" if mat_names else ""))
         for k, val in v["values"].items():
+            if mat_names and k in add_names:
+                if not (isinstance(val, list) and len(val) == 2
+                        and all(isinstance(r_, list) and len(r_) == 2 for r_ in val)):
+                    raise _err(f"variances.values.{k}", "with a maternal term the additive term "
+                               "needs the 2 x 2 matrix [[direct, covariance], [covariance, "
+                               "maternal]]")
+                continue
             if t == 1 and not isinstance(val, float):
                 raise _err(f"variances.values.{k}", "single-trait models need a number")
             if t > 1 and not (isinstance(val, list) and len(val) == t):
                 raise _err(f"variances.values.{k}", f"multi-trait models need a {t}x{t} matrix")
     elif v["mode"] == "reml":
-        if t > 1:
-            raise _err("variances.mode", "multi-trait REML is not implemented in this version; "
-                                         "use mode = 'known'")
+        if t > 1 and d["reml"]["start"] is not None:
+            raise _err("reml.start", "multi-trait REML starts from a data-based heuristic; "
+                                     "reml.start is for single-trait models")
+        if mat_names and d["reml"]["start"] is not None:
+            raise _err("reml.start", "maternal-model REML starts from a data-based heuristic; "
+                                     "remove reml.start")
         if v["values"] is not None:
             raise _err("variances.values", "not used with mode = 'reml' (use reml.start)")
         start = d["reml"]["start"]
-        if start is not None and set(start) != expected:
+        if t == 1 and start is not None and set(start) != expected:
             raise _err("reml.start", f"must give exactly {sorted(expected)}")
+        rr = d["reml"]
+        if rr["boundary"] == "reduced_rank" and t == 1:
+            raise _err("reml.boundary", "'reduced_rank' applies to multi-trait models")
+        if rr["rank"] is not None and (t == 1 or rr["rank"] >= t):
+            raise _err("reml.rank", f"multi-trait models only, and below the number of "
+                                    f"traits ({t})")
+        if rr["rank_selection"] != "none" and (t == 1 or rr["rank"] is not None):
+            raise _err("reml.rank_selection", "multi-trait models only, and not together with "
+                                              "reml.rank")
+        if rr["rank"] is not None and rr["boundary"] == "reduced_rank":
+            raise _err("reml.rank", "give either reml.rank (reduced rank from the start) or "
+                                    "reml.boundary = 'reduced_rank' (fallback), not both")
+        if (rr["boundary"] == "reduced_rank" or rr["rank"] is not None
+                or rr["rank_selection"] != "none") and raw.get("metafounders") is not None:
+            raise ABPError("UNSUPPORTED_COMBINATION", "reduced-rank multi-trait REML is not "
+                           "implemented with [metafounders] in this version")
     elif v["values"] is not None:
         raise _err("variances.values", "not used with mode = 'bayes' (variances are sampled)")
     if d["analysis"]["task"] not in IMPLEMENTED_TASKS:
@@ -476,10 +652,121 @@ def validate_spec_dict(raw: dict) -> dict:
         raise _err("bayes", "variances.mode = 'bayes' and a [bayes] section go together")
     if raw.get("bayes") is None:
         d["bayes"] = None
+    elif d["bayes"]["method"] == "multitrait" and t == 1 and not maternal:
+        raise _err("bayes.method", "'multitrait' needs at least two model traits (or one "
+                                   "trait with a maternal genetic effect)")
+    elif d["bayes"]["method"] in ("threshold", "multitrait") and (t > 1 or maternal):
+        cat_traits = {tr["name"] for tr in d["traits"] if tr["type"] == "categorical"}
+        n_cat = sum(1 for x in m["traits"] if x in cat_traits)
+        if d["bayes"]["method"] == "threshold" and n_cat < 1:
+            raise _err("bayes.method", "the multi-trait threshold model needs at least one "
+                                       "categorical trait")
+        if d["bayes"]["method"] == "threshold" and n_cat > 1:
+            rg0 = d["bayes"]["residual_groups"]
+            cats_m = [x for x in m["traits"] if x in cat_traits]
+            ok_groups = rg0 is not None
+            if ok_groups:
+                for grp in set(rg0.values()):
+                    members = [x for x in m["traits"] if rg0.get(x) == grp]
+                    k = sum(1 for x in members if x in cats_m)
+                    if k > 1 and not (k == 2 and len(members) == 2):
+                        ok_groups = False
+            if not ok_groups:
+                raise _err("bayes.residual_groups", "with several categorical traits put each "
+                           "in a different residual group, or two categorical traits alone "
+                           "in one group (their residual correlation is then estimated)")
+        if d["bayes"]["method"] == "multitrait" and n_cat != 0:
+            raise _err("bayes.method", "'multitrait' is for continuous traits; a categorical "
+                                       "trait needs method = 'threshold'")
+        adds = [r for r in m["random"] if r["kind"] == "additive"]
+        iids = [r for r in m["random"] if r["kind"] == "iid"]
+        if len(adds) != 1:
+            raise ABPError("UNSUPPORTED_COMBINATION", "the Bayesian multi-trait models have one "
+                           "additive genetic term (plus at most one maternal and any number of "
+                           "iid terms)")
+        rdim = t * (2 if maternal else 1)        # genetic covariance matrix: direct, maternal
+        rg = d["bayes"]["residual_groups"]
+        if rg is not None:
+            if set(rg) != set(m["traits"]) or any(float(x) != int(x) for x in rg.values()):
+                raise _err("bayes.residual_groups", "give an integer group number for every "
+                                                    "model trait")
+            if len(set(rg.values())) == 1:
+                raise _err("bayes.residual_groups", "all traits are in one group (omit the key)")
+        if d["bayes"]["method"] == "threshold" and not m["intercept"]:
+            raise _err("model.intercept", "the threshold model needs an intercept (the first "
+                                          "threshold is fixed at 0)")
+        bz = d["bayes"]
+        add = adds[0]["name"]
+        if bz["variance_prior"] == "inverse_wishart":
+            pc = bz["prior_covariance"] or {}
+            allowed = {add, "residual"} | {r["name"] for r in iids}
+            if add not in pc or not set(pc) <= allowed:
+                raise _err("bayes.prior_covariance", f"give a {rdim} x {rdim} prior matrix for "
+                                                     f"{add!r}"
+                                                     + (" (direct traits, then maternal)"
+                                                        if maternal else "")
+                                                     + f" (optionally also for "
+                                                     f"{sorted(allowed - {add})})")
+            import numpy as np
+            for key, gp in pc.items():
+                k = rdim if key == add else t
+                G = np.array(gp, dtype=np.float64) if isinstance(gp, list) else np.zeros(0)
+                if G.shape != (k, k) or not np.allclose(G, G.T) or \
+                        np.linalg.eigvalsh(G)[0] <= 0:
+                    raise _err(f"bayes.prior_covariance.{key}",
+                               f"must be a symmetric positive definite {k} x {k} matrix")
+            if not bz["nu"] > rdim - 1:
+                raise _err("bayes.nu", f"an inverse Wishart prior needs nu > {rdim - 1}")
+            if "residual" in pc and n_cat:
+                for cat in (x for x in m["traits"] if x in cat_traits):
+                    if rg is None or sum(1 for x in rg.values() if x == rg[cat]) > 1:
+                        raise _err("bayes.prior_covariance.residual", "with categorical "
+                                   "traits the R0 prior needs each of them alone in its "
+                                   "residual group (bayes.residual_groups)")
+        elif bz["variance_prior"] != "uniform":
+            raise _err("bayes.variance_prior", "the Bayesian multi-trait models use 'uniform' "
+                                               "or 'inverse_wishart'")
+        elif bz["prior_covariance"] is not None:
+            raise _err("bayes.prior_covariance", "only used with variance_prior = "
+                                                 "'inverse_wishart'")
+        if bz["prior_variances"] is not None:
+            raise _err("bayes.prior_variances", "single-trait threshold models only (use "
+                                                "bayes.prior_covariance)")
+        if bz["burn_in"] >= bz["iterations"]:
+            raise _err("bayes.burn_in", "must be smaller than bayes.iterations")
+    elif d["bayes"]["method"] == "threshold":
+        cat_traits = {tr["name"] for tr in d["traits"] if tr["type"] == "categorical"}
+        if t > 1 or m["traits"][0] not in cat_traits:
+            raise _err("bayes.method", "'threshold' needs a single categorical trait")
+        bz = d["bayes"]
+        if bz["residual_groups"] is not None:
+            raise _err("bayes.residual_groups", "multi-trait models only")
+        names = {r["name"] for r in m["random"]}
+        if bz["variance_prior"] == "inverse_wishart" or bz["prior_covariance"] is not None:
+            raise _err("bayes.variance_prior", "'inverse_wishart' and prior_covariance are for "
+                                               "multi-trait threshold models")
+        if bz["variance_prior"] == "scaled_inv_chi2":
+            pv = bz["prior_variances"] or {}
+            if set(pv) != names or any(not float(x) > 0 for x in pv.values()):
+                raise _err("bayes.prior_variances", f"give a positive prior scale for exactly "
+                                                    f"{sorted(names)}")
+        elif bz["prior_variances"] is not None:
+            raise _err("bayes.prior_variances", "only used with variance_prior = "
+                                                "'scaled_inv_chi2'")
+        if d["bayes"]["burn_in"] >= d["bayes"]["iterations"]:
+            raise _err("bayes.burn_in", "must be smaller than bayes.iterations")
     else:
         if t > 1:
             raise ABPError("UNSUPPORTED_COMBINATION", "Bayesian marker models are single-trait "
                                                       "in this version")
+        if any(tr["type"] == "categorical" and tr["name"] in m["traits"] for tr in d["traits"]):
+            raise _err("bayes.method", "categorical traits use bayes.method = 'threshold'")
+        if (d["bayes"]["variance_prior"] != "uniform" or d["bayes"]["prior_variances"] is not None
+                or d["bayes"]["prior_covariance"] is not None
+                or d["bayes"]["residual_groups"] is not None):
+            raise _err("bayes.variance_prior", "variance_prior, prior_variances, "
+                                               "prior_covariance and residual_groups are for "
+                                               "method = 'threshold' or 'multitrait'")
         if len(m["random"]) != 1 or m["random"][0]["relationship"] != "genomic":
             raise _err("model.random", "Bayesian marker models need exactly one additive term "
                                        "with relationship = 'genomic'")
@@ -525,6 +812,63 @@ def validate_spec_dict(raw: dict) -> dict:
                                "unknown-parent groups is not implemented; use random groups")
         if u["prefix"] in d["data"]["unknown_parent_values"]:
             raise _err("upg.prefix", "must differ from every data.unknown_parent_values code")
+    cat = [tr["name"] for tr in d["traits"] if tr["type"] == "categorical"
+           and tr["name"] in m["traits"]]
+    if cat:
+        if len(m["traits"]) > 1 and not (v["mode"] == "bayes" and
+                                         (raw.get("bayes") or {}).get("method") == "threshold"):
+            raise ABPError("UNSUPPORTED_COMBINATION", "multi-trait models with a categorical "
+                           "trait need variances.mode = 'bayes' and bayes.method = 'threshold' "
+                           "(Gibbs sampler of the multi-trait threshold model)")
+        if v["mode"] == "bayes" and (raw.get("bayes") or {}).get("method") != "threshold":
+            raise _err("bayes.method", "categorical traits use bayes.method = 'threshold' "
+                       "(Gibbs sampler of the threshold model)")
+        vals = v["values"] if v["mode"] == "known" else (d["reml"]["start"] or {})
+        where = "variances.values" if v["mode"] == "known" else "reml.start"
+        if "residual" in vals and abs(float(vals["residual"]) - 1.0) > 1e-12:
+            raise _err(f"{where}.residual", "the threshold model fixes the residual "
+                       "variance of the liability at 1; give the other variances on that scale")
+        for sec in ("upg", "metafounders", "validation"):
+            if raw.get(sec) is not None:
+                raise ABPError("UNSUPPORTED_COMBINATION", f"categorical (threshold) traits "
+                               f"cannot be combined with [{sec}] in this version")
+    if raw.get("metafounders") is None:
+        d["metafounders"] = None
+    else:
+        mfc = d["metafounders"]
+        if d["upg"] is not None:
+            raise ABPError("UNSUPPORTED_COMBINATION", "declare either [upg] or [metafounders], "
+                           "not both")
+        if rel not in ("pedigree", "single_step"):
+            raise ABPError("UNSUPPORTED_COMBINATION", "metafounders need relationship = "
+                           "'pedigree' or 'single_step'")
+        if d["variances"]["mode"] == "bayes":
+            raise ABPError("UNSUPPORTED_COMBINATION", "metafounders are implemented for "
+                           "BLUP/REML (variances.mode = 'known' or 'reml') only")
+        if mfc["prefix"] in d["data"]["unknown_parent_values"]:
+            raise _err("metafounders.prefix", "must differ from every data.unknown_parent_values code")
+        if mfc["default"] is not None and not mfc["default"].startswith(mfc["prefix"]):
+            raise _err("metafounders.default", "must start with metafounders.prefix")
+        if mfc["reference"] is not None and not mfc["reference"].startswith(mfc["prefix"]):
+            raise _err("metafounders.reference", "must start with metafounders.prefix")
+        if mfc["gamma_source"] == "file":
+            if mfc["gamma_file"] is None or not (mfc["gamma_provenance"] or "").strip():
+                raise _err("metafounders.gamma_file", "gamma_source = 'file' needs gamma_file "
+                           "and a non-empty gamma_provenance")
+        else:
+            if mfc["gamma_file"] is not None:
+                raise _err("metafounders.gamma_file", "only used with gamma_source = 'file'")
+            if d["data"]["genotypes"] is None and d["data"]["plink"] is None:
+                raise _err("metafounders.gamma_source", "'genotypes_gls' needs genotypes "
+                           "(data.genotypes or data.plink)")
+        if rel == "single_step" or mfc["gamma_source"] == "genotypes_gls":
+            g = d["genomic"]
+            if g["frequency_source"] != "fixed_0.5":
+                raise _err("genomic.frequency_source", "must be 'fixed_0.5' with metafounders: "
+                           "Gamma and G then refer to the same base (G05)")
+            if g["tuning"] != "none":
+                raise _err("genomic.tuning", "must be 'none' with metafounders (the base is "
+                           "aligned by Gamma, not by rescaling G)")
     idx = raw.get("index")
     if idx is None:
         d["index"] = None
@@ -533,6 +877,15 @@ def validate_spec_dict(raw: dict) -> dict:
         if unknown:
             raise _err("index.weights", f"weights for traits not in the model: {sorted(unknown)}")
     return d
+
+
+def parent_code_prefix(d: dict) -> str | None:
+    """Prefix of pedigree parent codes that name groups or metafounders (None if unused)."""
+    if d.get("upg") is not None:
+        return d["upg"]["prefix"]
+    if d.get("metafounders") is not None:
+        return d["metafounders"]["prefix"]
+    return None
 
 
 def load_spec(path: str | Path) -> AnalysisSpec:

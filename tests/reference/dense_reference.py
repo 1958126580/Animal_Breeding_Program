@@ -100,3 +100,30 @@ def reml_score_v_form(y, X, covs, theta):
     _, P = reml_loglik_v_form(y, X, covs, theta)
     Py = P @ y
     return np.array([0.5 * (Py @ C @ Py - np.trace(P @ C)) for C in covs])
+
+
+def tabular_a_metafounders(records, mf_labels, gamma):
+    """Extended relationship matrix with metafounders by the recursive definition.
+
+    Written directly from Legarra et al. (2015, Genetics 200:455), independent
+    of the production formula ``T D T' + Q Gamma Q'``: metafounders are nodes
+    whose mutual relationships are ``Gamma``; every other node follows
+    ``A[i, j] = (A[j, s] + A[j, d]) / 2`` and ``A[i, i] = 1 + A[s, d] / 2``
+    where a parent may be a metafounder.  ``records`` are ``(id, sire, dam)``
+    with parents listed before offspring.  Returns (labels, matrix) with the
+    animals first, then the metafounders.
+    """
+    k = len(mf_labels)
+    nodes = list(mf_labels) + [a for a, _, _ in records]
+    pos = {x: i for i, x in enumerate(nodes)}
+    N = len(nodes)
+    A = np.zeros((N, N))
+    A[:k, :k] = gamma
+    for a, s, d in records:
+        i = pos[a]
+        si, di = pos[s], pos[d]
+        for j in range(i):
+            A[i, j] = A[j, i] = 0.5 * (A[j, si] + A[j, di])
+        A[i, i] = 1.0 + 0.5 * A[si, di]
+    order = [pos[a] for a, _, _ in records] + list(range(k))
+    return [nodes[i] for i in order], A[np.ix_(order, order)]

@@ -1,0 +1,16 @@
+{
+  "seed": 20261002,
+  "G0_direct_maternal": [
+    [
+      4.0,
+      -1.0
+    ],
+    [
+      -1.0,
+      2.0
+    ]
+  ],
+  "var_maternal_pe": 1.5,
+  "var_residual": 8.0,
+  "note": "SYNTHETIC; for validation only"
+}

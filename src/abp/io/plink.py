@@ -35,6 +35,7 @@ _LUT_CODES = np.array([[(b >> (2 * k)) & 3 for k in range(4)] for b in range(256
 _CODE_TO_DOSAGE = np.array([2.0, np.nan, 1.0, 0.0])   # 00, 01, 10, 11 -> copies of A1
 _BYTE_TO_DOSAGES = _CODE_TO_DOSAGE[_LUT_CODES]         # 256 x 4: one byte -> 4 samples
 DECODE_BLOCK = 2048                                    # variants decoded per block
+_BYTE_TO_INT8 = np.array([2, -1, 1, 0], dtype=np.int8)[_LUT_CODES]   # -1 = missing
 
 
 def _read_text(path: Path, n_cols: int, what: str) -> list[list[str]]:
@@ -59,9 +60,9 @@ def _read_text(path: Path, n_cols: int, what: str) -> list[list[str]]:
     return rows
 
 
-def decode_bed(raw: bytes, n_samples: int, n_variants: int) -> np.ndarray:
+def decode_bed(raw: bytes, n_samples: int, n_variants: int, dtype: str = "float64") -> np.ndarray:
     """Decode SNP-major .bed bytes into an ``n_samples x n_variants`` A1-dosage
-    matrix with NaN for missing genotypes."""
+    matrix with NaN for missing genotypes (``dtype = "int8"``: -1 for missing)."""
     if raw[:2] != MAGIC:
         raise ABPError("SCHEMA_TYPE", "not a PLINK .bed file (magic number mismatch)")
     if len(raw) < 3 or raw[2] != 1:
@@ -75,19 +76,22 @@ def decode_bed(raw: bytes, n_samples: int, n_variants: int) -> np.ndarray:
                        f"{n_samples} samples x {n_variants} variants (mismatched .fam/.bim?)",
                        bytes=len(raw), expected=expected)
     body = np.frombuffer(raw, dtype=np.uint8, offset=3).reshape(n_variants, per)
-    out = np.empty((n_samples, n_variants))
+    compact = dtype == "int8"
+    lut = _BYTE_TO_INT8 if compact else _BYTE_TO_DOSAGES
+    out = np.empty((n_samples, n_variants), dtype=np.int8 if compact else np.float64)
     block = min(DECODE_BLOCK, max(n_variants, 1))
-    buf = np.empty((block, per, 4))                          # reused: bounded, touched once
+    buf = np.empty((block, per, 4), dtype=lut.dtype)         # reused: bounded, touched once
     for j0 in range(0, n_variants, block):
         j1 = min(n_variants, j0 + block)
         b = buf[:j1 - j0]
-        np.take(_BYTE_TO_DOSAGES, body[j0:j1], axis=0, out=b)
+        np.take(lut, body[j0:j1], axis=0, out=b)
         out[:, j0:j1] = b.reshape(j1 - j0, per * 4)[:, :n_samples].T
     return out
 
 
-def load_plink(prefix: str | Path, assembly: str) -> GenotypeData:
-    """Read ``prefix.bed/.bim/.fam`` into :class:`GenotypeData` (A1 dosages)."""
+def load_plink(prefix: str | Path, assembly: str, storage: str = "float64") -> GenotypeData:
+    """Read ``prefix.bed/.bim/.fam`` into :class:`GenotypeData` (A1 dosages;
+    ``storage = "int8"`` keeps them as ``int8`` with -1 for missing calls)."""
     prefix = Path(prefix)
     if not assembly:
         raise ABPError("GENOTYPE_ALLELE_MISMATCH", "PLINK input needs data.genotype_assembly")
@@ -123,9 +127,12 @@ def load_plink(prefix: str | Path, assembly: str) -> GenotypeData:
            if frozenset((x.upper(), y.upper())) in AMBIGUOUS]
     if amb:
         qc.add("GEN-AMBIGUOUS", "review", "strand-ambiguous (A/T, C/G) variants", amb)
-    M = decode_bed(raw, len(ids), len(markers))
-    missing = np.isnan(M)
-    M = np.where(missing, 0.0, M)
+    M = decode_bed(raw, len(ids), len(markers), storage)
+    if storage == "int8":
+        missing = M < 0
+    else:
+        missing = np.isnan(M)
+        M = np.where(missing, 0.0, M)
     qc.add("GEN-PLINK", "info", "PLINK input: counted allele = A1 of the .bim file; reference/"
            "alternative alleles are not stated by the format and are recorded as unknown")
     qc.stats = {"n_animals_in_file": len(ids), "n_markers_in_file": len(markers),

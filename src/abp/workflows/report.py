@@ -63,15 +63,67 @@ def render_report(results: dict, manifest: dict) -> str:
                  + (f" (approx. SE {_f(t['reml']['heritability_se'])})"
                     if t.get("reml") and t["reml"].get("heritability_se") is not None else "")
                  + ".")
+        if t.get("maternal"):
+            mt = t["maternal"]
+
+            def _v(x):
+                return _f(x["mean"]) + " (posterior mean)" if isinstance(x, dict) else _f(x)
+            se = (t.get("reml") or {}).get("derived") or {}
+            L.append("")
+            L.append(f"Maternal genetic effect `{mt['term']}` (dam from the pedigree): maternal "
+                     f"heritability m2 = {_v(mt['m2'])}"
+                     + (f" (approx. SE {_f(se['m2_se'])})" if se.get("m2_se") is not None else "")
+                     + f", direct-maternal genetic correlation {_v(mt['direct_maternal_correlation'])}"
+                     + (f" (approx. SE {_f(se['direct_maternal_correlation_se'])})"
+                        if se.get("direct_maternal_correlation_se") is not None else "")
+                     + "; h2 and m2 are relative to s_A + s_M + s_AM + independent terms + "
+                       "residual (Willham 1972). Maternal EBVs, reliabilities and SEPs are in "
+                       "the `mebv`, `mreliability` and `msep` columns of the EBV file. With one "
+                       "record per animal the direct, maternal and maternal permanent-"
+                       "environment variances are hard to separate: read them with their "
+                       "standard errors or intervals.")
         if t.get("reml"):
             r = t["reml"]
             L.append("")
-            L.append(f"REML: status **{r['status']}**, {r['iterations']} iterations, "
+            if r.get("rank") is not None:
+                L.append(f"**Reduced-rank genetic covariance matrix** (rank {r['rank']}; "
+                         f"{r['rank_source']}): G0 = Lambda Lambda' is singular by "
+                         "construction, so at least one genetic correlation or combination "
+                         "of genetic variances is fixed at the boundary. "
+                         + ("The full-rank fit stopped: " + r["full_rank_stop"]["message"]
+                            if r.get("full_rank_stop") else "")
+                         + " The rank is a model assumption; compare the log-likelihood with "
+                         "other ranks before relying on it.")
+                L.append("")
+            if r.get("rank_selection"):
+                rs = r["rank_selection"]
+                L.append("Rank of the genetic covariance matrix chosen by AIC "
+                         "(-2 logL + 2 n_parameters; a lower rank only if its AIC is smaller "
+                         f"by at least {rs.get('margin', 2.0):g}): **rank {rs['chosen_rank']}**. "
+                         + "; ".join(f"rank {x['rank']}: " + (
+                             f"logL {x['loglik']:.4f}, {x['n_parameters']} parameters, "
+                             f"ΔAIC {x['delta_aic']:.2f}" if "aic" in x
+                             else f"not fitted ({x['error']['code']})")
+                             for x in rs["table"]) + ".")
+                L.append("")
+            evals = r.get("rank") is not None or r.get("method") == "laplace_approximate_reml"
+            L.append(f"REML: status **{r['status']}**, {r['iterations']} "
+                     f"{'likelihood evaluations' if evals else 'iterations'}, "
                      f"log-likelihood {_f(r['loglik'], 6)}. "
                      + ("Approximate standard errors (from the inverse average-information "
                         "matrix; not valid at a boundary): "
                         + ", ".join(f"{k} = {_f(v, 4)}" for k, v in (r.get('se') or {}).items())
                         if r.get("se") else "Standard errors not reported (see status)."))
+            if r.get("genetic_correlations"):
+                tr_ = r["traits"]
+                L.append("")
+                L.append("Multi-trait REML (joint for all traits): genetic correlations "
+                         + ", ".join(f"{tr_[a]}-{tr_[b]} {_f(r['genetic_correlations'][a][b])}"
+                                     for a in range(len(tr_)) for b in range(a + 1, len(tr_)))
+                         + "; residual correlations "
+                         + ", ".join(f"{tr_[a]}-{tr_[b]} {_f(r['residual_correlations'][a][b])}"
+                                     for a in range(len(tr_)) for b in range(a + 1, len(tr_)))
+                         + ".")
             if r.get("boundary"):
                 L.append("")
                 L.append(f"Boundary: {', '.join(r['boundary'])} estimated at zero (boundary "
@@ -79,16 +131,27 @@ def render_report(results: dict, manifest: dict) -> str:
         if t.get("bayes"):
             bz = t["bayes"]
             L.append("")
-            L.append(f"Bayesian marker regression ({bz['method']}, {bz['chains']} chains, "
-                     f"{bz['iterations']} iterations, kernel {bz['kernel']}); all monitored "
-                     f"quantities passed the convergence criteria: **{bz['converged']}**.")
+            ebv_like = bz["method"] in ("threshold", "multitrait")
+            if bz["method"] == "threshold":
+                what = (f"Threshold-model Gibbs sampler (liability scale; variance prior: "
+                        f"{bz.get('variance_prior', 'uniform')})")
+            elif bz["method"] == "multitrait":
+                what = (f"Bayesian multi-trait linear model, Gibbs sampler (variance prior: "
+                        f"{bz.get('variance_prior', 'uniform')})")
+            else:
+                what = f"Bayesian marker regression ({bz['method']}"
+            L.append(f"{what}, {bz['chains']} chains, {bz['iterations']} iterations"
+                     + (f", kernel {bz['kernel']}" if bz.get("kernel") else "")
+                     + (")" if not ebv_like else "")
+                     + f"; all monitored quantities passed the convergence criteria: "
+                       f"**{bz['converged']}**.")
             L.append("")
             L.append("| Quantity | Posterior mean | 90% interval | R-hat | Bulk ESS | Tail ESS |")
             L.append("|---|---:|---|---:|---:|---:|")
             for k, v in bz["summaries"].items():
                 L.append(f"| {k} | {v['mean']:.4g} | [{v['q05']:.4g}, {v['q95']:.4g}] | "
                          f"{v['rhat']:.4f} | {v['ess_bulk']:.0f} | {v['ess_tail']:.0f} |")
-            g = bz.get("gebv_diagnostics") or {}
+            g = bz.get("gebv_diagnostics") or bz.get("ebv_diagnostics") or {}
             pp = bz.get("posterior_predictive") or {}
             if pp:
                 L.append("")
@@ -98,11 +161,11 @@ def render_report(results: dict, manifest: dict) -> str:
                                               for k, v in pp["statistics"].items()) + ".")
             if "not_computed" in g:
                 L.append("")
-                L.append(f"GEBVs of {g['n_animals']} animals: {g['not_computed']}. The SEP column "
+                L.append(f"{'EBVs' if ebv_like else 'GEBVs'} of {g['n_animals']} animals: {g['not_computed']}. The SEP column "
                          "below is the posterior standard deviation.")
             elif g:
                 L.append("")
-                L.append(f"GEBVs of {g['n_animals']} animals: worst R-hat {g['max_rhat']:.4f}, "
+                L.append(f"{'EBVs' if ebv_like else 'GEBVs'} of {g['n_animals']} animals: worst R-hat {g['max_rhat']:.4f}, "
                          f"smallest bulk ESS {g['min_ess_bulk']:.0f}. The SEP column below is the "
                          "posterior standard deviation.")
         L.append("")
@@ -129,6 +192,29 @@ def render_report(results: dict, manifest: dict) -> str:
                  "individual fixed-effect solutions are not estimable functions and should not "
                  "be interpreted on their own).")
         L.append("")
+        if t.get("threshold_model"):
+            th = t["threshold_model"]
+            L.append(f"Categorical trait analysed with a threshold (probit) model: categories "
+                     f"{', '.join(_f(c, 4) for c in th['categories'])}, thresholds "
+                     f"{', '.join(_f(v, 4) for v in th['thresholds'])} (`{th['file']}`). "
+                     + th["note"] + ".")
+            L.append("")
+        if t.get("metafounders"):
+            mfi = t["metafounders"]
+            L.append(f"Genetic base: metafounders {', '.join(mfi['metafounders'])} "
+                     f"(Gamma from {mfi['gamma_source']}: {mfi['gamma_provenance']}). EBVs above "
+                     "include the genetic level of the base populations; metafounder solutions "
+                     f"are in `{mfi['file']}`.")
+            L.append("")
+            rs = mfi.get("reliability_vs_base_summary")
+            L.append(f"The columns `ebv_vs_base`, `pev_vs_base` and `reliability_vs_base` of the "
+                     f"EBV file express each animal against the level of the reference "
+                     f"metafounder {mfi['reference']} (u_i - u_ref). This contrast has the same "
+                     "ranking and removes the uncertainty about the absolute level of the base, "
+                     "which is common to all descendants"
+                     + (f"; its reliability averages {_f(rs['mean'])} (min {_f(rs['min'])}, "
+                        f"max {_f(rs['max'])})." if rs else "."))
+            L.append("")
         if t.get("upg"):
             u = t["upg"]
             kind = (f"random, sigma_g^2/sigma_a^2 = {_f(u['variance_ratio'])} (declared)"

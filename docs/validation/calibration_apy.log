@@ -1,0 +1,54 @@
+seed   1: single_step_true: slope 1.003 bias +0.344 cov 0.984  single_step_apy150_true: slope 1.000 bias +0.356 cov 0.982  single_step_apy300_true: slope 1.005 bias +0.345 cov 0.984
+seed   2: single_step_true: slope 0.948 bias +0.981 cov 0.906  single_step_apy150_true: slope 0.990 bias +0.966 cov 0.916  single_step_apy300_true: slope 0.967 bias +0.985 cov 0.914
+seed   3: single_step_true: slope 1.034 bias -0.063 cov 0.947  single_step_apy150_true: slope 1.016 bias +0.030 cov 0.935  single_step_apy300_true: slope 1.032 bias -0.074 cov 0.945
+seed   4: single_step_true: slope 1.043 bias +0.978 cov 0.898  single_step_apy150_true: slope 1.069 bias +0.967 cov 0.900  single_step_apy300_true: slope 1.039 bias +0.991 cov 0.898
+seed   5: single_step_true: slope 0.755 bias +1.308 cov 0.863  single_step_apy150_true: slope 0.769 bias +1.231 cov 0.882  single_step_apy300_true: slope 0.757 bias +1.321 cov 0.863
+seed   6: single_step_true: slope 0.926 bias +0.704 cov 0.911  single_step_apy150_true: slope 0.926 bias +0.716 cov 0.905  single_step_apy300_true: slope 0.928 bias +0.689 cov 0.911
+seed   7: single_step_true: slope 0.958 bias +1.029 cov 0.903  single_step_apy150_true: slope 0.946 bias +1.067 cov 0.894  single_step_apy300_true: slope 0.967 bias +1.043 cov 0.899
+seed   8: single_step_true: slope 1.218 bias +0.744 cov 0.924  single_step_apy150_true: slope 1.224 bias +0.733 cov 0.926  single_step_apy300_true: slope 1.211 bias +0.735 cov 0.922
+seed   9: single_step_true: slope 1.052 bias +0.129 cov 0.922  single_step_apy150_true: slope 1.067 bias +0.216 cov 0.931  single_step_apy300_true: slope 1.061 bias +0.173 cov 0.929
+seed  10: single_step_true: slope 1.016 bias +1.026 cov 0.888  single_step_apy150_true: slope 1.054 bias +1.147 cov 0.884  single_step_apy300_true: slope 1.038 bias +1.029 cov 0.892
+seed  11: single_step_true: slope 1.053 bias +0.134 cov 0.954  single_step_apy150_true: slope 1.038 bias +0.200 cov 0.952  single_step_apy300_true: slope 1.056 bias +0.132 cov 0.957
+seed  12: single_step_true: slope 1.124 bias +0.724 cov 0.930  single_step_apy150_true: slope 1.127 bias +0.697 cov 0.930  single_step_apy300_true: slope 1.123 bias +0.727 cov 0.933
+seed  13: single_step_true: slope 1.017 bias +1.242 cov 0.845  single_step_apy150_true: slope 1.014 bias +1.381 cov 0.843  single_step_apy300_true: slope 1.024 bias +1.238 cov 0.851
+seed  14: single_step_true: slope 1.072 bias +1.193 cov 0.910  single_step_apy150_true: slope 1.089 bias +1.265 cov 0.900  single_step_apy300_true: slope 1.060 bias +1.173 cov 0.898
+seed  15: single_step_true: slope 0.967 bias +0.843 cov 0.886  single_step_apy150_true: slope 0.971 bias +0.945 cov 0.876  single_step_apy300_true: slope 0.960 bias +0.830 cov 0.884
+seed  16: single_step_true: slope 0.859 bias -0.088 cov 0.964  single_step_apy150_true: slope 0.882 bias -0.061 cov 0.967  single_step_apy300_true: slope 0.865 bias -0.074 cov 0.964
+seed  17: single_step_true: slope 0.536 bias +0.970 cov 0.823  single_step_apy150_true: slope 0.456 bias +1.098 cov 0.804  single_step_apy300_true: slope 0.537 bias +1.007 cov 0.818
+seed  18: single_step_true: slope 0.927 bias +0.189 cov 0.926  single_step_apy150_true: slope 0.961 bias +0.250 cov 0.940  single_step_apy300_true: slope 0.923 bias +0.192 cov 0.924
+seed  19: single_step_true: slope 0.960 bias +0.457 cov 0.948  single_step_apy150_true: slope 0.958 bias +0.547 cov 0.946  single_step_apy300_true: slope 0.953 bias +0.466 cov 0.948
+seed  20: single_step_true: slope 1.026 bias +1.093 cov 0.876  single_step_apy150_true: slope 1.014 bias +1.241 cov 0.855  single_step_apy300_true: slope 1.032 bias +1.142 cov 0.867
+seed  21: single_step_true: slope 0.982 bias +0.704 cov 0.927  single_step_apy150_true: slope 0.994 bias +0.816 cov 0.921  single_step_apy300_true: slope 0.994 bias +0.728 cov 0.927
+seed  22: single_step_true: slope 0.849 bias +0.729 cov 0.942  single_step_apy150_true: slope 0.837 bias +0.779 cov 0.940  single_step_apy300_true: slope 0.847 bias +0.732 cov 0.940
+seed  23: single_step_true: slope 0.947 bias +1.146 cov 0.912  single_step_apy150_true: slope 0.923 bias +1.148 cov 0.908  single_step_apy300_true: slope 0.945 bias +1.135 cov 0.914
+seed  24: single_step_true: slope 1.236 bias +1.686 cov 0.808  single_step_apy150_true: slope 1.230 bias +1.724 cov 0.801  single_step_apy300_true: slope 1.224 bias +1.704 cov 0.816
+seed  25: single_step_true: slope 0.993 bias +0.432 cov 0.956  single_step_apy150_true: slope 1.024 bias +0.481 cov 0.952  single_step_apy300_true: slope 0.989 bias +0.454 cov 0.954
+seed  26: single_step_true: slope 1.100 bias +0.219 cov 0.932  single_step_apy150_true: slope 1.135 bias +0.261 cov 0.940  single_step_apy300_true: slope 1.104 bias +0.216 cov 0.937
+seed  27: single_step_true: slope 0.798 bias +0.319 cov 0.922  single_step_apy150_true: slope 0.805 bias +0.314 cov 0.928  single_step_apy300_true: slope 0.780 bias +0.352 cov 0.918
+seed  28: single_step_true: slope 0.735 bias +0.439 cov 0.954  single_step_apy150_true: slope 0.742 bias +0.548 cov 0.947  single_step_apy300_true: slope 0.744 bias +0.459 cov 0.954
+seed  29: single_step_true: slope 0.787 bias -0.660 cov 0.959  single_step_apy150_true: slope 0.749 bias -0.568 cov 0.959  single_step_apy300_true: slope 0.798 bias -0.639 cov 0.963
+seed  30: single_step_true: slope 0.987 bias +0.647 cov 0.907  single_step_apy150_true: slope 0.981 bias +0.776 cov 0.911  single_step_apy300_true: slope 0.977 bias +0.635 cov 0.904
+seed  31: single_step_true: slope 1.031 bias +1.064 cov 0.912  single_step_apy150_true: slope 1.007 bias +1.047 cov 0.915  single_step_apy300_true: slope 1.030 bias +1.058 cov 0.917
+seed  32: single_step_true: slope 0.871 bias +0.426 cov 0.977  single_step_apy150_true: slope 0.844 bias +0.505 cov 0.974  single_step_apy300_true: slope 0.868 bias +0.445 cov 0.977
+seed  33: single_step_true: slope 0.903 bias -0.584 cov 0.939  single_step_apy150_true: slope 0.937 bias -0.460 cov 0.951  single_step_apy300_true: slope 0.903 bias -0.604 cov 0.939
+seed  34: single_step_true: slope 0.927 bias +0.817 cov 0.890  single_step_apy150_true: slope 0.866 bias +0.941 cov 0.871  single_step_apy300_true: slope 0.932 bias +0.817 cov 0.886
+seed  35: single_step_true: slope 1.054 bias +1.523 cov 0.828  single_step_apy150_true: slope 1.068 bias +1.582 cov 0.839  single_step_apy300_true: slope 1.050 bias +1.551 cov 0.825
+seed  36: single_step_true: slope 1.300 bias +0.403 cov 0.920  single_step_apy150_true: slope 1.318 bias +0.446 cov 0.933  single_step_apy300_true: slope 1.314 bias +0.399 cov 0.920
+seed  37: single_step_true: slope 0.829 bias +0.850 cov 0.899  single_step_apy150_true: slope 0.838 bias +0.981 cov 0.897  single_step_apy300_true: slope 0.839 bias +0.837 cov 0.897
+seed  38: single_step_true: slope 1.002 bias +1.014 cov 0.910  single_step_apy150_true: slope 1.012 bias +1.117 cov 0.908  single_step_apy300_true: slope 1.006 bias +1.014 cov 0.916
+seed  39: single_step_true: slope 1.024 bias +0.389 cov 0.956  single_step_apy150_true: slope 1.045 bias +0.439 cov 0.946  single_step_apy300_true: slope 1.015 bias +0.393 cov 0.956
+seed  40: single_step_true: slope 0.955 bias +1.161 cov 0.894  single_step_apy150_true: slope 0.975 bias +1.176 cov 0.896  single_step_apy300_true: slope 0.960 bias +1.154 cov 0.894
+seed  41: single_step_true: slope 1.107 bias +0.168 cov 0.946  single_step_apy150_true: slope 1.095 bias +0.200 cov 0.946  single_step_apy300_true: slope 1.119 bias +0.163 cov 0.949
+seed  42: single_step_true: slope 0.811 bias +0.414 cov 0.957  single_step_apy150_true: slope 0.831 bias +0.496 cov 0.968  single_step_apy300_true: slope 0.814 bias +0.419 cov 0.957
+seed  43: single_step_true: slope 1.023 bias +0.649 cov 0.908  single_step_apy150_true: slope 1.012 bias +0.746 cov 0.908  single_step_apy300_true: slope 1.011 bias +0.653 cov 0.908
+seed  44: single_step_true: slope 1.016 bias +0.578 cov 0.930  single_step_apy150_true: slope 1.005 bias +0.634 cov 0.930  single_step_apy300_true: slope 1.014 bias +0.589 cov 0.930
+seed  45: single_step_true: slope 0.979 bias +0.730 cov 0.937  single_step_apy150_true: slope 1.007 bias +0.718 cov 0.947  single_step_apy300_true: slope 0.980 bias +0.724 cov 0.947
+seed  46: single_step_true: slope 1.124 bias +0.833 cov 0.932  single_step_apy150_true: slope 1.139 bias +0.884 cov 0.932  single_step_apy300_true: slope 1.124 bias +0.815 cov 0.930
+seed  47: single_step_true: slope 1.124 bias +0.785 cov 0.902  single_step_apy150_true: slope 1.124 bias +0.803 cov 0.905  single_step_apy300_true: slope 1.124 bias +0.797 cov 0.897
+seed  48: single_step_true: slope 0.923 bias +0.823 cov 0.901  single_step_apy150_true: slope 0.900 bias +0.839 cov 0.896  single_step_apy300_true: slope 0.919 bias +0.822 cov 0.894
+seed  49: single_step_true: slope 1.017 bias +0.322 cov 0.953  single_step_apy150_true: slope 1.040 bias +0.371 cov 0.948  single_step_apy300_true: slope 1.021 bias +0.311 cov 0.953
+seed  50: single_step_true: slope 0.921 bias +1.022 cov 0.908  single_step_apy150_true: slope 0.917 bias +1.155 cov 0.898  single_step_apy300_true: slope 0.921 bias +1.033 cov 0.903
+single_step_true {'slope': '0.977 +- 0.019', 'bias': '0.660 +- 0.067', 'realized_accuracy': '0.607 +- 0.011', 'model_accuracy': '0.638 +- 0.002', 'pev_ratio': '1.283 +- 0.042', 'coverage95': '0.917 +- 0.005', 'sigma_a2': '4.000 +- 0.000'}
+single_step_apy150_true {'slope': '0.979 +- 0.020', 'bias': '0.718 +- 0.066', 'realized_accuracy': '0.597 +- 0.011', 'model_accuracy': '0.618 +- 0.002', 'pev_ratio': '1.287 +- 0.045', 'coverage95': '0.916 +- 0.006', 'sigma_a2': '4.000 +- 0.000'}
+single_step_apy300_true {'slope': '0.978 +- 0.019', 'bias': '0.665 +- 0.067', 'realized_accuracy': '0.606 +- 0.011', 'model_accuracy': '0.634 +- 0.002', 'pev_ratio': '1.280 +- 0.043', 'coverage95': '0.916 +- 0.005', 'sigma_a2': '4.000 +- 0.000'}
+wrote docs/validation/calibration_apy.json

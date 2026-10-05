@@ -1,0 +1,232 @@
+1 converged converged
+2 converged converged
+3 converged converged
+4 converged converged
+5 converged converged
+6 converged converged
+7 converged converged
+8 converged converged
+9 converged converged
+10 converged converged
+11 converged converged
+12 converged converged
+13 converged converged
+14 converged converged
+15 converged converged
+16 converged converged
+17 converged converged
+18 converged converged
+19 converged converged
+20 converged converged
+21 converged converged
+22 converged converged
+23 converged converged
+24 converged converged
+25 converged converged
+26 converged converged
+27 converged converged
+28 converged converged
+29 converged converged
+30 converged converged
+31 converged converged
+32 converged converged
+33 converged converged
+34 converged converged
+35 converged converged
+36 converged converged
+37 converged converged
+38 converged converged
+39 converged converged
+40 converged converged
+41 converged converged
+42 converged converged
+43 converged converged
+44 converged converged
+45 converged converged
+46 converged converged
+47 converged converged
+48 converged converged
+49 converged converged
+50 converged converged
+51 converged converged
+52 converged converged
+53 converged converged
+54 converged converged
+55 converged converged
+56 converged converged
+57 converged converged
+58 converged converged
+59 converged converged
+60 converged converged
+61 converged converged
+62 converged converged
+63 converged converged
+64 converged converged
+65 converged converged
+66 converged converged
+67 converged converged
+68 converged converged
+69 converged converged
+70 converged converged
+71 converged converged
+72 converged converged
+73 converged converged
+74 converged converged
+75 converged converged
+76 converged converged
+77 converged converged
+78 converged converged
+79 converged converged
+80 converged converged
+81 converged converged
+82 converged converged
+83 converged converged
+84 converged converged
+85 converged converged
+86 converged converged
+87 converged converged
+88 converged converged
+89 converged converged
+90 converged converged
+91 converged converged
+92 converged converged
+93 converged converged
+94 converged converged
+95 converged converged
+96 converged converged
+97 converged converged
+98 converged converged
+99 converged converged
+100 converged converged
+{
+ "g0": "full",
+ "aic_choice_counts": {
+  "2": 81,
+  "1": 19
+ },
+ "aic_margin2_choice_counts": {
+  "2": 100
+ },
+ "full_rank_status_counts": {
+  "converged": 100
+ },
+ "rank1_converged": 100,
+ "rank1_G0": {
+  "G0[0,0]": {
+   "mean": 1.958515295430994,
+   "mc_se": 0.032518678462426606,
+   "n": 100,
+   "true": 1.96
+  },
+  "G0[0,1]": {
+   "mean": 0.49681294415356014,
+   "mc_se": 0.02302556882176652,
+   "n": 100,
+   "true": 0.5
+  },
+  "G0[1,1]": {
+   "mean": 0.14657707866020003,
+   "mc_se": 0.011936725823799937,
+   "n": 100,
+   "true": 0.36
+  }
+ },
+ "rank1_R0": {
+  "R0[0,0]": {
+   "mean": 3.020043384698572,
+   "mc_se": 0.024892091361001845,
+   "n": 100,
+   "true": 3.0
+  },
+  "R0[0,1]": {
+   "mean": 0.9046860642037022,
+   "mc_se": 0.02116348463938681,
+   "n": 100,
+   "true": 0.9
+  },
+  "R0[1,1]": {
+   "mean": 2.197355062478055,
+   "mc_se": 0.015171454716477462,
+   "n": 100,
+   "true": 2.0
+  }
+ },
+ "rank1_reml": {
+  "trait1": {
+   "pev_ratio": {
+    "mean": 1.0502995163424511,
+    "mc_se": 0.013725519372023359,
+    "n": 100
+   },
+   "coverage95": {
+    "mean": 0.9447899999999998,
+    "mc_se": 0.0017888145727709085,
+    "n": 100
+   },
+   "realized_accuracy": {
+    "mean": 0.7344000198911563,
+    "mc_se": 0.002668918869369819,
+    "n": 100
+   }
+  },
+  "trait2": {
+   "pev_ratio": {
+    "mean": 18.49751202950888,
+    "mc_se": 6.772396877717523,
+    "n": 100
+   },
+   "coverage95": {
+    "mean": 0.57432,
+    "mc_se": 0.01939128138982553,
+    "n": 100
+   },
+   "realized_accuracy": {
+    "mean": 0.4289642389885271,
+    "mc_se": 0.006752799731609048,
+    "n": 100
+   }
+  }
+ },
+ "true_parameters": {
+  "trait1": {
+   "pev_ratio": {
+    "mean": 0.998397488341205,
+    "mc_se": 0.006635066786261683,
+    "n": 100
+   },
+   "coverage95": {
+    "mean": 0.9508199999999999,
+    "mc_se": 0.0008628564261342727,
+    "n": 100
+   },
+   "realized_accuracy": {
+    "mean": 0.7391320426732372,
+    "mc_se": 0.002509234265030761,
+    "n": 100
+   }
+  },
+  "trait2": {
+   "pev_ratio": {
+    "mean": 0.9957921097900959,
+    "mc_se": 0.007366753147970495,
+    "n": 100
+   },
+   "coverage95": {
+    "mean": 0.9512299999999998,
+    "mc_se": 0.0010039170757335945,
+    "n": 100
+   },
+   "realized_accuracy": {
+    "mean": 0.5648231007652225,
+    "mc_se": 0.004494634147219135,
+    "n": 100
+   }
+  }
+ },
+ "full_rank_converged_rG": {
+  "mean": 0.5981517391710024,
+  "mc_se": 0.01618935215912501,
+  "n": 100
+ }
+}
+wrote docs/validation/rr_calibration_full.json

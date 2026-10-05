@@ -1,0 +1,10 @@
+pedigree {"wall_s": 0.8632969989994308, "peak_rss_gb": 0.13085556030273438}
+inbreeding {"wall_s": 44.66480063700146, "peak_rss_gb": 0.13085556030273438}
+genotypes_int8 {"wall_s": 10.59746319000078, "peak_rss_gb": 0.837799072265625}
+a22_core_columns {"wall_s": 30.623225229001036, "peak_rss_gb": 2.555980682373047}
+apy_blocks_from_int8_and_operator {"wall_s": 84.47259381499862, "peak_rss_gb": 6.729602813720703}
+a22_inverse_operator {"wall_s": 36.74875261099987, "peak_rss_gb": 6.729602813720703}
+pcg_solve {"wall_s": 14.72113197500039, "peak_rss_gb": 6.729602813720703}
+sampled_pev {"wall_s": 178.23700479800027, "peak_rss_gb": 6.729602813720703}
+{"size": {"animals": 200000, "genotyped": 30000, "markers": 20000, "core": 5000, "records": 190000, "equations": 202000}, "pcg": {"iterations": 101, "relative_residual": 9.002016826916272e-09}, "sampled_pev": {"n_samples": 20, "mean_pcg_iterations": 99.35, "mean_reliability_genotyped": 0.18134696970637584, "mean_reliability_all": 0.3966563795906774, "mean_mc_se": 0.08636654052401357}, "peak_rss_gb": 6.729602813720703}
+wrote benchmarks/results/ssmf_large_r8.json

@@ -1,0 +1,65 @@
+# Example 12: single-step GBLUP for weaning weight on a metafounder base.
+#
+# Example 05 aligns G with the pedigree by rescaling G to match A22
+# (match_a22).  Here the pedigree is moved to the genomic base instead: every
+# unknown parent ("0") descends from one base population, the metafounder
+# "MF:BASE", whose self-relationship gamma is estimated from the genotypes
+# (GLS base allele frequencies).  G is built with p = 0.5 for every marker
+# (G05), which refers to the same base as gamma (Legarra et al. 2015).
+# The metafounder's own solution is written to metafounder_solutions_wwt.csv.
+schema_version = "1"
+
+[project]
+name = "sheep_wwt_single_step_metafounder"
+species = "sheep"
+synthetic_data = true
+
+[analysis]
+task = "additive_ebv"
+target_population = "synthetic two-flock sheep population, lamb crops 2021-2025"
+information_cutoff = "2025-12-31"
+genetic_base = "metafounder MF:BASE (gamma estimated from genotypes); G05"
+applicability = "demonstration only"
+
+[data]
+pedigree = "../sheep_data/data/pedigree.csv"
+phenotypes = "../sheep_data/data/lambs.csv"
+genotypes = "../sheep_data/data/genotypes.csv"
+marker_map = "../sheep_data/data/markers.csv"
+
+[data.pedigree_columns]
+sex = "sex"
+birth_date = "birth_date"
+
+[[traits]]
+name = "wwt"
+unit = "kg"
+min = 5.0
+max = 80.0
+
+[model]
+traits = ["wwt"]
+fixed = [
+  { column = "cg", type = "factor" },
+  { column = "birth_type", type = "factor" },
+  { column = "dam_age", type = "factor" },
+]
+random = [{ name = "animal", kind = "additive", relationship = "single_step" }]
+
+[variances]
+mode = "reml"
+
+[genomic]
+frequency_source = "fixed_0.5"   # required with metafounders (G05)
+tuning = "none"                  # the base is aligned by gamma, not by rescaling G
+singular_policy = "blend"
+blend_alpha = 0.05               # blended with A22 on the metafounder base
+
+[metafounders]
+prefix = "MF:"
+default = "MF:BASE"              # all unknown parents come from this base population
+gamma_source = "genotypes_gls"
+sampling_correction = true
+
+[qc]
+out_of_range = "quarantine"

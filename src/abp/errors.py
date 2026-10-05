@@ -87,6 +87,10 @@ _SPECS: tuple[ErrorSpec, ...] = (
     ErrorSpec("ABP-E204", "PEDIGREE_CONFLICTING_DUPLICATE", EXIT_QC_BLOCKED,
               "An animal appears in several pedigree rows with different parents or sex.",
               "Keep exactly one row per animal."),
+    ErrorSpec("ABP-E205", "PEDIGREE_UNASSIGNED_BASE", EXIT_QC_BLOCKED,
+              "With metafounders, an unknown parent is not assigned to any metafounder.",
+              "Code the unknown parent with a metafounder label (metafounders.prefix) or "
+              "declare metafounders.default."),
     ErrorSpec("ABP-E210", "PHENOTYPE_UNKNOWN_ANIMAL", EXIT_QC_BLOCKED,
               "A phenotype record refers to an animal that is not in the pedigree.",
               "Add the animal to the pedigree, fix the ID, or set "
@@ -195,6 +199,10 @@ class ABPError(Exception):
         self.details = details
         super().__init__(f"[{spec.code} {spec.name}] {message}")
 
+    def __reduce__(self):
+        # picklable (e.g. raised in a multiprocessing worker): rebuild from name, message, details
+        return (_rebuild_error, (self.spec.name, self.message, self.details))
+
     @property
     def code(self) -> str:
         return self.spec.code
@@ -252,3 +260,7 @@ if __name__ == "__main__":  # pragma: no cover - documentation generator
         print(f"wrote {sys.argv[1]}")
     else:
         print(markdown_table())
+
+
+def _rebuild_error(name: str, message: str, details: dict) -> ABPError:
+    return ABPError(name, message, **details)

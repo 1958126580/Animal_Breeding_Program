@@ -208,6 +208,15 @@
           "description": {
             "type": "string",
             "default": ""
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "continuous",
+              "categorical"
+            ],
+            "default": "continuous",
+            "description": "'categorical': ordered categories (integer codes) analysed with a threshold (probit) model on the liability scale."
           }
         },
         "required": [
@@ -275,8 +284,10 @@
                 "type": "string",
                 "enum": [
                   "additive",
-                  "iid"
-                ]
+                  "iid",
+                  "maternal"
+                ],
+                "description": "'maternal': maternal genetic effect of the record's dam (dam from the pedigree; same relationship as the additive term; one trait with REML or known variances - the additive term's value is then the 2 x 2 matrix (direct, maternal) - or the Bayesian multi-trait Gibbs models)."
               },
               "relationship": {
                 "type": "string",
@@ -367,6 +378,28 @@
             "type": "number"
           },
           "description": "Starting variances (default: data-based heuristic)."
+        },
+        "boundary": {
+          "type": "string",
+          "enum": [
+            "stop",
+            "reduced_rank"
+          ],
+          "default": "stop",
+          "description": "Multi-trait REML whose optimum has a singular genetic covariance matrix: 'stop' (ABP-E300, default) or 'reduced_rank' (refit with G0 = Lambda Lambda' of rank reml.rank)."
+        },
+        "rank_selection": {
+          "type": "string",
+          "enum": [
+            "none",
+            "aic"
+          ],
+          "default": "none",
+          "description": "Multi-trait REML: 'aic' fits the full-rank model and every reduced rank and moves to a lower rank only if its AIC is smaller by at least 2 (conservative rule)."
+        },
+        "rank": {
+          "type": "integer",
+          "description": "Multi-trait REML: estimate G0 = Lambda Lambda' with this rank directly (an assumption stated by the user; below the number of traits). Not combined with boundary = 'reduced_rank', whose fallback uses rank traits - 1."
         }
       }
     },
@@ -396,9 +429,29 @@
           "type": "string",
           "enum": [
             "exact",
-            "none"
+            "none",
+            "sampled"
           ],
-          "default": "exact"
+          "default": "exact",
+          "description": "'sampled': PEV and reliabilities estimated by simulation (matrix-free single step only; Monte-Carlo SE reported)."
+        },
+        "pev_samples": {
+          "type": "integer",
+          "default": 200
+        },
+        "pev_seed": {
+          "type": "integer",
+          "default": 20260925
+        },
+        "factorization": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "ldl",
+            "superlu"
+          ],
+          "default": "auto",
+          "description": "Sparse direct factor: ABP's LDL' with minimum-degree ordering ('auto' when the compiled kernel is present) or SuperLU."
         }
       }
     },
@@ -503,6 +556,33 @@
             "match_a22"
           ],
           "default": "none"
+        },
+        "apy_core_size": {
+          "type": "integer",
+          "default": 0,
+          "description": "APY: number of core animals (0 = off, the exact G inverse). Core animals are drawn at random among the genotyped with apy_seed; the list is written to apy_core.csv."
+        },
+        "apy_seed": {
+          "type": "integer",
+          "default": 20260925
+        },
+        "genotype_storage": {
+          "type": "string",
+          "enum": [
+            "float64",
+            "int8"
+          ],
+          "default": "float64",
+          "description": "'int8': dosages held as 1-byte integers (-1 = missing) instead of 8-byte floats; integer dosages only (PLINK input, or dosage files without imputed values)."
+        },
+        "single_step_mode": {
+          "type": "string",
+          "enum": [
+            "explicit",
+            "matrix_free"
+          ],
+          "default": "explicit",
+          "description": "'matrix_free': H^-1 is applied as an operator inside PCG (A22^-1 from sparse blocks of A^-1, G^-1 dense or APY); memory no longer grows with n x n_genotyped. Solutions only: needs known variances, solver.pev = 'none', a single-trait model and tuning = 'none'."
         }
       }
     },
@@ -558,6 +638,49 @@
         "prefix"
       ]
     },
+    "metafounders": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prefix": {
+          "type": "string",
+          "description": "Parent codes starting with this prefix name metafounders (e.g. 'MF:' -> 'MF:TEXEL')."
+        },
+        "default": {
+          "type": "string",
+          "description": "Metafounder for unknown parents without a code (must start with the prefix). Without it such parents are refused."
+        },
+        "reference": {
+          "type": "string",
+          "description": "Metafounder whose level defines the reported base (ebv_vs_base). Defaults to 'default', or to the only metafounder."
+        },
+        "gamma_source": {
+          "type": "string",
+          "enum": [
+            "file",
+            "genotypes_gls"
+          ],
+          "description": "'file': Gamma from gamma_file with stated provenance; 'genotypes_gls': estimated from genotypes (GLS base allele frequencies, needs genotypes)."
+        },
+        "gamma_file": {
+          "type": "string",
+          "description": "CSV with metafounder_1, metafounder_2, gamma."
+        },
+        "gamma_provenance": {
+          "type": "string",
+          "description": "Where the Gamma values in gamma_file come from (required with gamma_source = 'file')."
+        },
+        "sampling_correction": {
+          "type": "boolean",
+          "default": true,
+          "description": "Subtract the expected sampling inflation of the GLS Gamma estimate."
+        }
+      },
+      "required": [
+        "prefix",
+        "gamma_source"
+      ]
+    },
     "bayes": {
       "type": "object",
       "additionalProperties": false,
@@ -570,9 +693,11 @@
             "BayesB",
             "BayesC",
             "BayesCpi",
-            "BayesR"
+            "BayesR",
+            "threshold",
+            "multitrait"
           ],
-          "description": "Marker prior; pi0 = probability of a zero effect."
+          "description": "Marker prior (pi0 = probability of a zero effect), or 'threshold': Gibbs sampler of the threshold model for a categorical trait (random terms from [model]; uniform priors on the liability variances; prior_r2, pi0, nu and nu_e are not used)."
         },
         "chains": {
           "type": "integer",
@@ -621,6 +746,50 @@
         "max_iterations": {
           "type": "integer",
           "default": 30000
+        },
+        "variance_prior": {
+          "type": "string",
+          "enum": [
+            "uniform",
+            "scaled_inv_chi2",
+            "inverse_wishart"
+          ],
+          "default": "uniform",
+          "description": "method = 'threshold' only: prior of each liability variance; 'scaled_inv_chi2' (single trait) uses bayes.nu degrees of freedom and the scale from bayes.prior_variances; 'inverse_wishart' (multi-trait threshold model) uses IW(nu, nu G_prior) with G_prior from bayes.prior_covariance."
+        },
+        "prior_variances": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "method = 'threshold' with variance_prior = 'scaled_inv_chi2': prior scale (a guess of the liability variance) for every random term."
+        },
+        "prior_covariance": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "items": {
+                    "type": "number"
+                  }
+                }
+              }
+            ]
+          },
+          "description": "multi-trait Gibbs models with variance_prior = 'inverse_wishart': prior guess of the genetic covariance matrix (key: the additive term; required), of the covariance matrix of each iid term (key: the term's name) and of R0 (key 'residual'); IW(nu, nu * guess); traits in model.traits order, liability scale for the categorical trait."
+        },
+        "residual_groups": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          },
+          "description": "multi-trait threshold or 'multitrait' model: a group number per trait; residual covariances between traits of different groups are fixed at 0 (e.g. a lamb trait and a later ewe trait). Default: one group."
         }
       },
       "required": [

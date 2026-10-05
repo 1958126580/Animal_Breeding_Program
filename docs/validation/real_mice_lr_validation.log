@@ -1,0 +1,9 @@
+2026-10-05T02:30:36 INFO ABP run 20261005T023036Z-e013f471 started; spec /home/user/Animal_Breeding_Program/examples/21_mice_bodyweight_real/analysis_bw_lr.toml (sha256 f655977a0c2b)
+2026-10-05T02:30:36 INFO read 1814 phenotype rows
+2026-10-05T02:30:36 INFO phenotype QC passed: 1814 records used, 0 excluded (listed in qc_excluded_records.csv)
+2026-10-05T02:31:11 INFO bw: 1814 records, 8 fixed columns kept (2 constrained), random terms ['animal', 'cage']
+2026-10-05T02:32:29 INFO bw: REML converged after 8 iterations; logL -2527.735065; variances {'animal': 2.126652, 'cage': 2.168376, 'residual': 3.501726}
+2026-10-05T02:32:36 INFO bw: solved 2345 equations with dense (auto: 2345 equations <= 12000 and dense memory 0.12 GiB within budget); relative residual 1.68e-15; 2.51 s
+2026-10-05T02:32:50 INFO bw: PEV including variance-estimation uncertainty (Kackar-Harville): mean increase 0.004579 (0.6%)
+2026-10-05T02:34:17 INFO LR validation (bw, cutoff 2003-12-31): 677 focal animals, Delta_p -0.0100, b_w|p 0.8989, rho_wp 0.8687
+2026-10-05T02:34:17 INFO run 20261005T023036Z-e013f471 passed in 221.51 s

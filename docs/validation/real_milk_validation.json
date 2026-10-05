@@ -1,0 +1,186 @@
+{
+  "data": "pedigreemm 0.3-5 'milk' and 'pedCowsR' (USDA AIPL Holstein records), via examples/20_holstein_milk_real/fetch_data.py",
+  "n_records": 3397,
+  "n_animals": 6547,
+  "reml_vs_independent_vform": {
+    "milk_first_lactation": {
+      "n_records": 1314,
+      "abp": {
+        "status": "converged",
+        "variances": {
+          "animal": 1840737.4491160458,
+          "residual": 11337848.232639538
+        },
+        "loglik": -11042.217883877129,
+        "seconds": 0.34343814849853516
+      },
+      "vform": {
+        "variances": {
+          "animal": 1840736.3112279696,
+          "residual": 11337849.516498392
+        },
+        "loglik": -11042.217883881034,
+        "starts": [
+          {
+            "start_scale": 0.5,
+            "loglik": -11042.217883881041,
+            "variances": [
+              1840733.939027091,
+              11337850.905882502
+            ],
+            "evaluations": 158
+          },
+          {
+            "start_scale": 2.0,
+            "loglik": -11042.217883881034,
+            "variances": [
+              1840736.3112279696,
+              11337849.516498392
+            ],
+            "evaluations": 171
+          }
+        ],
+        "seconds": 101.65786933898926
+      },
+      "loglik_difference_abp_minus_vform": 3.905370249412954e-09
+    },
+    "scs_repeatability": {
+      "n_records": 3397,
+      "abp": {
+        "status": "converged",
+        "variances": {
+          "animal": 0.08525509014481321,
+          "pe": 0.2763929790439135,
+          "residual": 1.1621963551738037
+        },
+        "loglik": -2376.8621948648474,
+        "seconds": 3.065748453140259
+      },
+      "vform": {
+        "variances": {
+          "animal": 0.08525480606890365,
+          "pe": 0.27639347964990046,
+          "residual": 1.1621962633211678
+        },
+        "loglik": -2376.86219486422,
+        "starts": [
+          {
+            "start_scale": 0.5,
+            "loglik": -2376.86219486422,
+            "variances": [
+              0.08525480606890365,
+              0.27639347964990046,
+              1.1621962633211678
+            ],
+            "evaluations": 195
+          },
+          {
+            "start_scale": 2.0,
+            "loglik": -2376.862194864253,
+            "variances": [
+              0.08525496296880654,
+              0.2763934738516526,
+              1.1621963743777408
+            ],
+            "evaluations": 225
+          }
+        ],
+        "seconds": 1499.4347999095917
+      },
+      "loglik_difference_abp_minus_vform": -6.275513442233205e-10
+    },
+    "milk_repeatability": {
+      "n_records": 3397,
+      "abp": {
+        "status": "converged",
+        "variances": {
+          "animal": 925611.498689996,
+          "pe": 4638960.122868187,
+          "residual": 10398543.148003705
+        },
+        "loglik": -29245.61454699471,
+        "seconds": 2.3674709796905518
+      },
+      "vform": {
+        "variances": {
+          "animal": 925611.4143821665,
+          "pe": 4638960.911970667,
+          "residual": 10398542.9967052
+        },
+        "loglik": -29245.614546989273,
+        "starts": [
+          {
+            "start_scale": 0.5,
+            "loglik": -29245.614546989273,
+            "variances": [
+              925611.4143821665,
+              4638960.911970667,
+              10398542.9967052
+            ],
+            "evaluations": 318
+          },
+          {
+            "start_scale": 2.0,
+            "loglik": -29245.614546989273,
+            "variances": [
+              925611.268266653,
+              4638960.785661095,
+              10398543.444162086
+            ],
+            "evaluations": 282
+          }
+        ],
+        "seconds": 2131.5800099372864
+      },
+      "loglik_difference_abp_minus_vform": -5.438778316602111e-09
+    }
+  },
+  "cross_validation": {
+    "milk": {
+      "n_cows": 1359,
+      "correlation": 0.08699047621843506,
+      "correlation_se": 0.026309247340527663,
+      "regression_slope": 0.7627067353499685,
+      "slope_se": 0.23221578204247306,
+      "h2_first_lactation_by_fold": [
+        0.16991715453104642,
+        0.05643089209465835,
+        0.14575731810426623,
+        0.12082154523238571,
+        0.13640484880194598
+      ],
+      "n_cows_with_nonzero_ebv": 1359
+    },
+    "fat": {
+      "n_cows": 1359,
+      "correlation": 0.15376205476836985,
+      "correlation_se": 0.0257092880325526,
+      "regression_slope": 0.7223932569140699,
+      "slope_se": 0.12257731127652663,
+      "h2_first_lactation_by_fold": [
+        0.2755884042824717,
+        0.22818128823136463,
+        0.2793520557210475,
+        0.350563947875515,
+        0.25859365218135905
+      ],
+      "n_cows_with_nonzero_ebv": 1359
+    },
+    "prot": {
+      "n_cows": 1359,
+      "correlation": 0.0743780870084905,
+      "correlation_se": 0.025571592447125754,
+      "regression_slope": 0.8202452185382704,
+      "slope_se": 0.2822693051621429,
+      "h2_first_lactation_by_fold": [
+        0.11537381851644228,
+        0.038479906343081204,
+        0.11077272115242184,
+        0.08268474255487887,
+        0.12141925522383264
+      ],
+      "n_cows_with_nonzero_ebv": 1359
+    }
+  },
+  "wall_seconds": 3793.2528586387634
+}

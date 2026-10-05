@@ -1,0 +1,58 @@
+seed   1: mt_true/wwt: pev 0.728  mt_true/fat: pev 1.325  mt_true/fec: pev 0.938  mt_reml/wwt: pev 0.804  mt_reml/fat: pev 1.226  mt_reml/fec: pev 0.986
+seed   2: mt_true/wwt: pev 0.905  mt_true/fat: pev 0.888  mt_true/fec: pev 0.914  mt_reml/wwt: pev 0.806  mt_reml/fat: pev 0.916  mt_reml/fec: pev 0.893
+seed   3: mt_true/wwt: pev 1.085  mt_true/fat: pev 1.075  mt_true/fec: pev 1.335  mt_reml/wwt: pev 1.119  mt_reml/fat: pev 1.082  mt_reml/fec: pev 1.313
+seed   4: mt_true/wwt: pev 1.102  mt_true/fat: pev 1.122  mt_true/fec: pev 1.050  mt_reml/wwt: pev 1.523  mt_reml/fat: pev 0.914  mt_reml/fec: pev 1.050
+seed   5: mt_true/wwt: pev 1.211  mt_true/fat: pev 1.034  mt_true/fec: pev 0.831  mt_reml/wwt: pev 0.950  mt_reml/fat: pev 1.280  mt_reml/fec: pev 0.706
+seed   6: mt_true/wwt: pev 1.021  mt_true/fat: pev 1.121  mt_true/fec: pev 0.836  mt_reml/wwt: pev 0.979  mt_reml/fat: pev 1.162  mt_reml/fec: pev 0.786
+seed   7: mt_true/wwt: pev 0.849  mt_true/fat: pev 1.032  mt_true/fec: pev 0.794  mt_reml/wwt: pev 0.833  mt_reml/fat: pev 0.991  mt_reml/fec: pev 0.666
+seed   8: mt_true/wwt: pev 1.051  mt_true/fat: pev 0.756  mt_true/fec: pev 0.816  mt_reml/wwt: pev 0.908  mt_reml/fat: pev 0.814  mt_reml/fec: pev 1.912
+seed   9: mt_true/wwt: pev 1.111  mt_true/fat: pev 0.945  mt_true/fec: pev 0.843  mt_reml/wwt: pev 1.050  mt_reml/fat: pev 0.912  mt_reml/fec: pev 0.815
+seed  10: mt_true/wwt: pev 0.916  mt_true/fat: pev 0.846  mt_true/fec: pev 1.133  mt_reml/wwt: pev 1.060  mt_reml/fat: pev 0.845  mt_reml/fec: pev 0.937
+seed  11: mt_true/wwt: pev 1.048  mt_true/fat: pev 0.958  mt_true/fec: pev 1.154  mt_reml/wwt: pev 1.168  mt_reml/fat: pev 0.803  mt_reml/fec: pev 2.162
+seed  12: mt_true/wwt: pev 0.971  mt_true/fat: pev 1.005  mt_true/fec: pev 1.016  mt_reml/wwt: pev 1.001  mt_reml/fat: pev 0.957  mt_reml/fec: pev 1.211
+seed  13: mt_true/wwt: pev 1.265  mt_true/fat: pev 0.831  mt_true/fec: pev 0.857  mt_reml/wwt: pev 1.310  mt_reml/fat: pev 1.037  mt_reml/fec: pev 0.923
+seed  14: mt_true/wwt: pev 0.993  mt_true/fat: pev 1.038  mt_true/fec: pev 0.956  mt_reml/wwt: pev 1.270  mt_reml/fat: pev 1.354  mt_reml/fec: pev 0.756
+seed  15: mt_true/wwt: pev 1.231  mt_true/fat: pev 1.017  mt_true/fec: pev 0.910  mt_reml/wwt: pev 1.331  mt_reml/fat: pev 0.877  mt_reml/fec: pev 1.282
+seed  16: mt_true/wwt: pev 1.228  mt_true/fat: pev 1.077  mt_true/fec: pev 1.147  mt_reml/wwt: pev 1.788  mt_reml/fat: pev 0.975  mt_reml/fec: pev 1.235
+seed  17: mt_true/wwt: pev 1.441  mt_true/fat: pev 0.856  mt_true/fec: pev 1.047  mt_reml/wwt: pev 1.818  mt_reml/fat: pev 0.830  mt_reml/fec: pev 1.275
+seed  18: mt_true/wwt: pev 0.983  mt_true/fat: pev 0.846  mt_true/fec: pev 0.831  mt_reml/wwt: pev 1.016  mt_reml/fat: pev 0.866  mt_reml/fec: pev 0.753
+seed  19: mt_true/wwt: pev 0.830  mt_true/fat: pev 1.043  mt_true/fec: pev 1.145  mt_reml/wwt: pev 0.769  mt_reml/fat: pev 1.617  mt_reml/fec: pev 0.806
+seed  20: mt_true/wwt: pev 1.215  mt_true/fat: pev 1.075  mt_true/fec: pev 1.441  mt_reml/wwt: pev 1.030  mt_reml/fat: pev 0.973  mt_reml/fec: pev 1.593
+seed  21: mt_true/wwt: pev 0.985  mt_true/fat: pev 1.040  mt_true/fec: pev 0.730  mt_reml/wwt: pev 0.994  mt_reml/fat: pev 1.529  mt_reml/fec: pev 0.718
+seed  22: mt_true/wwt: pev 0.853  mt_true/fat: pev 0.982  mt_true/fec: pev 1.048  mt_reml/wwt: pev 1.213  mt_reml/fat: pev 0.896  mt_reml/fec: pev 1.141
+seed  23: mt_true/wwt: pev 0.836  mt_true/fat: pev 0.908  mt_true/fec: pev 1.156  mt_reml/wwt: pev 0.748  mt_reml/fat: pev 0.976  mt_reml/fec: pev 1.397
+seed  24: mt_true/wwt: pev 1.450  mt_true/fat: pev 1.075  mt_true/fec: pev 1.022  mt_reml/wwt: pev 1.491  mt_reml/fat: pev 0.882  mt_reml/fec: pev 1.090
+seed  25: mt_true/wwt: pev 1.034  mt_true/fat: pev 0.917  mt_true/fec: pev 1.062  mt_reml/wwt: pev 1.164  mt_reml/fat: pev 1.179  mt_reml/fec: pev 1.046
+seed  26: mt_true/wwt: pev 1.038  mt_true/fat: pev 1.023  mt_true/fec: pev 0.880  mt_reml/wwt: pev 1.106  mt_reml/fat: pev 0.974  mt_reml/fec: pev 0.979
+seed  27: mt_true/wwt: pev 1.159  mt_true/fat: pev 0.988  mt_true/fec: pev 0.984  mt_reml/wwt: pev 1.376  mt_reml/fat: pev 1.284  mt_reml/fec: pev 1.219
+seed  28: mt_true/wwt: pev 1.173  mt_true/fat: pev 0.903  mt_true/fec: pev 0.817  mt_reml/wwt: pev 1.365  mt_reml/fat: pev 0.944  mt_reml/fec: pev 0.763
+seed  29: mt_true/wwt: pev 1.350  mt_true/fat: pev 1.363  mt_true/fec: pev 1.004  mt_reml/wwt: pev 1.430  mt_reml/fat: pev 1.494  mt_reml/fec: pev 1.426
+seed  30: mt_true/wwt: pev 1.131  mt_true/fat: pev 0.917  mt_true/fec: pev 0.855  mt_reml/wwt: pev 0.940  mt_reml/fat: pev 1.080  mt_reml/fec: pev 0.938
+seed  31: mt_true/wwt: pev 0.877  mt_true/fat: pev 0.814  mt_true/fec: pev 0.989  mt_reml/wwt: pev 0.965  mt_reml/fat: pev 0.664  mt_reml/fec: pev 1.455
+seed  32: mt_true/wwt: pev 0.860  mt_true/fat: pev 0.953  mt_true/fec: pev 0.948  mt_reml/wwt: pev 0.899  mt_reml/fat: pev 0.957  mt_reml/fec: pev 2.077
+seed  33: mt_true/wwt: pev 1.152  mt_true/fat: pev 1.039  mt_true/fec: pev 0.866  mt_reml/wwt: pev 1.124  mt_reml/fat: pev 1.352  mt_reml/fec: pev 0.879
+seed  34: mt_true/wwt: pev 1.029  mt_true/fat: pev 1.157  mt_true/fec: pev 1.094  mt_reml/wwt: pev 1.221  mt_reml/fat: pev 0.989  mt_reml/fec: pev 0.987
+seed  35: mt_true/wwt: pev 1.024  mt_true/fat: pev 1.132  mt_true/fec: pev 0.925  mt_reml/wwt: pev 0.798  mt_reml/fat: pev 1.058  mt_reml/fec: pev 1.428
+seed  36: mt_true/wwt: pev 1.172  mt_true/fat: pev 0.937  mt_true/fec: pev 1.075  mt_reml/wwt: pev 1.284  mt_reml/fat: pev 0.798  mt_reml/fec: pev 0.917
+seed  37: mt_true/wwt: pev 1.006  mt_true/fat: pev 0.906  mt_true/fec: pev 0.839  mt_reml/wwt: pev 1.021  mt_reml/fat: pev 1.810  mt_reml/fec: pev 0.838
+seed  38: mt_true/wwt: pev 0.847  mt_true/fat: pev 1.070  mt_true/fec: pev 0.912  mt_reml/wwt: pev 0.711  mt_reml/fat: pev 1.157  mt_reml/fec: pev 1.308
+seed  39: mt_true/wwt: pev 0.934  mt_true/fat: pev 0.848  mt_true/fec: pev 0.947  mt_reml/wwt: pev 1.012  mt_reml/fat: pev 0.879  mt_reml/fec: pev 1.056
+seed  40: mt_true/wwt: pev 0.919  mt_true/fat: pev 0.918  mt_true/fec: pev 0.996  mt_reml/wwt: pev 0.864  mt_reml/fat: pev 1.516  mt_reml/fec: pev 0.780
+seed  41: mt_true/wwt: pev 0.921  mt_true/fat: pev 0.828  mt_true/fec: pev 1.068  mt_reml/wwt: pev 1.314  mt_reml/fat: pev 1.301  mt_reml/fec: pev 1.615
+seed  42: mt_true/wwt: pev 0.787  mt_true/fat: pev 1.037  mt_true/fec: pev 0.946  mt_reml/wwt: pev 1.009  mt_reml/fat: pev 1.063  mt_reml/fec: pev 1.451
+seed  43: mt_true/wwt: pev 1.039  mt_true/fat: pev 0.944  mt_true/fec: pev 1.140  mt_reml/wwt: pev 1.176  mt_reml/fat: pev 0.976  mt_reml/fec: pev 1.331
+seed  44: mt_true/wwt: pev 1.043  mt_true/fat: pev 0.987  mt_true/fec: pev 1.185  mt_reml/wwt: pev 1.111  mt_reml/fat: pev 1.511  mt_reml/fec: pev 0.908
+seed  45: mt_true/wwt: pev 0.842  mt_true/fat: pev 1.000  mt_true/fec: pev 0.886  mt_reml/wwt: pev 0.813  mt_reml/fat: pev 1.712  mt_reml/fec: pev 1.206
+seed  46: mt_true/wwt: pev 0.872  mt_true/fat: pev 0.852  mt_true/fec: pev 0.718  mt_reml/wwt: pev 0.947  mt_reml/fat: pev 1.160  mt_reml/fec: pev 0.998
+seed  47: mt_true/wwt: pev 1.022  mt_true/fat: pev 1.044  mt_true/fec: pev 1.118  mt_reml/wwt: pev 0.869  mt_reml/fat: pev 0.990  mt_reml/fec: pev 1.438
+seed  48: mt_true/wwt: pev 0.924  mt_true/fat: pev 0.935  mt_true/fec: pev 0.792  mt_reml/wwt: pev 0.812  mt_reml/fat: pev 0.924  mt_reml/fec: pev 0.796
+seed  49: mt_true/wwt: pev 0.983  mt_true/fat: pev 0.861  mt_true/fec: pev 1.001  mt_reml/wwt: pev 1.202  mt_reml/fat: pev 0.737  mt_reml/fec: pev 0.661
+seed  50: mt_true/wwt: pev 0.886  mt_true/fat: pev 0.944  mt_true/fec: pev 1.107  mt_reml/wwt: pev 0.829  mt_reml/fat: pev 1.483  mt_reml/fec: pev 1.546
+mt_true wwt {'slope': '0.978±0.018', 'bias': '0.014±0.058', 'realized_accuracy': '0.613±0.010', 'model_accuracy': '0.624±0.002', 'pev_ratio': '1.027±0.023', 'coverage95': '0.948±0.003'}
+mt_true fat {'slope': '0.993±0.020', 'bias': '0.004±0.013', 'realized_accuracy': '0.592±0.010', 'model_accuracy': '0.607±0.002', 'pev_ratio': '0.984±0.017', 'coverage95': '0.953±0.002'}
+mt_true fec {'slope': '1.034±0.026', 'bias': '-0.005±0.014', 'realized_accuracy': '0.535±0.012', 'model_accuracy': '0.525±0.002', 'pev_ratio': '0.982±0.021', 'coverage95': '0.952±0.003'}
+mt_reml wwt {'slope': '0.959±0.023', 'bias': '-0.069±0.078', 'realized_accuracy': '0.611±0.010', 'model_accuracy': '0.634±0.005', 'pev_ratio': '1.087±0.036', 'coverage95': '0.940±0.004', 'pev_ratio_incl_vc': '1.025±0.033', 'coverage95_incl_vc': '0.948±0.004'}
+mt_reml fat {'slope': '1.008±0.031', 'bias': '0.002±0.014', 'realized_accuracy': '0.584±0.010', 'model_accuracy': '0.608±0.006', 'pev_ratio': '1.094±0.038', 'coverage95': '0.939±0.004', 'pev_ratio_incl_vc': '1.048±0.035', 'coverage95_incl_vc': '0.944±0.004'}
+mt_reml fec {'slope': '1.032±0.033', 'bias': '0.011±0.016', 'realized_accuracy': '0.522±0.013', 'model_accuracy': '0.531±0.006', 'pev_ratio': '1.129±0.050', 'coverage95': '0.935±0.006', 'pev_ratio_incl_vc': '1.058±0.044', 'coverage95_incl_vc': '0.942±0.005'}
+REML G0 mean [[4.213, 0.315, -0.04], [0.315, 0.245, -0.011], [-0.04, -0.011, 0.298]] true [[4.0, 0.3, 0.0], [0.3, 0.25, 0.0], [0.0, 0.0, 0.303]]
+wrote docs/validation/mt_calibration_kh.json

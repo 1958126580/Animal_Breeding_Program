@@ -1,0 +1,65 @@
+{
+  "method": "LR (partial vs whole)",
+  "trait": "bw",
+  "cutoff": "2003-12-31",
+  "n_records_hidden": 677,
+  "n_records_partial": 1137,
+  "focal_rule": "animals whose only records of the trait are dated after the cutoff",
+  "n_focal": 677,
+  "variance_components": {
+    "animal": 2.9146058929704206,
+    "cage": 2.0394256160994853,
+    "residual": 3.5505211576988276
+  },
+  "variance_source": "REML on the partial data only (converged, 9 iterations)",
+  "relationship_structure": "same structure as the main evaluation",
+  "statistics": {
+    "bias_delta_p": -0.010043168711888997,
+    "dispersion_b_w_p": 0.8988748504913824,
+    "rho_wp": 0.868687308439923
+  },
+  "expected_under_correct_model": {
+    "bias_delta_p": 0.0,
+    "dispersion_b_w_p": 1.0,
+    "rho_wp": "acc_p / acc_w (< 1)"
+  },
+  "bootstrap": {
+    "replicates": 1000,
+    "failed_replicates": 0,
+    "n_clusters": 677,
+    "seed": 20261005,
+    "generator": "numpy PCG64",
+    "bias_delta_p": {
+      "se": 0.026051446943833823,
+      "ci95": [
+        -0.05895723494832334,
+        0.040657307386342684
+      ]
+    },
+    "dispersion_b_w_p": {
+      "se": 0.021354278920162985,
+      "ci95": [
+        0.8577622380883937,
+        0.9419266493424883
+      ]
+    },
+    "rho_wp": {
+      "se": 0.009269777170542374,
+      "ci95": [
+        0.8492831489181555,
+        0.8849832787011563
+      ]
+    }
+  },
+  "bootstrap_cluster": "individual animal",
+  "model_based_reliability_focal": {
+    "mean_partial": 0.4954679438858422,
+    "mean_whole": 0.689543531023242,
+    "sqrt_ratio_partial_over_whole": 0.8476702405324522
+  },
+  "not_computed": [
+    "LR population accuracy estimator (published form has a 2019 erratum not verifiable in this environment)"
+  ],
+  "interpretation": "bias and dispersion compare partial predictions with the whole-data predictions of the same animals; rho_wp near 1 shows agreement, not accuracy; results are specific to this cutoff and population",
+  "file": "lr_focal_bw.csv"
+}

@@ -1,0 +1,136 @@
+{
+  "data": "pedigreemm 0.3-5 'milk' and 'pedCowsR' via examples/20_holstein_milk_real/fetch_data.py (sire repair applied)",
+  "r_versions": {
+    "R": "R version 4.3.3 (2024-02-29)",
+    "lme4": "1.1.35.1",
+    "pedigreemm": "0.3.5",
+    "Matrix": "1.6.5"
+  },
+  "r_wall_seconds": 1374.0593831539154,
+  "models": {
+    "milk_first_lactation": {
+      "n_records": 1314,
+      "rank_x_abp": 51,
+      "rank_x_r": 51,
+      "abp": {
+        "status": "converged",
+        "variances": {
+          "animal": 1840737.4492256094,
+          "residual": 11337848.232547626
+        },
+        "loglik": -11042.21788387918,
+        "seconds": 5.56723427772522
+      },
+      "pedigreemm": {
+        "variances": {
+          "animal": 1840711.5203007367,
+          "residual": 11337869.986012824
+        },
+        "loglik_reml": -12202.83725131892,
+        "seconds": 105.762
+      },
+      "relative_difference_of_variances": {
+        "animal": 1.4086359859657142e-05,
+        "residual": -1.918655375729037e-06
+      },
+      "loglik_abp_minus_pedigreemm": 1160.61936743974,
+      "loglik_abp_minus_pedigreemm_without_2pi_constant": 2.2391759557649493e-09,
+      "ebv": {
+        "n_animals": 1314,
+        "correlation": 0.9999999999942595,
+        "max_abs_difference": 0.02307942689799347,
+        "sd_ebv_pedigreemm": 602.6713862458748,
+        "max_abs_difference_over_sd": 3.82952093374774e-05,
+        "pedigreemm_ranef_as_returned": {
+          "note": "pedigreemm 0.3-5 ranef() = relfac %*% b; the additive BLUP is t(relfac) %*% b (compared above)",
+          "correlation_with_abp": 0.7460771017613224
+        },
+        "abp_minus_vform_max_abs": 1.5546675058430992e-08
+      }
+    },
+    "scs_repeatability": {
+      "n_records": 3397,
+      "rank_x_abp": 61,
+      "rank_x_r": 61,
+      "abp": {
+        "status": "converged",
+        "variances": {
+          "animal": 0.08525509014490464,
+          "pe": 0.2763929790438381,
+          "residual": 1.1621963551738017
+        },
+        "loglik": -2376.8621948647947,
+        "seconds": 9.709455490112305
+      },
+      "pedigreemm": {
+        "variances": {
+          "animal": 0.08525893129948693,
+          "pe": 0.27638773478814327,
+          "residual": 1.1621975829468625
+        },
+        "loglik_reml": -5442.441141639608,
+        "seconds": 598.975
+      },
+      "relative_difference_of_variances": {
+        "animal": -4.505281175532341e-05,
+        "pe": 1.8974270688364093e-05,
+        "residual": -1.0564236914531002e-06
+      },
+      "loglik_abp_minus_pedigreemm": 3065.578946774813,
+      "loglik_abp_minus_pedigreemm_without_2pi_constant": 4.024968802696094e-09,
+      "ebv": {
+        "n_animals": 1359,
+        "correlation": 0.9999999999485337,
+        "max_abs_difference": 1.6681519363903607e-05,
+        "sd_ebv_pedigreemm": 0.11666819204952299,
+        "max_abs_difference_over_sd": 0.00014298258223477642,
+        "pedigreemm_ranef_as_returned": {
+          "note": "pedigreemm 0.3-5 ranef() = relfac %*% b; the additive BLUP is t(relfac) %*% b (compared above)",
+          "correlation_with_abp": 0.7156176826438878
+        }
+      }
+    },
+    "milk_repeatability": {
+      "n_records": 3397,
+      "rank_x_abp": 61,
+      "rank_x_r": 61,
+      "abp": {
+        "status": "converged",
+        "variances": {
+          "animal": 925611.4988695193,
+          "pe": 4638960.123078619,
+          "residual": 10398543.147819074
+        },
+        "loglik": -29245.614546982695,
+        "seconds": 7.291824102401733
+      },
+      "pedigreemm": {
+        "variances": {
+          "animal": 925560.8645344204,
+          "pe": 4638985.829437021,
+          "residual": 10398552.16352736
+        },
+        "loglik_reml": -32311.193493764582,
+        "seconds": 667.402
+      },
+      "relative_difference_of_variances": {
+        "animal": 5.47066508958056e-05,
+        "pe": -5.54137463385091e-06,
+        "residual": -8.670157291644461e-07
+      },
+      "loglik_abp_minus_pedigreemm": 3065.5789467818868,
+      "loglik_abp_minus_pedigreemm_without_2pi_constant": 1.1099473340436816e-08,
+      "ebv": {
+        "n_animals": 1359,
+        "correlation": 0.9999999999418951,
+        "max_abs_difference": 0.04823316890383467,
+        "sd_ebv_pedigreemm": 376.2743898311687,
+        "max_abs_difference_over_sd": 0.0001281861593755464,
+        "pedigreemm_ranef_as_returned": {
+          "note": "pedigreemm 0.3-5 ranef() = relfac %*% b; the additive BLUP is t(relfac) %*% b (compared above)",
+          "correlation_with_abp": 0.711993127083106
+        }
+      }
+    }
+  }
+}

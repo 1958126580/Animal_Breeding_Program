@@ -1,0 +1,34 @@
+seed 1: ss_conventional: acc 0.495 bias -0.132  ss_one_mf: acc 0.495 bias -0.134  ss_two_mf: acc 0.495 bias -0.026
+seed 2: ss_conventional: acc 0.426 bias +0.040  ss_one_mf: acc 0.426 bias +0.019  ss_two_mf: acc 0.425 bias -0.047
+seed 3: ss_conventional: acc 0.499 bias +0.036  ss_one_mf: acc 0.500 bias +0.024  ss_two_mf: acc 0.499 bias +0.124
+seed 4: ss_conventional: acc 0.433 bias +0.103  ss_one_mf: acc 0.433 bias +0.087  ss_two_mf: acc 0.433 bias +0.060
+seed 5: ss_conventional: acc 0.333 bias +0.470  ss_one_mf: acc 0.333 bias +0.415  ss_two_mf: acc 0.334 bias +0.267
+seed 6: ss_conventional: acc 0.399 bias +0.011  ss_one_mf: acc 0.399 bias +0.009  ss_two_mf: acc 0.398 bias +0.124
+seed 7: ss_conventional: acc 0.414 bias -0.227  ss_one_mf: acc 0.414 bias -0.254  ss_two_mf: acc 0.414 bias -0.146
+seed 8: ss_conventional: acc 0.445 bias -0.200  ss_one_mf: acc 0.446 bias -0.178  ss_two_mf: acc 0.444 bias -0.318
+seed 9: ss_conventional: acc 0.452 bias -0.353  ss_one_mf: acc 0.453 bias -0.353  ss_two_mf: acc 0.453 bias -0.239
+seed 10: ss_conventional: acc 0.341 bias -0.232  ss_one_mf: acc 0.342 bias -0.237  ss_two_mf: acc 0.344 bias -0.069
+seed 11: ss_conventional: acc 0.465 bias +0.173  ss_one_mf: acc 0.464 bias +0.170  ss_two_mf: acc 0.464 bias +0.119
+seed 12: ss_conventional: acc 0.359 bias -0.694  ss_one_mf: acc 0.358 bias -0.669  ss_two_mf: acc 0.358 bias -0.319
+seed 13: ss_conventional: acc 0.390 bias +0.289  ss_one_mf: acc 0.390 bias +0.304  ss_two_mf: acc 0.390 bias -0.080
+seed 14: ss_conventional: acc 0.439 bias +0.636  ss_one_mf: acc 0.439 bias +0.608  ss_two_mf: acc 0.438 bias +0.478
+seed 15: ss_conventional: acc 0.450 bias -0.586  ss_one_mf: acc 0.451 bias -0.540  ss_two_mf: acc 0.450 bias -0.185
+seed 16: ss_conventional: acc 0.494 bias -0.315  ss_one_mf: acc 0.495 bias -0.336  ss_two_mf: acc 0.494 bias -0.013
+seed 17: ss_conventional: acc 0.573 bias -0.311  ss_one_mf: acc 0.573 bias -0.306  ss_two_mf: acc 0.574 bias -0.448
+seed 18: ss_conventional: acc 0.253 bias +0.105  ss_one_mf: acc 0.251 bias +0.149  ss_two_mf: acc 0.251 bias +0.048
+seed 19: ss_conventional: acc 0.293 bias +0.164  ss_one_mf: acc 0.293 bias +0.169  ss_two_mf: acc 0.294 bias +0.286
+seed 20: ss_conventional: acc 0.506 bias +0.088  ss_one_mf: acc 0.506 bias +0.090  ss_two_mf: acc 0.506 bias +0.003
+seed 21: ss_conventional: acc 0.403 bias -0.355  ss_one_mf: acc 0.403 bias -0.323  ss_two_mf: acc 0.403 bias -0.142
+seed 22: ss_conventional: acc 0.345 bias +0.364  ss_one_mf: acc 0.345 bias +0.366  ss_two_mf: acc 0.345 bias +0.213
+seed 23: ss_conventional: acc 0.387 bias -0.439  ss_one_mf: acc 0.387 bias -0.496  ss_two_mf: acc 0.387 bias -0.220
+seed 24: ss_conventional: acc 0.385 bias +0.247  ss_one_mf: acc 0.386 bias +0.248  ss_two_mf: acc 0.386 bias +0.194
+seed 25: ss_conventional: acc 0.544 bias -0.061  ss_one_mf: acc 0.544 bias -0.111  ss_two_mf: acc 0.544 bias -0.062
+seed 26: ss_conventional: acc 0.408 bias +0.102  ss_one_mf: acc 0.408 bias +0.134  ss_two_mf: acc 0.409 bias -0.188
+seed 27: ss_conventional: acc 0.527 bias -0.201  ss_one_mf: acc 0.527 bias -0.158  ss_two_mf: acc 0.526 bias -0.041
+seed 28: ss_conventional: acc 0.344 bias -0.168  ss_one_mf: acc 0.343 bias -0.124  ss_two_mf: acc 0.343 bias -0.146
+seed 29: ss_conventional: acc 0.441 bias +0.603  ss_one_mf: acc 0.441 bias +0.620  ss_two_mf: acc 0.440 bias +0.358
+seed 30: ss_conventional: acc 0.549 bias -0.344  ss_one_mf: acc 0.549 bias -0.316  ss_two_mf: acc 0.549 bias -0.370
+ss_conventional {'realized_accuracy': '0.426±0.014', 'slope': '0.935±0.044', 'bias': '-0.040±0.060', 'pev_ratio': '1.211±0.068', 'coverage95': '0.923±0.009', 'rms_bias': '0.326±nan'}
+ss_one_mf {'realized_accuracy': '0.426±0.014', 'slope': '0.936±0.044', 'bias': '-0.037±0.059', 'pev_ratio': '1.204±0.065', 'coverage95': '0.923±0.008', 'rms_bias': '0.320±nan'}
+ss_two_mf {'realized_accuracy': '0.426±0.014', 'slope': '0.939±0.044', 'bias': '-0.026±0.040', 'pev_ratio': '1.112±0.059', 'coverage95': '0.934±0.008', 'rms_bias': '0.219±nan', 'gamma_estimate_mean': [[0.539, 0.505], [0.505, 0.625]], 'gamma_true_snp_mean': [[0.539, 0.512], [0.512, 0.64]], 'gamma_error_mean': [[-0.001, -0.007], [-0.007, -0.015]]}
+wrote /home/user/Animal_Breeding_Program/docs/validation/two_metafounder_study.json

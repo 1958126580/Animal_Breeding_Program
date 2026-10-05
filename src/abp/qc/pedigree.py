@@ -280,8 +280,9 @@ def load_pedigree(table: Table, cols: PedigreeColumns, unknown_parent: set[str],
                     use[gs][0] += 1
                 if gd is not None:
                     use[gd][1] += 1
-            qc.add("PED-UPG", "info", "unknown parents assigned to genetic groups "
-                                      "(QP transformation; see abp.core.upg)",
+            qc.add("PED-UPG", "info", "unknown parents assigned by prefix code to genetic "
+                                      "groups (abp.core.upg) or metafounders "
+                                      "(abp.core.metafounders), as declared in the spec",
                    [{"group": g, "n_as_sire": u[0], "n_as_dam": u[1]} for g, u in use.items()])
         qc.stats["n_groups"] = len(groups.labels)
         qc.stats["n_parents_in_groups"] = int((groups.sire_group >= 0).sum()

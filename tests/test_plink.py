@@ -2,7 +2,6 @@
 GBLUP results from PLINK and ABP dosage-matrix inputs."""
 
 import csv
-import shutil
 
 import numpy as np
 import pytest
@@ -118,3 +117,33 @@ ungenotyped_records = "exclude"
     from abp.workflows.validate import validate_inputs
     summary = validate_inputs(b)
     assert any(f["check"] == "GEN-PLINK" for f in summary["genotypes"]["findings"])
+
+
+def test_int8_decoding_and_loader_equal_float(tmp_path):
+    raw = bytes([0x6C, 0x1B, 0x01, 0x78, 0x00, 0x2F, 0x01])
+    M8 = decode_bed(raw, 5, 2, "int8")
+    assert M8.dtype == np.int8
+    np.testing.assert_array_equal(M8, [[2, 0], [1, 0], [0, 1], [-1, 2], [2, -1]])
+    rng = np.random.default_rng(1)
+    D = rng.integers(0, 3, (17, 9)).astype(float)
+    D[rng.random(D.shape) < 0.1] = np.nan
+    markers = [(f"v{j}", "1", 100 * (j + 1), "G", "A") for j in range(9)]
+    write_bed(tmp_path / "x", [f"s{i}" for i in range(17)], markers, D)
+    g64 = load_plink(tmp_path / "x", "ASM")
+    g8 = load_plink(tmp_path / "x", "ASM", "int8")
+    np.testing.assert_array_equal(g8.missing, g64.missing)
+    np.testing.assert_array_equal(np.where(g8.missing, 0, g8.dosage), g64.dosage)
+
+
+def test_to_int8_refuses_fractional_dosages():
+    from abp.qc.genotype import GenotypeData, to_int8
+    from abp.qc.report import QCReport
+    M = np.array([[0.0, 1.0], [2.0, 1.5]])
+    g = GenotypeData(["a", "b"], ["m1", "m2"], M, np.zeros_like(M, dtype=bool), "A",
+                     ["G", "G"], QCReport("genotypes"), {})
+    with pytest.raises(ABPError, match="fractional"):
+        to_int8(g)
+    g.dosage = np.array([[0.0, 1.0], [2.0, 0.0]])
+    g.missing = np.array([[False, False], [False, True]])
+    c = to_int8(g)
+    np.testing.assert_array_equal(c.dosage, [[0, 1], [2, -1]])

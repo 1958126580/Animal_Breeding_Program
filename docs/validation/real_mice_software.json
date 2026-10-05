@@ -1,0 +1,142 @@
+{
+  "data": "BGLR 1.1.4 'mice' via examples/21_mice_bodyweight_real/fetch_data.py",
+  "r_versions": {
+    "R": "R version 4.3.3 (2024-02-29)",
+    "rrBLUP": "4.6.3",
+    "sommer": "4.3.6"
+  },
+  "r_wall_seconds": null,
+  "G_abp_vs_rrBLUP_A_mat": {
+    "max_abs_difference": 1.4432899320127035e-14,
+    "mean_diag_abp": 1.026500146367681,
+    "mean_diag_rrBLUP": 1.0265001463676873
+  },
+  "traits": {
+    "bw": {
+      "rrBLUP_animal_only": {
+        "abp": {
+          "status": "converged",
+          "variances": {
+            "animal": 2.646355765316565,
+            "residual": 5.171263033386733
+          },
+          "loglik": -2622.961831461394,
+          "seconds": 5.827876806259155
+        },
+        "r": {
+          "variances": {
+            "animal": 2.646353148104319,
+            "residual": 5.171263993997564
+          },
+          "loglik": -4260.172580089147,
+          "seconds": 40.034000000000006
+        },
+        "relative_difference_of_variances": {
+          "animal": 9.889882791763532e-07,
+          "residual": -1.8575938725912653e-07
+        },
+        "ebv": {
+          "correlation": 0.9999999999999717,
+          "max_abs_difference": 2.1697208714144267e-06,
+          "max_abs_difference_over_sd": 1.609129347452879e-06
+        },
+        "loglik_abp_minus_r": 1637.2107486277532,
+        "loglik_abp_minus_r_without_2pi_constant": -22.392242339885797
+      },
+      "sommer_animal_cage": {
+        "abp": {
+          "status": "converged",
+          "variances": {
+            "animal": 2.1266515345108696,
+            "cage": 2.1683762628507326,
+            "residual": 3.5017260597190893
+          },
+          "loglik": -2527.735065160431,
+          "seconds": 8.296151876449585
+        },
+        "r": {
+          "variances": {
+            "animal": 2.126644733422093,
+            "cage": 2.168373108024629,
+            "residual": 3.5017296402535956
+          },
+          "loglik": 82.66805737007837,
+          "seconds": 203.65500000000003
+        },
+        "relative_difference_of_variances": {
+          "animal": 3.198037109684008e-06,
+          "cage": 1.4549277021529953e-06,
+          "residual": -1.0225045546236938e-06
+        },
+        "ebv": {
+          "correlation": 0.9999999999996607,
+          "max_abs_difference": 5.636938874786779e-06,
+          "max_abs_difference_over_sd": 4.638996219622469e-06
+        }
+      }
+    },
+    "body_length": {
+      "rrBLUP_animal_only": {
+        "abp": {
+          "status": "converged",
+          "variances": {
+            "animal": 0.06379612354133192,
+            "residual": 0.21026859071216242
+          },
+          "loglik": 333.58504859809636,
+          "seconds": 6.597748756408691
+        },
+        "r": {
+          "variances": {
+            "animal": 0.06379616476209589,
+            "residual": 0.21026857263797502
+          },
+          "loglik": -1303.6257000244923,
+          "seconds": 37.291
+        },
+        "relative_difference_of_variances": {
+          "animal": -6.461323203762898e-07,
+          "residual": 8.595762633469068e-08
+        },
+        "ebv": {
+          "correlation": 0.9999999999999885,
+          "max_abs_difference": 1.6696309668162712e-07,
+          "max_abs_difference_over_sd": 9.66244954486079e-07
+        },
+        "loglik_abp_minus_r": 1637.2107486225887,
+        "loglik_abp_minus_r_without_2pi_constant": -22.392242345050136
+      },
+      "sommer_animal_cage": {
+        "abp": {
+          "status": "converged",
+          "variances": {
+            "animal": 0.043196765342188366,
+            "cage": 0.06353067559903897,
+            "residual": 0.16296782410591212
+          },
+          "loglik": 393.7511582348253,
+          "seconds": 9.745070219039917
+        },
+        "r": {
+          "variances": {
+            "animal": 0.043195379553806174,
+            "cage": 0.0635309460524626,
+            "residual": 0.16296831908836043
+          },
+          "loglik": -618.3536563312689,
+          "seconds": 178.21300000000002
+        },
+        "relative_difference_of_variances": {
+          "animal": 3.208186608167757e-05,
+          "cage": -4.257034412887555e-06,
+          "residual": -3.037292469332937e-06
+        },
+        "ebv": {
+          "correlation": 0.9999999999778173,
+          "max_abs_difference": 7.3805735150700436e-06,
+          "max_abs_difference_over_sd": 5.72804228171588e-05
+        }
+      }
+    }
+  }
+}

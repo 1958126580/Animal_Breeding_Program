@@ -146,6 +146,65 @@ def test_native_kernel_matches_python_reference():
         pmod._native.inbreeding_ml(bad, np.array([-1, -1], dtype=np.int64))
 
 
+def test_native_depth_kernel_matches_reference_on_every_path():
+    """Round 9: the depth-by-depth kernel (Meuwissen-Luo traces or Colleau columns per
+    depth) reproduces the Python reference and the dense diag(A) - 1 with either path
+    forced and with the automatic choice, on overlapping-generation pedigrees with
+    unknown parents, full sibs and deep inbreeding; bad ordering is rejected."""
+    from abp.core import pedigree as pmod
+    if pmod._native is None or not hasattr(pmod._native, "inbreeding_depth"):
+        pytest.skip("native kernel not compiled in this environment (recorded as not_run)")
+    for seed, n, g, w in ((21, 3000, 30, 60), (4, 600, 40, 8), (9, 300, 3, 300)):
+        ids, sires, dams = _random_pedigree(n, g, seed=seed, window=w)
+        ped = Pedigree.from_parent_ids(ids, sires, dams)
+        F_py = pmod.inbreeding_meuwissen_luo(ped.sire, ped.dam)
+        if n <= 600:
+            np.testing.assert_allclose(F_py, np.diag(ped.a_dense()) - 1.0, atol=1e-12)
+        for mode in (0, 1, 2):
+            raw, depths, n_ml, n_col, n_coldepth = pmod._native.inbreeding_depth(
+                ped.sire.copy(), ped.dam.copy(), mode)
+            np.testing.assert_allclose(np.frombuffer(raw), F_py, atol=1e-13, rtol=0)
+            assert depths == int(ped.generation.max()) + 1
+            if mode == 1:
+                assert n_col == 0 and n_coldepth == 0
+            if mode == 2:
+                assert n_ml == 0 and n_col > 0
+        assert F_py.max() > 0.05
+    big = Pedigree.from_parent_ids(*_random_pedigree(3000, 30, seed=21, window=60))
+    assert big.inbreeding_kernel is None
+    big.inbreeding()
+    assert big.inbreeding_kernel == ("native_cpp_depth_ml_colleau"
+                                     if pmod.native_kernel_available()
+                                     else "python_meuwissen_luo")    # ABP_DISABLE_NATIVE
+    bad = np.array([-1, 1], dtype=np.int64)
+    with pytest.raises(ValueError):
+        pmod._native.inbreeding_depth(bad, np.array([-1, -1], dtype=np.int64))
+
+
+def test_native_colleau_product_matches_reference(monkeypatch):
+    """Round 8: the C++ Colleau kernel (A x by the two pedigree recursions) equals the
+    reference (two sparse triangular solves) and the dense A x, for a vector and a
+    matrix right-hand side on an inbred pedigree; bad ordering is rejected."""
+    from abp.core import pedigree as pmod
+    if pmod._native is None or not hasattr(pmod._native, "colleau_times"):
+        pytest.skip("native kernel not compiled in this environment (recorded as not_run)")
+    ids, sires, dams = _random_pedigree(400, 12, seed=5, window=40)
+    ped = Pedigree.from_parent_ids(ids, sires, dams)
+    rng = np.random.default_rng(2)
+    x, X = rng.standard_normal(ped.n), rng.standard_normal((ped.n, 7))
+    native = ped.a_times(x), ped.a_times(X)
+    monkeypatch.setenv("ABP_DISABLE_NATIVE", "1")
+    ref = ped.a_times(x), ped.a_times(X)
+    A = ped.a_dense()
+    for got, want, dense in zip(native, ref, (A @ x, A @ X)):
+        np.testing.assert_allclose(got, want, rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(got, dense, rtol=1e-10, atol=1e-10)
+    bad = np.array([-1, 1], dtype=np.int64)
+    with pytest.raises(ValueError):
+        pmod._native.colleau_times(bad, np.array([-1, -1], dtype=np.int64), np.ones(2),
+                                   np.ones(2), 1)
+
+
 def test_disable_native_switch(monkeypatch):
     monkeypatch.setenv("ABP_DISABLE_NATIVE", "1")
     ped = Pedigree.from_parent_ids(["1", "2", "3", "4", "5"],

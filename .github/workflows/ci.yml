@@ -45,11 +45,40 @@ jobs:
         run: |
           bash packaging/linux/abp.sh run examples/01_textbook_mrode_3_1/analysis.toml --out "$RUNNER_TEMP/结果 输出"
           head -5 "$RUNNER_TEMP/结果 输出/report.md"
+      - name: Timing benchmark (fixed mid-size cases; Python 3.12 only)
+        if: matrix.python == '3.12'
+        run: python benchmarks/run_benchmarks.py --preset ci --out timings-${{ matrix.os }}.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results-${{ matrix.os }}-${{ matrix.python }}
-          path: test-results-*.xml
+          path: |
+            test-results-*.xml
+            timings-*.json
+
+  wheel:
+    name: ${{ matrix.os }} / wheel build + clean install
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build the wheel (C++20 kernel compiled when a compiler is present)
+        run: python -m pip wheel . --no-deps -w dist
+      - name: Install into a fresh virtual environment and run the self-test outside the checkout
+        shell: bash
+        run: |
+          python -m venv "$RUNNER_TEMP/venv"
+          if [ -x "$RUNNER_TEMP/venv/Scripts/python.exe" ]; then PY="$RUNNER_TEMP/venv/Scripts/python.exe"; else PY="$RUNNER_TEMP/venv/bin/python"; fi
+          "$PY" -m pip install dist/*.whl
+          cd "$RUNNER_TEMP"
+          "$PY" -c "import abp, abp.core.pedigree as p; print(abp.__version__, abp.__file__, 'native kernel:', p.native_kernel_available())"
+          "$PY" -m abp.cli selftest
 
   python-reference-kernels:
     name: ubuntu / pure-Python kernels (ABP_DISABLE_NATIVE=1)

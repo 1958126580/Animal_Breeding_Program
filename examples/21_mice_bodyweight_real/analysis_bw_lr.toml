@@ -1,0 +1,68 @@
+# Example 21, forward-in-time validation (round 16): body weight, GBLUP, LR method.
+# Mice tested in 2004 (677) are hidden in the "partial" evaluation (as if it had been run at
+# the end of 2003) and their partial EBVs are compared with the "whole" evaluation.
+# Variances are estimated by REML on the partial data only. test_date is the last day of the
+# test season (fetch_data.py; assumption: a year's winter is its first quarter).
+schema_version = "1"
+
+[project]
+name = "mice_bodyweight_real_lr"
+species = "mouse"
+synthetic_data = false
+
+[analysis]
+task = "additive_ebv"
+target_population = "heterogeneous-stock mice of the Valdar et al. (2006) experiment"
+information_cutoff = "2004-12-31"
+genetic_base = "genomic: VanRaden G centred on the observed allele frequencies"
+applicability = "method validation on public real data; not a breeding evaluation"
+
+[data]
+phenotypes = "data/phenotypes.csv"
+genotypes = "data/genotypes.csv"
+marker_map = "data/markers.csv"
+
+[data.phenotype_columns]
+date = "test_date"
+
+[[traits]]
+name = "bw"
+unit = "g"
+min = 5.0
+max = 60.0
+description = "body weight at the end of the obesity test"
+
+[model]
+traits = ["bw"]
+fixed = [
+  { column = "sex", type = "factor" },
+  { column = "year_season", type = "factor" },
+]
+random = [
+  { name = "animal", kind = "additive", relationship = "genomic" },
+  { name = "cage", kind = "iid", column = "cage" },
+]
+
+[variances]
+mode = "reml"
+
+[genomic]
+frequency_source = "genotyped_all"
+singular_policy = "ridge"       # G + 0.01 I (no pedigree for blending with A22)
+ridge = 0.01
+min_call_rate_marker = 0.90
+min_call_rate_animal = 0.90
+
+[qc]
+out_of_range = "quarantine"
+
+[output]
+top_n = 15
+
+[validation]
+method = "lr"
+cutoff = "2003-12-31"
+focal = "new_records_only"
+bootstrap_replicates = 1000
+bootstrap_cluster = "none"     # no pedigree file for these mice
+seed = 20261005
