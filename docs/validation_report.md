@@ -1179,9 +1179,16 @@ What the study shows:
   slope. For body weight it rose (0.73 → 0.79), and for body length the change is within
   its SE.
 * **F22 remains open.** It is partly explained, and the slope stays below 1 (0.73 for
-  body weight). Further candidates: dominance and epistatic variance shared by full sibs
-  (counted as additive within families, absent across families), and a sampling effect
-  of 169 families. None was tested here.
+  body weight). Anything full sibs share equally, including their share of dominance
+  variance, is already absorbed by the family effect, so it cannot explain the rest.
+  Remaining candidates:
+  * the genomic covariance assumed between distantly related mice (σ²_a G_ij) may be
+    larger than the realised one, while the variance itself is estimated mainly from
+    close relatives;
+  * genetic variance that differs between families or generations;
+  * sampling, with only 169 families.
+
+  None was tested here.
 
 **Several iid terms in the multi-trait Gibbs samplers** (methods §36; tests below). This
 is a feature, not a study. With known covariances, the posterior means of u and of both
@@ -1225,7 +1232,7 @@ for the four-trait example.
 | F19 | Bayesian maternal animal model (one record per animal, flat priors): the posterior mean of the maternal variance looked biased upwards (2.54 ± 0.19 vs 2.0 over 20 replicates; example 18: 3.9) while the EBV posterior PEVs were calibrated (direct 1.03, maternal 0.98) | revised (round 13) | REML on the same seeds gives 2.46 and is unbiased over 200 replicates (2.06 ± 0.07, §7.17): the 20 seeds were a high draw; the method-specific part is the posterior-mean excess over REML, +0.17 ± 0.05 (≈7%) with flat priors and −0.05 with weak data-only priors (§7.16). Use weak priors or REML for point estimates; report intervals |
 | F20 | Maternal animal model by REML: the plug-in maternal PEV is optimistic when the maternal variance is underestimated (MSE/PEV 1.56 ± 0.19 over 192 fits, median 1.04; 5.19 in the 24 fits with an estimate below 1.0) | open (round 13) | Kackar–Harville columns reduce it (1.35, median 1.00) but not for the low estimates (3.72); the Bayesian posterior PEV is calibrated (0.98); prefer the Bayesian model, or read maternal reliabilities from the Kackar–Harville columns, when the maternal variance is poorly determined |
 | F21 | Several categorical traits (one record per animal and trait): the binary trait's liability variance is overestimated (0.25 vs 0.16, prior centred at 0.2) and genetic correlations are pulled towards the prior's centre (0.35 vs 0.5 with a prior at zero covariance); residual covariances between categorical traits are fixed at 0 by the model | open (round 14) | joint modelling still improves the categorical EBVs (+0.05, +0.08 accuracy) with calibrated or conservative reliabilities (§7.18); take prior variances and covariances from published estimates and report them; repeated records or progeny-tested sires identify the covariances better |
-| F22 | Real data (mice, GBLUP): EBVs of animals without close relatives in the training data are over-dispersed (across families: regression 0.66 body weight, 0.52 body length; forward in time, mice tested in 2004: dispersion 0.90 ± 0.02); Holstein EBVs from relatives only: 0.72–0.82 | **partly explained** (round 16) | factor study (§7.20): a full-sib family (common environment) effect is strongly supported (LR statistics 21.6, 14.8) and raises the slope to 0.73 / 0.56; fold-wise variance estimation adds 0.03–0.05; the G frequency base and ridge do not matter; fewer markers did not lower the slope (linkage hypothesis not supported). Fit a common-environment (litter/family) term where full sibs share an environment (REML: any number of iid terms; Gibbs: round 16); remaining candidates: non-additive variance shared by full sibs |
+| F22 | Real data (mice, GBLUP): EBVs of animals without close relatives in the training data are over-dispersed (across families: regression 0.66 body weight, 0.52 body length; forward in time, mice tested in 2004: dispersion 0.90 ± 0.02); Holstein EBVs from relatives only: 0.72–0.82 | **partly explained** (round 16) | factor study (§7.20): a full-sib family (common environment) effect is strongly supported (LR statistics 21.6, 14.8) and raises the slope to 0.73 / 0.56; fold-wise variance estimation adds 0.03–0.05; the G frequency base and ridge do not matter; fewer markers did not lower the slope (linkage hypothesis not supported). Fit a common-environment (litter/family) term where full sibs share an environment (REML: any number of iid terms; Gibbs: round 16); remaining candidates: genomic covariance between distant relatives larger than realised, heterogeneous variance, sampling (169 families) |
 | E1 | Engineering: with every core busy, multi-threaded OpenBLAS made the 12 s API example's multi-trait REML exceed 600 s (thread oversubscription); with `OPENBLAS_NUM_THREADS=1` it took 20 s under the same load (round 9) | open (documented) | set `OPENBLAS_NUM_THREADS` (or the BLAS thread count) when ABP shares a machine; the benchmarks and studies already set one thread per worker |
 
 ## 9. Defects found and fixed

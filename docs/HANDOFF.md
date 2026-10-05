@@ -272,7 +272,8 @@ See `docs/validation_report.md` §8. The most important:
 * **F22 (partly explained, round 16)**: over-dispersion of EBVs without close relatives
   (mice across families 0.66; forward in time 0.90 ± 0.02); a full-sib family effect is
   strongly supported and raises the slope to 0.73; frequency base, ridge and marker density
-  are not the cause; non-additive variance shared by full sibs is the next hypothesis.
+  are not the cause; next hypothesis: the genomic covariance between distant relatives is
+  overstated.
 * **Round-15 defect (fixed)**: the REML zero-variance check accepted a false zero
   when variances are large (milk in lb: additive 0 instead of 925,611; 8 of 30
   simulated data sets with y × 3,000). Any earlier fit of a large-variance trait that
@@ -335,9 +336,10 @@ sommer, F22 factor study). Round 15 found and fixed a REML boundary defect. Next
    instead of stopping with ABP-E300.
 2. Multi-trait threshold model: residual correlations between categorical traits (a
    correlation-matrix step for the liabilities, e.g. parameter expansion).
-3. F22 remainder: test non-additive (dominance) variance shared by full sibs as the
-   cause of the remaining over-dispersion (slope 0.73); a dominance relationship term
-   in REML would allow it.
+3. F22 remainder (slope 0.73 with the family effect): test whether the genomic
+   covariance between distant relatives is overstated, e.g. by a two-component G
+   (close and distant relationships with separate variances) or by weighting G toward
+   the realised relationships of the training animals.
 4. Sparse LDL': general supernodes (dense updates for every front, not only the
    trailing block); compare the Windows and Linux CI timings (`--preset ci`).
 5. F16 remainder: the least informed trait of three stays 7% optimistic even with
