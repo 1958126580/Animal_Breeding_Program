@@ -835,7 +835,7 @@ def test_several_categorical_traits_need_separate_residual_groups():
     X = sp.csr_matrix(np.ones((n, 1)))
     cfg = MT.MTThresholdGibbsConfig(chains=2, iterations=20, burn_in=5, thin=1,
                                     max_iterations=20, seed=1)
-    for groups in (None, [[0, 1], [2]]):
+    for groups in (None, [[0, 1, 2]]):
         with pytest.raises(ABPError) as e:
             MT.mt_threshold_gibbs(Y, [0, 1], X, np.arange(n), ped.ainv(),
                                   MT.MTThresholdGibbsConfig(**{**cfg.__dict__,
@@ -848,6 +848,14 @@ def test_several_categorical_traits_need_separate_residual_groups():
                                 MT.MTThresholdGibbsConfig(**{**cfg.__dict__,
                                                              "residual_groups": [[0, 2], [1]]}))
     assert "tau0_2" not in res.traces and res.R0["mean"][0][1] == 0.0
+    # round 16: two categorical traits alone in one group: their residual correlation is
+    # sampled (no longer fixed at 0) and both residual variances stay at 1
+    res = MT.mt_threshold_gibbs(Y, [0, 1], X, np.arange(n), ped.ainv(),
+                                MT.MTThresholdGibbsConfig(**{**cfg.__dict__,
+                                                             "residual_groups": [[0, 1], [2]]}))
+    tr = res.traces["R0_0_1"]
+    assert np.ptp(tr) > 0 and np.all(np.abs(tr) < 1)
+    assert "R0_0_0" not in res.traces and "R0_1_1" not in res.traces
 
 
 def _dense_iids(Y, Xs, animal_col, cols, Kinv, R0, G0, Ps):
@@ -970,3 +978,68 @@ def test_iid_term_lists_are_checked():
     with pytest.raises(ABPError, match="too few levels"):
         MT.mt_threshold_gibbs(Y, None, X, col, ped.ainv(), MT.MTThresholdGibbsConfig(**base),
                               pe_col=[col, col // 20])
+
+
+@pytest.mark.parametrize("rho_true,n", [(0.6, 200), (0.97, 400), (-0.3, 50)])
+def test_residual_correlation_draw_matches_quadrature(rho_true, n):
+    """Round 16: the draw of the residual correlation of two categorical traits (both
+    residual variances fixed at 1) has the moments of its one-dimensional density
+    p(rho | E) computed by direct quadrature (independent of the sampler's grid)."""
+    from scipy.integrate import quad
+    rng = np.random.default_rng(31)
+    L = np.linalg.cholesky([[1.0, rho_true], [rho_true, 1.0]])
+    E = rng.standard_normal((n, 2)) @ L.T
+    S = E.T @ E
+    lp = lambda r: MT.residual_correlation_logpdf(r, n, S)  # noqa: E731
+    mode = max(np.linspace(-0.999, 0.999, 20001), key=lambda r: float(lp(r)))
+    c = float(lp(mode))
+    f = lambda r: math.exp(float(lp(r)) - c)  # noqa: E731
+    pts = [mode]
+    Z = quad(f, -1 + 1e-12, 1 - 1e-12, points=pts, limit=400)[0]
+    m1 = quad(lambda r: r * f(r), -1 + 1e-12, 1 - 1e-12, points=pts, limit=400)[0] / Z
+    m2 = quad(lambda r: r * r * f(r), -1 + 1e-12, 1 - 1e-12, points=pts, limit=400)[0] / Z
+    sd = math.sqrt(m2 - m1 * m1)
+    D = np.array([MT.draw_residual_correlation(E, rng) for _ in range(20000)])
+    assert abs(D.mean() - m1) < 4 * sd / math.sqrt(D.size)
+    assert abs(D.std() / sd - 1.0) < 0.03
+    assert np.all(np.abs(D) < 1)
+
+
+def test_two_binary_traits_with_residual_correlation_are_recovered():
+    """Round 16: two binary traits in one residual group: the residual correlation of the
+    liabilities (true 0.5) is estimated together with G0; one simulated data set, the
+    posterior mean must lie within 3 posterior SD of the truth, and the draws of R0 keep
+    both residual variances at exactly 1."""
+    ped, rng = _ped(1500, 7, 30)
+    q = ped.n
+    animal_col = np.arange(q)
+    G0 = np.array([[0.3, 0.1], [0.1, 0.3]])
+    A = ped.a_dense()
+    U = np.linalg.cholesky(A + 1e-10 * np.eye(q)) @ rng.standard_normal((q, 2)) \
+        @ np.linalg.cholesky(G0).T
+    E = rng.standard_normal((q, 2)) @ np.linalg.cholesky([[1.0, 0.5], [0.5, 1.0]]).T
+    L = np.array([0.2, -0.3]) + U + E
+    Y = (L > 0).astype(float)
+    Xs = [sp.csr_matrix(np.ones((q, 1))) for _ in range(2)]
+    cfg = MT.MTThresholdGibbsConfig(chains=3, iterations=2500, burn_in=500, thin=2,
+                                    max_iterations=2500, seed=17, residual_groups=[[0, 1]],
+                                    prior_nu=5.0, prior_G0=np.diag([0.3, 0.3]))
+    res = MT.mt_threshold_gibbs(Y, [0, 1], Xs, animal_col, ped.ainv(), cfg)
+    m = res.R0["mean"][0][1]
+    s = res.R0["sd"][0][1]
+    assert abs(m - 0.5) < 3 * s + 0.02, (m, s)
+    assert np.allclose(np.diag(np.array(res.R0["mean"])), 1.0)
+    assert "R0_0_1" in res.traces and np.all(np.abs(res.traces["R0_0_1"]) < 1)
+
+
+def test_residual_groups_with_categorical_traits_are_checked():
+    ped, rng = _ped(60, 2, 8)
+    n = ped.n
+    Y = np.column_stack([rng.integers(0, 2, n), rng.integers(0, 2, n),
+                         rng.normal(size=n)]).astype(float)
+    X = sp.csr_matrix(np.ones((n, 1)))
+    base = dict(chains=2, iterations=10, burn_in=5, max_iterations=10)
+    # two categorical traits together with a continuous one: refused
+    with pytest.raises(ABPError, match="residual group"):
+        MT.mt_threshold_gibbs(Y, [0, 1], X, np.arange(n), ped.ainv(),
+                              MT.MTThresholdGibbsConfig(**base, residual_groups=[[0, 1, 2]]))

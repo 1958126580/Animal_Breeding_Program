@@ -1727,7 +1727,45 @@ shared by full sibs (§7.20). Each term has its own incidence (records → level
 * the workflow runs with a permanent environment and a litter term;
 * the single-term tests are unchanged.
 
-## 37. References (additions)
+## 37. Residual correlation of two categorical traits (threshold model)
+
+Code: `abp/solvers/mt_threshold_gibbs.py` (`draw_residual_correlation`,
+`residual_correlation_logpdf`, `draw_R0`); round 16.
+
+Two ordered categorical traits may share a residual group with no other trait in it.
+Their residual variances are fixed at 1, which identifies the liability scale, so the
+block is `[[1, ρ], [ρ, 1]]` and ρ is the residual correlation of the two liabilities.
+Before round 16 it was fixed at 0 (each categorical trait alone in its group).
+
+* **Conditional distribution.** Given the residuals `E` (n × 2) of the two liabilities,
+  with `S = E′E` and a uniform prior on (−1, 1):
+  `log p(ρ | E) = −n/2 log(1 − ρ²) − (S₁₁ + S₂₂ − 2ρS₁₂) / (2(1 − ρ²)) + const`.
+  This is the bivariate normal likelihood with unit variances.
+* **Exact draw.** The density is one-dimensional, so it is sampled by inverse CDF. It is
+  first evaluated on a coarse grid of 20,001 points over (−1, 1); then on 4,001 points
+  over the region where it exceeds 10⁻¹² of its maximum. A point is drawn by inverting the
+  piecewise-linear CDF (a quadratic within the interval). No Metropolis step is involved,
+  and the draw does not depend on the previous value.
+* **Use in the sampler.** The liabilities of the two traits are drawn in turn, each given
+  the other through the conditional normal with the current ρ (the existing step 1, which
+  conditions on every observed trait of the record). Records with only one of the two
+  traits observed contribute residuals from the missing-trait step, as for continuous
+  traits.
+* **Restrictions.** A group may hold one categorical trait together with continuous
+  traits (Korsgaard step, §31), or exactly two categorical traits. Three or more
+  categorical traits in one group, and two categorical traits sharing a group with a
+  continuous one, are refused. An R0 prior does not apply to such a block.
+
+**Tests** (`tests/test_mt_threshold_gibbs.py`):
+
+* the moments of the draw equal those from direct quadrature of the density, for
+  ρ = 0.6, 0.97 and −0.3 with n = 200, 400 and 50 (`test_residual_correlation_draw_matches_quadrature`);
+* two binary traits with a residual correlation of 0.5 are recovered within 3 posterior
+  SD, with both residual variances kept at exactly 1
+  (`test_two_binary_traits_with_residual_correlation_are_recovered`);
+* the group rules are checked.
+
+## 38. References (additions)
 
 * Erbe M, Hayes BJ, Matukumalli LK, et al. (2012) J Dairy Sci 95:4114–4129.
 * Habier D, Fernando RL, Kizilkaya K, Garrick DJ (2011) BMC Bioinformatics 12:186.

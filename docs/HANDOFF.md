@@ -83,8 +83,9 @@ method in `docs/method_registry.toml`):
   `ranef()` returns `relfac %*% b`; the BLUP is `t(relfac) %*% b`); forward-in-time LR
   validation on the mice (dispersion 0.90 ± 0.02); F22 factor study (common family
   environment partly explains it); several iid terms in the multi-trait Gibbs samplers;
-  CI timings on Windows and Linux and a wheel build + clean-install job; 366 tests pass
-  against the installed wheel;
+  residual correlation of two categorical traits (exact inverse-CDF draw); CI timings
+  on Windows and Linux and a wheel build + clean-install job; 366 tests pass against the
+  installed wheel; a complete `abp run` with 200,000 animals (252 s, 7.47 GB);
 * **round 15**: first real-data validation (G5 partial): examples 20 (Holstein
   lactations, pedigreemm) and 21 (genotyped mice, BGLR), data fetched on demand
   (`fetch_data.py`, SHA-256, GPL data not stored; needs `pip install rdata`);
@@ -334,8 +335,9 @@ sommer, F22 factor study). Round 15 found and fixed a REML boundary defect. Next
 1. Maternal models: multi-trait maternal REML; a second-order or bootstrap correction
    for the maternal PEV under REML (F20); a singular-G0 (reduced-rank) maternal fit
    instead of stopping with ABP-E300.
-2. Multi-trait threshold model: residual correlations between categorical traits (a
-   correlation-matrix step for the liabilities, e.g. parameter expansion).
+2. Multi-trait threshold model: a replicated study of the residual correlation of two
+   categorical traits (implemented in round 16 for two traits alone in one group);
+   three or more categorical traits sharing residuals (a correlation-matrix step).
 3. F22 remainder (slope 0.73 with the family effect): test whether the genomic
    covariance between distant relatives is overstated, e.g. by a two-component G
    (close and distant relationships with separate variances) or by weighting G toward

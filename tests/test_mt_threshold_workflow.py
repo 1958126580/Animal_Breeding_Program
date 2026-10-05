@@ -562,7 +562,8 @@ def test_spec_rules_for_maternal_effects():
 
 def test_spec_rules_for_several_categorical_traits():
     """Round 14: several categorical traits in bayes.method = 'threshold', each in a
-    different residual group; an R0 prior needs every categorical trait alone."""
+    different residual group (round 16: or two categorical traits alone in one group);
+    an R0 prior needs every categorical trait alone."""
     base = {
         "schema_version": "1",
         "project": {"name": "x", "species": "sheep", "synthetic_data": True},
@@ -581,11 +582,14 @@ def test_spec_rules_for_several_categorical_traits():
     assert validate_spec_dict(base)
     assert validate_spec_dict(dict(base, bayes={"method": "threshold",
                                                 "residual_groups": {"w": 1, "v": 1, "s": 2}}))
+    # round 16: two categorical traits alone in one group (residual correlation estimated)
+    assert validate_spec_dict(dict(base, bayes={"method": "threshold",
+                                                "residual_groups": {"w": 1, "v": 2, "s": 2}}))
     G3 = [[1.0, 0.0, 0.0], [0.0, 0.2, 0.0], [0.0, 0.0, 0.2]]
     bad = [
         dict(base, bayes={"method": "threshold"}),                         # no groups
-        dict(base, bayes={"method": "threshold",                           # same group
-                          "residual_groups": {"w": 1, "v": 2, "s": 2}}),
+        dict(base, bayes={"method": "threshold",          # both with a continuous trait
+                          "residual_groups": {"w": 1, "v": 1, "s": 1}}),
         dict(base, bayes={"method": "threshold", "residual_groups": {"w": 1, "v": 1, "s": 2},
                           "variance_prior": "inverse_wishart", "nu": 5.0,
                           "prior_covariance": {"animal": G3, "residual": G3}}),

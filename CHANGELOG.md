@@ -17,6 +17,10 @@ Evidence: `docs/validation_report.md` §7.20.
   diagnostics, `<term>_multitrait.csv`, traces `P<k>_i_j`, `c2iid<k>_j`). The first term
   keeps the single-term names and files. Tests against the dense MME, recovery of both
   covariance matrices, workflow test. Methods §36.
+- Residual correlation between two categorical traits in the multi-trait threshold model:
+  two categorical traits alone in one residual group get the block [[1, ρ], [ρ, 1]].
+  ρ is drawn exactly (inverse CDF of its one-dimensional density); it was fixed at 0
+  before. Tests against quadrature and a recovery test. Methods §37.
 - Comparison scripts with established R packages (test oracles, not dependencies):
   `benchmarks/real_milk_pedigreemm_comparison.py` (pedigreemm 0.3-5) and
   `benchmarks/real_mice_software_comparison.py` (rrBLUP 4.6.3, sommer 4.3.6), R scripts in
@@ -32,7 +36,8 @@ Evidence: `docs/validation_report.md` §7.20.
   Locally the full test suite passes against the installed wheel (366 tests).
 
 ### Changed
-- Spec: the Bayesian multi-trait models accept any number of iid terms.
+- Spec: the Bayesian multi-trait models accept any number of iid terms;
+  `bayes.residual_groups` may put two categorical traits alone in one group.
 
 ## [0.15.0] - 2026-10-03
 

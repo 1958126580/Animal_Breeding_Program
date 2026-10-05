@@ -1615,10 +1615,23 @@ abp run examples/19_sheep_two_categorical/analysis.toml --out runs/ex19
 ```
 
 Every categorical trait has its own thresholds (`thresholds_by_trait` in the results)
-and a residual variance fixed at 1. ABP does **not** estimate residual covariances
-between two categorical traits: they are 0 by construction, so use the model for traits
-recorded at different times or accept that a residual correlation would partly show up
-in the genetic one. The genetic covariances between all traits are estimated. In a
+and a residual variance fixed at 1. With each categorical trait in its own group, the
+residual covariance between two categorical traits is 0. The genetic covariances between
+all traits are estimated.
+
+**Residual correlation of two categorical traits** (since 0.16.0). If two categorical
+traits are recorded on the same occasion and may share a temporary environment, put
+them **alone** in one residual group. Their residual correlation ρ is then estimated, and
+both residual variances stay at 1:
+
+```toml
+residual_groups = { wwt = 1, vigour = 2, surv = 2 }   # vigour and survival share residuals
+```
+
+ρ is reported as `R0_<i>_<j>` in the summaries and traces. A group can hold one
+categorical trait with continuous traits, or exactly two categorical traits. Two
+categorical traits plus a continuous one in one group is refused. With binary traits,
+each record carries little information about ρ, so expect wide posterior intervals. In a
 30-replicate study (validation report §7.18) the joint model made the EBVs of a
 three-category and a binary trait clearly more accurate than single-trait threshold
 models (realized accuracy +0.05 and +0.08) with calibrated or conservative

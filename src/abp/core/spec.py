@@ -664,10 +664,17 @@ def validate_spec_dict(raw: dict) -> dict:
         if d["bayes"]["method"] == "threshold" and n_cat > 1:
             rg0 = d["bayes"]["residual_groups"]
             cats_m = [x for x in m["traits"] if x in cat_traits]
-            if rg0 is None or len({rg0.get(x) for x in cats_m}) != n_cat:
+            ok_groups = rg0 is not None
+            if ok_groups:
+                for grp in set(rg0.values()):
+                    members = [x for x in m["traits"] if rg0.get(x) == grp]
+                    k = sum(1 for x in members if x in cats_m)
+                    if k > 1 and not (k == 2 and len(members) == 2):
+                        ok_groups = False
+            if not ok_groups:
                 raise _err("bayes.residual_groups", "with several categorical traits put each "
-                           "in a different residual group (their residual covariances are "
-                           "not estimated in this version)")
+                           "in a different residual group, or two categorical traits alone "
+                           "in one group (their residual correlation is then estimated)")
         if d["bayes"]["method"] == "multitrait" and n_cat != 0:
             raise _err("bayes.method", "'multitrait' is for continuous traits; a categorical "
                                        "trait needs method = 'threshold'")

@@ -497,9 +497,13 @@ def draw_R0(E: np.ndarray, c, rng, groups: list | None = None,
         B = list(B)
         EB = E[:, B]
         inb = [x for x in B if x in cset]
-        if len(inb) > 1:
-            raise ABPError("SPEC_INVALID", "at most one categorical trait per residual group")
-        if inb:
+        if len(inb) > 1 and not (len(inb) == 2 and len(B) == 2):
+            raise ABPError("SPEC_INVALID", "a residual group may hold one categorical trait "
+                           "(with continuous traits) or exactly two categorical traits")
+        if len(inb) == 2:
+            rho = draw_residual_correlation(EB, rng)
+            R0[np.ix_(B, B)] = np.array([[1.0, rho], [rho, 1.0]])
+        elif inb:
             R0[np.ix_(B, B)] = _draw_R0_categorical(EB, B.index(inb[0]), rng)
         else:
             S = EB.T @ EB
@@ -509,6 +513,49 @@ def draw_R0(E: np.ndarray, c, rng, groups: list | None = None,
             R0[np.ix_(B, B)] = np.atleast_2d(invwishart.rvs(
                 df=n + nb, scale=0.5 * (S + S.T), random_state=rng))
     return R0
+
+
+def residual_correlation_logpdf(rho, n: int, S: np.ndarray):
+    """Log density (up to a constant) of the residual correlation ``rho`` of two
+    categorical traits whose residual variances are fixed at 1, given ``n`` residual
+    pairs with cross-product matrix ``S``, under a uniform prior on (-1, 1):
+    ``-n/2 log(1 - rho^2) - (S11 + S22 - 2 rho S12) / (2 (1 - rho^2))``."""
+    rho = np.asarray(rho, dtype=np.float64)
+    one = 1.0 - rho * rho
+    return -0.5 * n * np.log(one) - (S[0, 0] + S[1, 1] - 2.0 * rho * S[0, 1]) / (2.0 * one)
+
+
+def draw_residual_correlation(E: np.ndarray, rng, n_grid: int = 4001) -> float:
+    """Exact draw (inverse CDF on an adaptive grid) of the residual correlation of two
+    categorical traits in one residual group (round 16).  ``E``: ``n x 2`` residuals of
+    the two liabilities.  The density is one-dimensional, so it is evaluated on a coarse
+    grid over (-1, 1), then on a fine grid of ``n_grid`` points spanning the region where
+    the coarse density exceeds 1e-12 of its maximum (always containing the mode), and a
+    point is drawn by inverting the piecewise-linear CDF."""
+    n = E.shape[0]
+    S = E.T @ E
+    lim = 1.0 - 1e-9
+    g = np.linspace(-lim, lim, 20001)
+    lp = residual_correlation_logpdf(g, n, S)
+    keep = np.flatnonzero(lp > lp.max() - 27.6)             # density > 1e-12 x maximum
+    lo = g[max(keep[0] - 1, 0)]
+    hi = g[min(keep[-1] + 1, g.size - 1)]
+    x = np.linspace(lo, hi, n_grid)
+    lpx = residual_correlation_logpdf(x, n, S)
+    w = np.exp(lpx - lpx.max())
+    cdf = np.concatenate([[0.0], np.cumsum(0.5 * (w[1:] + w[:-1]) * np.diff(x))])
+    u = rng.random() * cdf[-1]
+    k = int(np.clip(np.searchsorted(cdf, u) - 1, 0, x.size - 2))
+    # inside interval k the density is linear: solve the quadratic for the position
+    a, b = w[k], w[k + 1]
+    h = x[k + 1] - x[k]
+    r = u - cdf[k]
+    if abs(b - a) < 1e-14 * max(a, b, 1e-300):
+        t = r / max(a * h, 1e-300)
+    else:
+        slope = (b - a) / h
+        t = (-a + math.sqrt(max(a * a + 2.0 * slope * r, 0.0))) / slope / h
+    return float(x[k] + np.clip(t, 0.0, 1.0) * h)
 
 
 def _draw_R0_categorical(E: np.ndarray, c: int, rng) -> np.ndarray:
@@ -884,13 +931,16 @@ def mt_threshold_gibbs(Y, cat: int | None, X, animal_col, k_inv, cfg: MTThreshol
         if np.any((label[:, None] != label[None, :]) & (R0s != 0)):
             raise ABPError("SPEC_INVALID", "start R0 must be 0 between residual groups")
     if len(cs) > 1:
-        # several categorical traits: each in a residual group of its own (no residual
-        # covariance between two liabilities; the Korsgaard step handles one per block)
+        # several categorical traits: each in a residual group of its own, or (round 16)
+        # two categorical traits alone in one group, whose residual correlation is sampled
         blocks = P.groups or [list(range(t))]
-        if any(sum(1 for x in B if x in cs) > 1 for B in blocks):
-            raise ABPError("SPEC_INVALID", "with several categorical traits put each in a "
-                           "different residual group (residual_groups); residual covariances "
-                           "between two categorical traits are not estimated in this version")
+        for B in blocks:
+            k = sum(1 for x in B if x in cs)
+            if k > 1 and not (k == 2 and len(B) == 2):
+                raise ABPError("SPEC_INVALID", "with several categorical traits put each in a "
+                               "different residual group (residual_groups), or two "
+                               "categorical traits alone in one group (their residual "
+                               "correlation is then estimated)")
     if cfg.prior_R0 is not None:
         if cfg.prior_nu_r is None:
             raise ABPError("SPEC_INVALID", "prior_R0 needs prior_nu_r")

@@ -1204,6 +1204,17 @@ covariance matrices, G0 and R0 are recovered within 3.5 posterior SD
 (`test_two_iid_terms_recover_their_covariances`). A workflow test runs two terms
 end to end.
 
+**Residual correlation of two categorical traits** (methods §37). This is a feature;
+its tests:
+
+* the exact draw of ρ has the mean and SD of its density computed by quadrature
+  (ρ = 0.6, 0.97, −0.3; 20,000 draws each);
+* on one simulated data set of 1,500 animals with two binary traits (residual correlation
+  0.5), the posterior mean of ρ lies within 3 posterior SD of 0.5, and both residual
+  variances stay at 1.
+
+No replicated calibration study of ρ was run.
+
 ### 7.8 Other
 
 REML calibration: across 40 replicates simulated from the model (σ²a = 2,
@@ -1236,7 +1247,7 @@ for the four-trait example.
 | F15 | Rank selection by the smallest AIC wrongly reduced a full-rank G0 (r_G 0.6) to rank 1 in 19 of 100 data sets, making trait-2 PEV about four times too small | **resolved** (round 7) | ABP moves to a lower rank only if its AIC is smaller by ≥ 2: 0 of 100 wrong reductions; the cost is that a true rank 1 is found in 58/100 instead of 97/100 (the full-rank model is kept in the rest) (§7.11) |
 | F19 | Bayesian maternal animal model (one record per animal, flat priors): the posterior mean of the maternal variance looked biased upwards (2.54 ± 0.19 vs 2.0 over 20 replicates; example 18: 3.9) while the EBV posterior PEVs were calibrated (direct 1.03, maternal 0.98) | revised (round 13) | REML on the same seeds gives 2.46 and is unbiased over 200 replicates (2.06 ± 0.07, §7.17): the 20 seeds were a high draw; the method-specific part is the posterior-mean excess over REML, +0.17 ± 0.05 (≈7%) with flat priors and −0.05 with weak data-only priors (§7.16). Use weak priors or REML for point estimates; report intervals |
 | F20 | Maternal animal model by REML: the plug-in maternal PEV is optimistic when the maternal variance is underestimated (MSE/PEV 1.56 ± 0.19 over 192 fits, median 1.04; 5.19 in the 24 fits with an estimate below 1.0) | open (round 13) | Kackar–Harville columns reduce it (1.35, median 1.00) but not for the low estimates (3.72); the Bayesian posterior PEV is calibrated (0.98); prefer the Bayesian model, or read maternal reliabilities from the Kackar–Harville columns, when the maternal variance is poorly determined |
-| F21 | Several categorical traits (one record per animal and trait): the binary trait's liability variance is overestimated (0.25 vs 0.16, prior centred at 0.2) and genetic correlations are pulled towards the prior's centre (0.35 vs 0.5 with a prior at zero covariance); residual covariances between categorical traits are fixed at 0 by the model | open (round 14) | joint modelling still improves the categorical EBVs (+0.05, +0.08 accuracy) with calibrated or conservative reliabilities (§7.18); take prior variances and covariances from published estimates and report them; repeated records or progeny-tested sires identify the covariances better |
+| F21 | Several categorical traits (one record per animal and trait): the binary trait's liability variance is overestimated (0.25 vs 0.16, prior centred at 0.2) and genetic correlations are pulled towards the prior's centre (0.35 vs 0.5 with a prior at zero covariance); residual covariances between categorical traits were fixed at 0 by the model (round 16: two categorical traits alone in one residual group get an estimated residual correlation, methods §37) | open (round 14) | joint modelling still improves the categorical EBVs (+0.05, +0.08 accuracy) with calibrated or conservative reliabilities (§7.18); take prior variances and covariances from published estimates and report them; repeated records or progeny-tested sires identify the covariances better |
 | F22 | Real data (mice, GBLUP): EBVs of animals without close relatives in the training data are over-dispersed (across families: regression 0.66 body weight, 0.52 body length; forward in time, mice tested in 2004: dispersion 0.90 ± 0.02); Holstein EBVs from relatives only: 0.72–0.82 | **partly explained** (round 16) | factor study (§7.20): a full-sib family (common environment) effect is strongly supported (LR statistics 21.6, 14.8) and raises the slope to 0.73 / 0.56; fold-wise variance estimation adds 0.03–0.05; the G frequency base and ridge do not matter; fewer markers did not lower the slope (linkage hypothesis not supported). Fit a common-environment (litter/family) term where full sibs share an environment (REML: any number of iid terms; Gibbs: round 16); remaining candidates: genomic covariance between distant relatives larger than realised, heterogeneous variance, sampling (169 families) |
 | E1 | Engineering: with every core busy, multi-threaded OpenBLAS made the 12 s API example's multi-trait REML exceed 600 s (thread oversubscription); with `OPENBLAS_NUM_THREADS=1` it took 20 s under the same load (round 9) | open (documented) | set `OPENBLAS_NUM_THREADS` (or the BLAS thread count) when ABP shares a machine; the benchmarks and studies already set one thread per worker |
 
@@ -1351,7 +1362,6 @@ kept the original acceptance threshold.
 | Posterior SBC near the target data | the prior SBC (§7.3) checks the computation over the prior; a posterior SBC is a further step |
 | Comparison with BLUPF90, MiXBLUP, ASReml, DMU, JWAS | not installed or licensed in this environment (round 16 compared with the open R packages pedigreemm, rrBLUP and sommer instead, §7.20) |
 | Independent mature simulator (AlphaSimR, QMSim, XSim) | not installed; ABP's generators are independent of its solver code but are not mature external simulators |
-| Residual covariances between two categorical traits in the multi-trait threshold model | not implemented (several categorical traits: round 14; several iid terms: round 16) |
 | Multi-trait maternal REML; a correction of the plug-in maternal PEV under REML (F20) | not implemented (single-trait maternal REML: round 13) |
 | Second-order Kackar–Harville correction (F16) | not implemented |
 | Signed installer, published binary release (PyPI or GitHub release) | wheels are built and installed into clean environments in CI on Windows and Linux and locally (366 tests against the installed wheel), but nothing is published: the project licence is not chosen |
