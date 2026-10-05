@@ -209,13 +209,15 @@ def test_spec_rules_for_the_multitrait_threshold_model():
                           "prior_covariance": {"animal": [[1.0, 2.0], [2.0, 1.0]]}}),
         dict(base, bayes={"method": "threshold", "variance_prior": "scaled_inv_chi2",
                           "prior_variances": {"animal": 0.2}}),
-        dict(base, model=dict(base["model"], random=base["model"]["random"]
-                              + [{"name": "pe", "kind": "iid"},
-                                 {"name": "pe2", "kind": "iid", "column": "id"}])),
     ]
     for b in bad:
         with pytest.raises(ABPError):
             validate_spec_dict(b)
+    # round 16: several iid terms are allowed in the multi-trait Gibbs models
+    assert validate_spec_dict(dict(base, model=dict(base["model"], random=base["model"]["random"]
+                                                    + [{"name": "pe", "kind": "iid"},
+                                                       {"name": "pe2", "kind": "iid",
+                                                        "column": "id"}])))
     # round 10: one permanent-environment term is allowed in the multi-trait Gibbs models
     assert validate_spec_dict(dict(base, model=dict(base["model"], random=base["model"]["random"]
                                                     + [{"name": "pe", "kind": "iid"}])))
@@ -254,9 +256,11 @@ def test_examples_15_16_spec_and_data_validate(name):
     assert main(["validate", str(ex if ex.suffix == ".toml" else ex / "analysis.toml")]) == 0
 
 
-def _write_repeated(tmp_path, bayes_lines: str, n: int = 120, n_rec: int = 3):
+def _write_repeated(tmp_path, bayes_lines: str, n: int = 120, n_rec: int = 3,
+                    litter: bool = False):
     """Two continuous traits, n_rec records per non-founder animal, a permanent
-    environment shared by an animal's records."""
+    environment shared by an animal's records; ``litter``: also a 'litter' effect shared
+    by groups of 3 animals (a second iid term, round 16)."""
     rng = np.random.default_rng(21)
     ids = [f"a{i}" for i in range(n)]
     male = np.arange(n) % 2 == 0
@@ -273,21 +277,27 @@ def _write_repeated(tmp_path, bayes_lines: str, n: int = 120, n_rec: int = 3):
                            * rng.standard_normal((n, 2)), lower=True, unit_diagonal=True)
     U = F @ np.linalg.cholesky([[1.0, 0.3], [0.3, 0.6]]).T
     PE = rng.standard_normal((n, 2)) @ np.linalg.cholesky([[0.5, 0.1], [0.1, 0.4]]).T
+    LIT = np.zeros((n // 3 + 1, 2))        # drawn only with litter=True (same data otherwise)
+    if litter:
+        LIT = rng.standard_normal((n // 3 + 1, 2)) @ np.linalg.cholesky([[0.6, 0.2],
+                                                                         [0.2, 0.5]]).T
     with open(tmp_path / "ped.csv", "w", encoding="utf-8") as fh:
         fh.write("id,sire,dam,sex\n")
         for a, s_, d_, m_ in zip(ids, s, d, male):
             fh.write(f"{a},{s_ or '0'},{d_ or '0'},{'M' if m_ else 'F'}\n")
     with open(tmp_path / "phe.csv", "w", encoding="utf-8") as fh:
-        fh.write("rec,id,parity,y1,y2\n")
+        fh.write("rec,id,parity,litter,y1,y2\n")
         k = 0
         for i in range(n):
             for p in range(n_rec):
                 e = rng.standard_normal(2) @ np.linalg.cholesky([[1.5, 0.3], [0.3, 1.0]]).T
-                y = np.array([10.0, 4.0]) + 0.3 * p + U[i] + PE[i] + e
+                y = np.array([10.0, 4.0]) + 0.3 * p + U[i] + PE[i] + LIT[i // 3] + e
                 y2 = "NA" if rng.random() < 0.2 else f"{y[1]:.4f}"
-                fh.write(f"r{k},{ids[i]},p{p + 1},{y[0]:.4f},{y2}\n")
+                fh.write(f"r{k},{ids[i]},p{p + 1},L{i // 3},{y[0]:.4f},{y2}\n")
                 k += 1
     spec = tmp_path / "rep.toml"
+    litter_term = (',\n          { name = "litter", kind = "iid", column = "litter" }'
+                   if litter else "")
     spec.write_text(f"""schema_version = "1"
 [project]
 name = "mtpe"
@@ -315,7 +325,7 @@ unit = "kg"
 traits = ["y1", "y2"]
 fixed = [{{ column = "parity", type = "factor" }}]
 random = [{{ name = "animal", kind = "additive", relationship = "pedigree" }},
-          {{ name = "pe", kind = "iid" }}]
+          {{ name = "pe", kind = "iid" }}{litter_term}]
 [variances]
 mode = "bayes"
 [bayes]
@@ -353,6 +363,35 @@ ess_min = 100""")
     assert len(rows) == 120 and {"pe_y1", "pe_y2"} <= set(rows[0])
 
 
+def test_workflow_multitrait_with_two_iid_terms(tmp_path):
+    """Round 16: a permanent environment and a litter effect (two iid terms) in the
+    Bayesian multi-trait linear model: both covariance matrices are sampled, reported
+    (variance components, diagnostics, traces) and their solutions written."""
+    from abp.workflows.evaluate import run_evaluation
+    spec = _write_repeated(tmp_path, """variance_prior = "inverse_wishart"
+nu = 6.0
+prior_covariance = { animal = [[1.0, 0.0], [0.0, 0.5]], pe = [[0.5, 0.0], [0.0, 0.5]], litter = [[0.5, 0.0], [0.0, 0.5]] }
+chains = 4
+iterations = 2000
+burn_in = 400
+thin = 2
+max_iterations = 8000
+rhat_max = 1.05
+ess_min = 100""", litter=True)
+    out = run_evaluation(spec, tmp_path / "o", console=False)
+    assert out.status == "passed"
+    r = out.results["traits"]["y1"]
+    assert {"pe", "litter"} <= set(r["variance_components"])
+    assert r["files"]["iid_litter"] == "litter_multitrait.csv"
+    diag = json.loads((out.out_dir / "mcmc_diagnostics_multitrait.json").read_text("utf-8"))
+    terms = {x["term"]: x for x in diag["iid_terms"]}
+    assert terms["pe"]["levels"] == 120 and terms["litter"]["levels"] == 40
+    assert terms["litter"]["prior"].startswith("inverse Wishart")
+    assert "P1_0_1" in diag["summaries"] and "c2iid1_0" in diag["derived"]
+    rows = list(csv.DictReader(open(out.out_dir / "litter_multitrait.csv", encoding="utf-8")))
+    assert len(rows) == 40 and {"litter_y1", "litter_y2"} <= set(rows[0])
+
+
 def test_spec_rules_for_permanent_environment_and_r0_prior():
     base = {
         "schema_version": "1",
@@ -384,8 +423,6 @@ def test_spec_rules_for_permanent_environment_and_r0_prior():
                           "nu": 5.0, "prior_covariance": {"pe": I2}}),   # additive missing
         dict(base, bayes={"method": "multitrait", "variance_prior": "inverse_wishart",
                           "nu": 5.0, "prior_covariance": {"animal": I2, "other": I2}}),
-        dict(base, model=dict(base["model"], random=base["model"]["random"]
-                              + [{"name": "pe2", "kind": "iid", "column": "id"}])),
         dict(cat, bayes={"method": "threshold", "variance_prior": "inverse_wishart",
                          "nu": 5.0, "prior_covariance": {"animal": I2, "residual": I2}}),
     ]
@@ -393,6 +430,12 @@ def test_spec_rules_for_permanent_environment_and_r0_prior():
         b = {k: v for k, v in b.items() if v is not None}
         with pytest.raises(ABPError):
             validate_spec_dict(b)
+    # round 16: a second iid term, with its own prior covariance
+    two = dict(base, model=dict(base["model"], random=base["model"]["random"]
+                                + [{"name": "pe2", "kind": "iid", "column": "id"}]))
+    assert validate_spec_dict(dict(two, bayes={"method": "multitrait",
+                                               "variance_prior": "inverse_wishart", "nu": 5.0,
+                                               "prior_covariance": {"animal": I2, "pe2": I2}}))
 
 
 def test_workflow_maternal_effects_single_trait(tmp_path):

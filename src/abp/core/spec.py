@@ -312,8 +312,8 @@ SCHEMA = Section({
                                   doc="multi-trait Gibbs models with variance_prior = "
                                       "'inverse_wishart': prior guess of the genetic "
                                       "covariance matrix (key: the additive term; required), "
-                                      "of the permanent-environment matrix (key: the iid "
-                                      "term) and of R0 (key 'residual'); IW(nu, nu * guess); "
+                                      "of the covariance matrix of each iid term (key: the "
+                                      "term's name) and of R0 (key 'residual'); IW(nu, nu * guess); "
                                       "traits in model.traits order, liability scale for the "
                                       "categorical trait."),
         "residual_groups": Field("float_map",
@@ -673,10 +673,10 @@ def validate_spec_dict(raw: dict) -> dict:
                                        "trait needs method = 'threshold'")
         adds = [r for r in m["random"] if r["kind"] == "additive"]
         iids = [r for r in m["random"] if r["kind"] == "iid"]
-        if len(adds) != 1 or len(iids) > 1:
+        if len(adds) != 1:
             raise ABPError("UNSUPPORTED_COMBINATION", "the Bayesian multi-trait models have one "
-                           "additive genetic term, at most one maternal and at most one iid "
-                           "(permanent-environment) term in this version")
+                           "additive genetic term (plus at most one maternal and any number of "
+                           "iid terms)")
         rdim = t * (2 if maternal else 1)        # genetic covariance matrix: direct, maternal
         rg = d["bayes"]["residual_groups"]
         if rg is not None:
