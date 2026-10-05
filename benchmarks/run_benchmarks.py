@@ -2,6 +2,11 @@
 """Reproducible performance measurements for ABP kernels (synthetic inputs).
 
 Usage:  python benchmarks/run_benchmarks.py [--full] [--only GROUP ...] [--out FILE]
+        python benchmarks/run_benchmarks.py --preset ci [--out FILE]
+
+``--preset ci`` (round 16) runs a fixed set of mid-size cases (a few minutes) used in
+continuous integration on Windows and Linux, so that the job logs carry comparable
+timings for both platforms.
 
 Groups: pedigree, blup, reml, g (round 1); bayes, ocs, upg, plink (round 2);
 selinv, metafounders (round 3); ldl, apy (round 4).
@@ -214,7 +219,7 @@ def case_plink(n, m):
             "bytes": len(raw), "missing_fraction": float(np.isnan(M).mean())}
 
 
-GROUPS = ("pedigree", "blup", "reml", "g", "bayes", "ocs", "upg", "plink", "selinv", "metafounders", "ldl", "apy")
+GROUPS = ("pedigree", "blup", "reml", "g", "bayes", "ocs", "upg", "plink", "selinv", "metafounders", "ldl", "apy", "ci")
 
 
 def case_selinv_pev(n_anim, n_rec, n_check=300):
@@ -307,9 +312,13 @@ def case_apy(n, m, n_core):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="include slow Python reference timings")
-    ap.add_argument("--only", nargs="+", choices=GROUPS, default=list(GROUPS))
+    ap.add_argument("--only", nargs="+", choices=GROUPS, default=[g for g in GROUPS if g != "ci"])
     ap.add_argument("--out", default=None)
+    ap.add_argument("--preset", choices=("ci",), default=None,
+                    help="'ci': fixed mid-size cases for Windows/Linux CI timings")
     args = ap.parse_args()
+    if args.preset == "ci":
+        args.only = ["ci"]
     results = {"created_at": utc_now(), "environment": environment(), "groups": args.only,
                "cases": []}
     cases = [
@@ -332,6 +341,13 @@ def main():
         ("metafounders", lambda: case_metafounders(20, 5000, 5)),
         ("ldl", lambda: case_ldl_pev(100000, 80000)),
         ("apy", lambda: case_apy(8000, 10000, 2000)),
+        ("ci", lambda: case_pedigree(10, 10000, False)),
+        ("ci", lambda: case_blup(5000, 4000, "dense", True)),
+        ("ci", lambda: case_reml(3000, 2500)),
+        ("ci", lambda: case_selinv_pev(20000, 16000)),
+        ("ci", lambda: case_reml_sparse(20000, 16000)),
+        ("ci", lambda: case_g(2000, 10000)),
+        ("ci", lambda: case_apy(4000, 10000, 1000)),
     ]
     cases = [c for grp, c in cases if grp in args.only]
     for c in cases:
